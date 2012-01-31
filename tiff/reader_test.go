@@ -10,7 +10,11 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	_ "image/png"
 )
+
+const testdataDir = "../testdata/"
 
 // Read makes *buffer implements io.Reader, so that we can pass one to Decode.
 func (*buffer) Read([]byte) (int, error) {
@@ -21,7 +25,7 @@ func (*buffer) Read([]byte) (int, error) {
 // The tag is mandatory according to the spec but some software omits
 // it in the case of a single strip.
 func TestNoRPS(t *testing.T) {
-	f, err := os.Open("testdata/no_rps.tiff")
+	f, err := os.Open(testdataDir + "no_rps.tiff")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,6 +57,50 @@ func TestUnpackBits(t *testing.T) {
 	}
 }
 
+func compare(t *testing.T, img0, img1 image.Image) {
+	b := img1.Bounds()
+	if !b.Eq(img0.Bounds()) {
+		t.Fatalf("wrong image size: want %s, got %s", img0.Bounds(), b)
+	}
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			c0 := img0.At(x, y)
+			c1 := img1.At(x, y)
+			r0, g0, b0, a0 := c0.RGBA()
+			r1, g1, b1, a1 := c1.RGBA()
+			if r0 != r1 || g0 != g1 || b0 != b1 || a0 != a1 {
+				t.Fatalf("pixel at (%d, %d) has wrong color: want %v, got %v", x, y, c0, c1)
+			}
+		}
+	}
+}
+
+// TestDecode tests that decoding a PNG image and a TIFF image result in the
+// same pixel data.
+func TestDecode(t *testing.T) {
+	f0, err := os.Open(testdataDir + "video-001.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f0.Close()
+	img0, _, err := image.Decode(f0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	f1, err := os.Open(testdataDir + "video-001.tiff")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f1.Close()
+	img1, _, err := image.Decode(f1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	compare(t, img0, img1)
+}
+
 // TestDecompress tests that decoding some TIFF images that use different
 // compression formats result in the same pixel data.
 func TestDecompress(t *testing.T) {
@@ -63,7 +111,7 @@ func TestDecompress(t *testing.T) {
 	}
 	var img0 image.Image
 	for _, name := range decompressTests {
-		f, err := os.Open("testdata/" + name)
+		f, err := os.Open(testdataDir + name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -80,31 +128,14 @@ func TestDecompress(t *testing.T) {
 		if err != nil {
 			t.Fatalf("decoding %s: %v", name, err)
 		}
-		b := img1.Bounds()
-		// Compare images.
-		if !b.Eq(img0.Bounds()) {
-			t.Fatalf("wrong image size: want %s, got %s", img0.Bounds(), b)
-		}
-		for y := b.Min.Y; y < b.Max.Y; y++ {
-			for x := b.Min.X; x < b.Max.X; x++ {
-				c0 := img0.At(x, y)
-				c1 := img1.At(x, y)
-				r0, g0, b0, a0 := c0.RGBA()
-				r1, g1, b1, a1 := c1.RGBA()
-				if r0 != r1 || g0 != g1 || b0 != b1 || a0 != a1 {
-					t.Fatalf("pixel at (%d, %d) has wrong color: want %v, got %v", x, y, c0, c1)
-				}
-			}
-		}
+		compare(t, img0, img1)
 	}
 }
 
-const filename = "testdata/video-001-uncompressed.tiff"
-
-// BenchmarkDecode benchmarks the decoding of an image.
-func BenchmarkDecode(b *testing.B) {
+// benchmarkDecode benchmarks the decoding of an image.
+func benchmarkDecode(b *testing.B, filename string) {
 	b.StopTimer()
-	contents, err := ioutil.ReadFile(filename)
+	contents, err := ioutil.ReadFile(testdataDir + filename)
 	if err != nil {
 		panic(err)
 	}
@@ -117,3 +148,6 @@ func BenchmarkDecode(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkDecodeCompressed(b *testing.B)   { benchmarkDecode(b, "video-001.tiff") }
+func BenchmarkDecodeUncompressed(b *testing.B) { benchmarkDecode(b, "video-001-uncompressed.tiff") }
