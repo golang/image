@@ -12,13 +12,8 @@ type buffer struct {
 	buf []byte
 }
 
-func (b *buffer) ReadAt(p []byte, off int64) (int, error) {
-	o := int(off)
-	end := o + len(p)
-	if int64(end) != off+int64(len(p)) {
-		return 0, io.ErrUnexpectedEOF
-	}
-
+// fill reads data from b.r until the buffer contains at least end bytes.
+func (b *buffer) fill(end int) error {
 	m := len(b.buf)
 	if end > m {
 		if end > cap(b.buf) {
@@ -35,11 +30,31 @@ func (b *buffer) ReadAt(p []byte, off int64) (int, error) {
 		if n, err := io.ReadFull(b.r, b.buf[m:end]); err != nil {
 			end = m + n
 			b.buf = b.buf[:end]
-			return copy(p, b.buf[o:end]), err
+			return err
 		}
 	}
+	return nil
+}
 
-	return copy(p, b.buf[o:end]), nil
+func (b *buffer) ReadAt(p []byte, off int64) (int, error) {
+	o := int(off)
+	end := o + len(p)
+	if int64(end) != off+int64(len(p)) {
+		return 0, io.ErrUnexpectedEOF
+	}
+
+	err := b.fill(end)
+	return copy(p, b.buf[o:end]), err
+}
+
+// Slice returns a slice of the underlying buffer. The slice contains
+// n bytes starting at offset off.
+func (b *buffer) Slice(off, n int) ([]byte, error) {
+	end := off + n
+	if err := b.fill(end); err != nil {
+		return nil, err
+	}
+	return b.buf[off:end], nil
 }
 
 // newReaderAt converts an io.Reader into an io.ReaderAt.

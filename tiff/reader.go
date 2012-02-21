@@ -397,9 +397,12 @@ func Decode(r io.Reader) (img image.Image, err error) {
 		n := int64(d.features[tStripByteCounts][i])
 		switch d.firstVal(tCompression) {
 		case cNone:
-			// TODO(bsiegert): Avoid copy if r is a tiff.buffer.
-			d.buf = make([]byte, n)
-			_, err = d.r.ReadAt(d.buf, offset)
+			if b, ok := d.r.(*buffer); ok {
+				d.buf, err = b.Slice(int(offset), int(n))
+			} else {
+				d.buf = make([]byte, n)
+				_, err = d.r.ReadAt(d.buf, offset)
+			}
 		case cLZW:
 			r := lzw.NewReader(io.NewSectionReader(d.r, offset, n), lzw.MSB, 8)
 			d.buf, err = ioutil.ReadAll(r)
