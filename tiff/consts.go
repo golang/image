@@ -89,6 +89,13 @@ const (
 	prHorizontal = 2
 )
 
+// Values for the tResolutionUnit tag (page 18).
+const (
+	resNone    = 1
+	resPerInch = 2 // Dots per inch.
+	resPerCM   = 3 // Dots per centimeter.
+)
+
 // imageMode represents the mode of the image.
 type imageMode int
 
