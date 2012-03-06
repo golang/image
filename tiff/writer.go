@@ -47,63 +47,19 @@ func (e ifdEntry) putData(p []byte) {
 	}
 }
 
-type ifd []ifdEntry
+type byTag []ifdEntry
 
-func (d ifd) Len() int {
-	return len(d)
-}
+func (d byTag) Len() int           { return len(d) }
+func (d byTag) Less(i, j int) bool { return d[i].tag < d[j].tag }
+func (d byTag) Swap(i, j int)      { d[i], d[j] = d[j], d[i] }
 
-func (d ifd) Less(i, j int) bool {
-	return d[i].tag < d[j].tag
-}
-
-func (d ifd) Swap(i, j int) {
-	d[i], d[j] = d[j], d[i]
-}
-
-type encoder struct {
-	ifd      ifd
-	img      image.Image
-	imageLen int // Length of the image in bytes.
-}
-
-func newEncoder(m image.Image) *encoder {
-	width := m.Bounds().Dx()
-	height := m.Bounds().Dy()
-	imageLen := width * height * 4
-	return &encoder{
-		img: m,
-		// For uncompressed images, imageLen is known in advance.
-		// For compressed images, we would need to write the image
-		// data in a buffer here to get its length.
-		imageLen: imageLen,
-		ifd: ifd{
-			{tImageWidth, dtShort, []uint32{uint32(width)}},
-			{tImageLength, dtShort, []uint32{uint32(height)}},
-			{tBitsPerSample, dtShort, []uint32{8, 8, 8, 8}},
-			{tCompression, dtShort, []uint32{cNone}},
-			{tPhotometricInterpretation, dtShort, []uint32{pRGB}},
-			{tStripOffsets, dtLong, []uint32{8}},
-			{tSamplesPerPixel, dtShort, []uint32{4}},
-			{tRowsPerStrip, dtShort, []uint32{uint32(height)}},
-			{tStripByteCounts, dtLong, []uint32{uint32(imageLen)}},
-			// There is currently no support for storing the image
-			// resolution, so give a bogus value of 72x72 dpi.
-			{tXResolution, dtRational, []uint32{72, 1}},
-			{tYResolution, dtRational, []uint32{72, 1}},
-			{tResolutionUnit, dtShort, []uint32{resPerInch}},
-			{tExtraSamples, dtShort, []uint32{1}}, // RGBA.
-		},
-	}
-}
-
-func (e *encoder) writeImgData(w io.Writer) error {
-	b := e.img.Bounds()
-	buf := make([]byte, 4*b.Dx())
-	for y := b.Min.Y; y < b.Max.Y; y++ {
+func writeImgData(w io.Writer, m image.Image) error {
+	bounds := m.Bounds()
+	buf := make([]byte, 4*bounds.Dx())
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		i := 0
-		for x := b.Min.X; x < b.Max.X; x++ {
-			r, g, b, a := e.img.At(x, y).RGBA()
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			r, g, b, a := m.At(x, y).RGBA()
 			buf[i+0] = uint8(r >> 8)
 			buf[i+1] = uint8(g >> 8)
 			buf[i+2] = uint8(b >> 8)
@@ -117,22 +73,22 @@ func (e *encoder) writeImgData(w io.Writer) error {
 	return nil
 }
 
-func (e *encoder) writeIFD(w io.Writer) error {
+func writeIFD(w io.Writer, ifdOffset int, d []ifdEntry) error {
 	var buf [ifdLen]byte
 	// Make space for "pointer area" containing IFD entry data
 	// longer than 4 bytes.
 	parea := make([]byte, 1024)
-	pstart := int(e.imageLen) + 8 + (ifdLen * len(e.ifd)) + 6
+	pstart := ifdOffset + ifdLen*len(d) + 6
 	var o int // Current offset in parea.
 
 	// The IFD has to be written with the tags in ascending order.
-	sort.Sort(e.ifd)
+	sort.Sort(byTag(d))
 
 	// Write the number of entries in this IFD.
-	if err := binary.Write(w, enc, uint16(len(e.ifd))); err != nil {
+	if err := binary.Write(w, enc, uint16(len(d))); err != nil {
 		return err
 	}
-	for _, ent := range e.ifd {
+	for _, ent := range d {
 		enc.PutUint16(buf[0:2], uint16(ent.tag))
 		enc.PutUint16(buf[2:4], uint16(ent.datatype))
 		count := uint32(len(ent.data))
@@ -170,25 +126,41 @@ func (e *encoder) writeIFD(w io.Writer) error {
 	return err
 }
 
-func (e *encoder) encode(w io.Writer) error {
+// Encode writes the image m to w in uncompressed RGBA format.
+func Encode(w io.Writer, m image.Image) error {
 	_, err := io.WriteString(w, leHeader)
 	if err != nil {
 		return err
 	}
 
-	ifdOffset := e.imageLen + 8 // 8 bytes for TIFF header.
+	bounds := m.Bounds()
+	width, height := bounds.Dx(), bounds.Dy()
+	// imageLen is the length of the image data in bytes.
+	imageLen := width * height * 4
+	ifdOffset := imageLen + 8 // 8 bytes for TIFF header.
 	err = binary.Write(w, enc, uint32(ifdOffset))
 	if err != nil {
 		return err
 	}
-	err = e.writeImgData(w)
+	err = writeImgData(w, m)
 	if err != nil {
 		return err
 	}
-	return e.writeIFD(w)
-}
-
-// Encode writes the image m to w in uncompressed RGBA format.
-func Encode(w io.Writer, m image.Image) error {
-	return newEncoder(m).encode(w)
+	return writeIFD(w, ifdOffset, []ifdEntry{
+		{tImageWidth, dtShort, []uint32{uint32(width)}},
+		{tImageLength, dtShort, []uint32{uint32(height)}},
+		{tBitsPerSample, dtShort, []uint32{8, 8, 8, 8}},
+		{tCompression, dtShort, []uint32{cNone}},
+		{tPhotometricInterpretation, dtShort, []uint32{pRGB}},
+		{tStripOffsets, dtLong, []uint32{8}},
+		{tSamplesPerPixel, dtShort, []uint32{4}},
+		{tRowsPerStrip, dtShort, []uint32{uint32(height)}},
+		{tStripByteCounts, dtLong, []uint32{uint32(imageLen)}},
+		// There is currently no support for storing the image
+		// resolution, so give a bogus value of 72x72 dpi.
+		{tXResolution, dtRational, []uint32{72, 1}},
+		{tYResolution, dtRational, []uint32{72, 1}},
+		{tResolutionUnit, dtShort, []uint32{resPerInch}},
+		{tExtraSamples, dtShort, []uint32{1}}, // RGBA.
+	})
 }
