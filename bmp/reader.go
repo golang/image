@@ -135,13 +135,13 @@ func DecodeConfig(r io.Reader) (config image.Config, err error) {
 			// Every 4th byte is padding.
 			pcm[i] = color.RGBA{b[4*i+2], b[4*i+1], b[4*i+0], 0xFF}
 		}
-		return image.Config{pcm, width, height}, nil
+		return image.Config{ColorModel: pcm, Width: width, Height: height}, nil
 	case 24:
 		if offset != fileHeaderLen+infoHeaderLen {
 			err = ErrUnsupported
 			return
 		}
-		return image.Config{color.RGBAModel, width, height}, nil
+		return image.Config{ColorModel: color.RGBAModel, Width: width, Height: height}, nil
 	}
 	err = ErrUnsupported
 	return
