@@ -73,6 +73,20 @@ func writeImgData(w io.Writer, m image.Image) error {
 	return nil
 }
 
+func writePix(w io.Writer, pix []byte, nrows, length, stride int) error {
+	if length == stride {
+		_, err := w.Write(pix[:nrows*length])
+		return err
+	}
+	for ; nrows > 0; nrows-- {
+		if _, err := w.Write(pix[:length]); err != nil {
+			return err
+		}
+		pix = pix[stride:]
+	}
+	return nil
+}
+
 func writeIFD(w io.Writer, ifdOffset int, d []ifdEntry) error {
 	var buf [ifdLen]byte
 	// Make space for "pointer area" containing IFD entry data
@@ -126,8 +140,9 @@ func writeIFD(w io.Writer, ifdOffset int, d []ifdEntry) error {
 	return err
 }
 
-// Encode writes the image m to w in uncompressed RGBA format.
+// Encode writes the image m to w in uncompressed 8-bit RGBA or NRGBA format.
 func Encode(w io.Writer, m image.Image) error {
+	var extrasamples uint32
 	_, err := io.WriteString(w, leHeader)
 	if err != nil {
 		return err
@@ -142,7 +157,19 @@ func Encode(w io.Writer, m image.Image) error {
 	if err != nil {
 		return err
 	}
-	err = writeImgData(w, m)
+	switch img := m.(type) {
+	case *image.NRGBA:
+		extrasamples = 2 // Unassociated alpha.
+		off := img.PixOffset(img.Rect.Min.X, img.Rect.Min.Y)
+		err = writePix(w, img.Pix[off:], img.Rect.Dy(), 4*img.Rect.Dx(), img.Stride)
+	case *image.RGBA:
+		extrasamples = 1 // Associated alpha.
+		off := img.PixOffset(img.Rect.Min.X, img.Rect.Min.Y)
+		err = writePix(w, img.Pix[off:], img.Rect.Dy(), 4*img.Rect.Dx(), img.Stride)
+	default:
+		extrasamples = 1 // Associated alpha.
+		err = writeImgData(w, m)
+	}
 	if err != nil {
 		return err
 	}
@@ -161,6 +188,6 @@ func Encode(w io.Writer, m image.Image) error {
 		{tXResolution, dtRational, []uint32{72, 1}},
 		{tYResolution, dtRational, []uint32{72, 1}},
 		{tResolutionUnit, dtShort, []uint32{resPerInch}},
-		{tExtraSamples, dtShort, []uint32{1}}, // RGBA.
+		{tExtraSamples, dtShort, []uint32{extrasamples}},
 	})
 }
