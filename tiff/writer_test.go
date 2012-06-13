@@ -46,6 +46,24 @@ func TestRoundtrip(t *testing.T) {
 	}
 }
 
+// TestRoundtrip2 tests that encoding and decoding an image whose
+// origin is not (0, 0) gives the same thing.
+func TestRoundtrip2(t *testing.T) {
+	m0 := image.NewRGBA(image.Rect(3, 4, 9, 8))
+	for i := range m0.Pix {
+		m0.Pix[i] = byte(i)
+	}
+	out := new(bytes.Buffer)
+	if err := Encode(out, m0); err != nil {
+		t.Fatal(err)
+	}
+	m1, err := Decode(&buffer{buf: out.Bytes()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, m0, m1)
+}
+
 // BenchmarkEncode benchmarks the encoding of an image.
 func BenchmarkEncode(b *testing.B) {
 	img, err := openImage("video-001.tiff")

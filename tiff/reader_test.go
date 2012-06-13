@@ -58,14 +58,17 @@ func TestUnpackBits(t *testing.T) {
 }
 
 func compare(t *testing.T, img0, img1 image.Image) {
-	b := img1.Bounds()
-	if !b.Eq(img0.Bounds()) {
-		t.Fatalf("wrong image size: want %s, got %s", img0.Bounds(), b)
+	b0 := img0.Bounds()
+	b1 := img1.Bounds()
+	if b0.Dx() != b1.Dx() || b0.Dy() != b1.Dy() {
+		t.Fatalf("wrong image size: want %s, got %s", b0, b1)
 	}
-	for y := b.Min.Y; y < b.Max.Y; y++ {
-		for x := b.Min.X; x < b.Max.X; x++ {
+	x1 := b1.Min.X - b0.Min.X
+	y1 := b1.Min.Y - b0.Min.Y
+	for y := b0.Min.Y; y < b0.Max.Y; y++ {
+		for x := b0.Min.X; x < b0.Max.X; x++ {
 			c0 := img0.At(x, y)
-			c1 := img1.At(x, y)
+			c1 := img1.At(x+x1, y+y1)
 			r0, g0, b0, a0 := c0.RGBA()
 			r1, g1, b1, a1 := c1.RGBA()
 			if r0 != r1 || g0 != g1 || b0 != b1 || a0 != a1 {
