@@ -108,3 +108,10 @@ const (
 	mRGBA
 	mNRGBA
 )
+
+// Compression describes the type of compression used in Options.
+type CompressionType int
+
+const (
+	Uncompressed CompressionType = iota
+)
