@@ -53,18 +53,37 @@ func (d byTag) Len() int           { return len(d) }
 func (d byTag) Less(i, j int) bool { return d[i].tag < d[j].tag }
 func (d byTag) Swap(i, j int)      { d[i], d[j] = d[j], d[i] }
 
-func writeImgData(w io.Writer, m image.Image) error {
+// writeImgData writes the raw data of m into w, optionally using a
+// differencing predictor.
+func writeImgData(w io.Writer, m image.Image, predictor bool) error {
 	bounds := m.Bounds()
 	buf := make([]byte, 4*bounds.Dx())
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		i := 0
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			r, g, b, a := m.At(x, y).RGBA()
-			buf[i+0] = uint8(r >> 8)
-			buf[i+1] = uint8(g >> 8)
-			buf[i+2] = uint8(b >> 8)
-			buf[i+3] = uint8(a >> 8)
-			i += 4
+		if predictor {
+			var r0, g0, b0, a0 uint8
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				r, g, b, a := m.At(x, y).RGBA()
+				r1 := uint8(r >> 8)
+				g1 := uint8(g >> 8)
+				b1 := uint8(b >> 8)
+				a1 := uint8(a >> 8)
+				buf[i+0] = r1 - r0
+				buf[i+1] = g1 - g0
+				buf[i+2] = b1 - b0
+				buf[i+3] = a1 - a0
+				i += 4
+				r0, g0, b0, a0 = r1, g1, b1, a1
+			}
+		} else {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				r, g, b, a := m.At(x, y).RGBA()
+				buf[i+0] = uint8(r >> 8)
+				buf[i+1] = uint8(g >> 8)
+				buf[i+2] = uint8(b >> 8)
+				buf[i+3] = uint8(a >> 8)
+				i += 4
+			}
 		}
 		if _, err := w.Write(buf); err != nil {
 			return err
@@ -73,6 +92,9 @@ func writeImgData(w io.Writer, m image.Image) error {
 	return nil
 }
 
+// writePix writes the internal byte array of an image to w. It is less general
+// but much faster then writeImgData. writePix is used when pix directly
+// corresponds to one of the TIFF image types.
 func writePix(w io.Writer, pix []byte, nrows, length, stride int) error {
 	if length == stride {
 		_, err := w.Write(pix[:nrows*length])
@@ -162,7 +184,7 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 		predictor = opt.Predictor
 		compression = opt.Compression
 	}
-	if compression != Uncompressed || predictor {
+	if compression != Uncompressed {
 		return UnsupportedError("compression type")
 	}
 
@@ -181,22 +203,28 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 	if err != nil {
 		return err
 	}
-	switch img := m.(type) {
-	case *image.NRGBA:
-		extrasamples = 2 // Unassociated alpha.
-		off := img.PixOffset(img.Rect.Min.X, img.Rect.Min.Y)
-		err = writePix(w, img.Pix[off:], img.Rect.Dy(), 4*img.Rect.Dx(), img.Stride)
-	case *image.RGBA:
-		extrasamples = 1 // Associated alpha.
-		off := img.PixOffset(img.Rect.Min.X, img.Rect.Min.Y)
-		err = writePix(w, img.Pix[off:], img.Rect.Dy(), 4*img.Rect.Dx(), img.Stride)
-	default:
-		extrasamples = 1 // Associated alpha.
-		err = writeImgData(w, m)
+	var pr uint32 = prNone
+	extrasamples = 1 // Associated alpha (default).
+	if predictor {
+		pr = prHorizontal
+		err = writeImgData(w, m, predictor)
+	} else {
+		switch img := m.(type) {
+		case *image.NRGBA:
+			extrasamples = 2 // Unassociated alpha.
+			off := img.PixOffset(img.Rect.Min.X, img.Rect.Min.Y)
+			err = writePix(w, img.Pix[off:], img.Rect.Dy(), 4*img.Rect.Dx(), img.Stride)
+		case *image.RGBA:
+			off := img.PixOffset(img.Rect.Min.X, img.Rect.Min.Y)
+			err = writePix(w, img.Pix[off:], img.Rect.Dy(), 4*img.Rect.Dx(), img.Stride)
+		default:
+			err = writeImgData(w, m, predictor)
+		}
 	}
 	if err != nil {
 		return err
 	}
+
 	return writeIFD(w, ifdOffset, []ifdEntry{
 		{tImageWidth, dtShort, []uint32{uint32(width)}},
 		{tImageLength, dtShort, []uint32{uint32(height)}},
@@ -212,6 +240,7 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 		{tXResolution, dtRational, []uint32{72, 1}},
 		{tYResolution, dtRational, []uint32{72, 1}},
 		{tResolutionUnit, dtShort, []uint32{resPerInch}},
+		{tPredictor, dtShort, []uint32{pr}},
 		{tExtraSamples, dtShort, []uint32{extrasamples}},
 	})
 }

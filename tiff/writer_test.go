@@ -12,9 +12,13 @@ import (
 	"testing"
 )
 
-var roundtripTests = []string{
-	"video-001.tiff",
-	"bw-packbits.tiff",
+var roundtripTests = []struct {
+	filename string
+	opts     *Options
+}{
+	{"video-001.tiff", nil},
+	{"bw-packbits.tiff", nil},
+	{"video-001.tiff", &Options{Predictor: true}},
 }
 
 func openImage(filename string) (image.Image, error) {
@@ -27,13 +31,13 @@ func openImage(filename string) (image.Image, error) {
 }
 
 func TestRoundtrip(t *testing.T) {
-	for _, filename := range roundtripTests {
-		img, err := openImage(filename)
+	for _, rt := range roundtripTests {
+		img, err := openImage(rt.filename)
 		if err != nil {
 			t.Fatal(err)
 		}
 		out := new(bytes.Buffer)
-		err = Encode(out, img, nil)
+		err = Encode(out, img, rt.opts)
 		if err != nil {
 			t.Fatal(err)
 		}
