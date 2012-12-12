@@ -19,6 +19,8 @@ var roundtripTests = []struct {
 	{"video-001.tiff", nil},
 	{"bw-packbits.tiff", nil},
 	{"video-001.tiff", &Options{Predictor: true}},
+	{"video-001.tiff", &Options{Compression: Deflate}},
+	{"video-001.tiff", &Options{Predictor: true, Compression: Deflate}},
 }
 
 func openImage(filename string) (image.Image, error) {

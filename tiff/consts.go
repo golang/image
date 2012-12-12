@@ -109,9 +109,20 @@ const (
 	mNRGBA
 )
 
-// Compression describes the type of compression used in Options.
+// CompressionType describes the type of compression used in Options.
 type CompressionType int
 
 const (
 	Uncompressed CompressionType = iota
+	Deflate
 )
+
+// specValue returns the compression type constant from the TIFF spec that
+// is equivalent to c.
+func (c CompressionType) specValue() uint32 {
+	switch c {
+	case Deflate:
+		return cDeflate
+	}
+	return cNone
+}

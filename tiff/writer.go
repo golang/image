@@ -5,6 +5,8 @@
 package tiff
 
 import (
+	"bytes"
+	"compress/zlib"
 	"encoding/binary"
 	"image"
 	"io"
@@ -179,57 +181,82 @@ type Options struct {
 // image is written.
 func Encode(w io.Writer, m image.Image, opt *Options) error {
 	predictor := false
-	compression := Uncompressed
+	compression := uint32(cNone)
 	if opt != nil {
 		predictor = opt.Predictor
-		compression = opt.Compression
-	}
-	if compression != Uncompressed {
-		return UnsupportedError("compression type")
+		compression = opt.Compression.specValue()
 	}
 
-	var extrasamples uint32
 	_, err := io.WriteString(w, leHeader)
 	if err != nil {
 		return err
 	}
 
+	// Compressed data is written into a buffer first, so that we
+	// know the compressed size.
+	var buf bytes.Buffer
+	// dst holds the destination for the pixel data of the image --
+	// either w or a writer to buf.
+	var dst io.Writer
+	// imageLen is the length of the pixel data in bytes.
+	// The offset of the IFD is imageLen + 8 header bytes.
+	var imageLen int
 	bounds := m.Bounds()
 	width, height := bounds.Dx(), bounds.Dy()
-	// imageLen is the length of the image data in bytes.
-	imageLen := width * height * 4
-	ifdOffset := imageLen + 8 // 8 bytes for TIFF header.
-	err = binary.Write(w, enc, uint32(ifdOffset))
-	if err != nil {
-		return err
+
+	switch compression {
+	case cNone:
+		dst = w
+		// Write IFD offset before outputting pixel data.
+		imageLen = width * height * 4
+		err = binary.Write(w, enc, uint32(imageLen+8))
+		if err != nil {
+			return err
+		}
+	case cDeflate:
+		dst = zlib.NewWriter(&buf)
 	}
+
 	var pr uint32 = prNone
-	extrasamples = 1 // Associated alpha (default).
+	var extrasamples uint32 = 1 // Associated alpha (default).
 	if predictor {
 		pr = prHorizontal
-		err = writeImgData(w, m, predictor)
+		err = writeImgData(dst, m, predictor)
 	} else {
 		switch img := m.(type) {
 		case *image.NRGBA:
 			extrasamples = 2 // Unassociated alpha.
 			off := img.PixOffset(img.Rect.Min.X, img.Rect.Min.Y)
-			err = writePix(w, img.Pix[off:], img.Rect.Dy(), 4*img.Rect.Dx(), img.Stride)
+			err = writePix(dst, img.Pix[off:], img.Rect.Dy(), 4*img.Rect.Dx(), img.Stride)
 		case *image.RGBA:
 			off := img.PixOffset(img.Rect.Min.X, img.Rect.Min.Y)
-			err = writePix(w, img.Pix[off:], img.Rect.Dy(), 4*img.Rect.Dx(), img.Stride)
+			err = writePix(dst, img.Pix[off:], img.Rect.Dy(), 4*img.Rect.Dx(), img.Stride)
 		default:
-			err = writeImgData(w, m, predictor)
+			err = writeImgData(dst, m, predictor)
 		}
 	}
 	if err != nil {
 		return err
 	}
 
-	return writeIFD(w, ifdOffset, []ifdEntry{
+	if compression != cNone {
+		if err = dst.(io.Closer).Close(); err != nil {
+			return err
+		}
+		imageLen = buf.Len()
+		if err = binary.Write(w, enc, uint32(imageLen+8)); err != nil {
+			return err
+		}
+		if _, err = buf.WriteTo(w); err != nil {
+			return err
+		}
+	}
+
+	return writeIFD(w, imageLen+8, []ifdEntry{
 		{tImageWidth, dtShort, []uint32{uint32(width)}},
 		{tImageLength, dtShort, []uint32{uint32(height)}},
 		{tBitsPerSample, dtShort, []uint32{8, 8, 8, 8}},
-		{tCompression, dtShort, []uint32{cNone}},
+		{tCompression, dtShort, []uint32{compression}},
 		{tPhotometricInterpretation, dtShort, []uint32{pRGB}},
 		{tStripOffsets, dtLong, []uint32{8}},
 		{tSamplesPerPixel, dtShort, []uint32{4}},
