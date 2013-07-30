@@ -44,6 +44,7 @@ type decoder struct {
 	byteOrder binary.ByteOrder
 	config    image.Config
 	mode      imageMode
+	bpp       uint
 	features  map[int][]uint
 	palette   []color.Color
 
@@ -185,7 +186,7 @@ func (d *decoder) decode(dst image.Image, ymin, ymax int) error {
 	// Apply horizontal predictor if necessary.
 	// In this case, p contains the color difference to the preceding pixel.
 	// See page 64-65 of the spec.
-	if d.firstVal(tPredictor) == prHorizontal && d.firstVal(tBitsPerSample) == 8 {
+	if d.firstVal(tPredictor) == prHorizontal && d.bpp == 8 {
 		var off int
 		spp := len(d.features[tBitsPerSample]) // samples per pixel
 		for y := ymin; y < ymax; y++ {
@@ -199,25 +200,37 @@ func (d *decoder) decode(dst image.Image, ymin, ymax int) error {
 
 	switch d.mode {
 	case mGray, mGrayInvert:
-		img := dst.(*image.Gray)
-		bpp := d.firstVal(tBitsPerSample)
-		max := uint32((1 << bpp) - 1)
-		for y := ymin; y < ymax; y++ {
-			for x := img.Rect.Min.X; x < img.Rect.Max.X; x++ {
-				v := uint8(d.readBits(bpp) * 0xff / max)
-				if d.mode == mGrayInvert {
-					v = 0xff - v
+		if d.bpp == 16 {
+			img := dst.(*image.Gray16)
+			for y := ymin; y < ymax; y++ {
+				for x := img.Rect.Min.X; x < img.Rect.Max.X; x++ {
+					v := d.byteOrder.Uint16(d.buf[d.off : d.off+2])
+					d.off += 2
+					if d.mode == mGrayInvert {
+						v = 0xffff - v
+					}
+					img.SetGray16(x, y, color.Gray16{v})
 				}
-				img.SetGray(x, y, color.Gray{v})
 			}
-			d.flushBits()
+		} else {
+			img := dst.(*image.Gray)
+			max := uint32((1 << d.bpp) - 1)
+			for y := ymin; y < ymax; y++ {
+				for x := img.Rect.Min.X; x < img.Rect.Max.X; x++ {
+					v := uint8(d.readBits(d.bpp) * 0xff / max)
+					if d.mode == mGrayInvert {
+						v = 0xff - v
+					}
+					img.SetGray(x, y, color.Gray{v})
+				}
+				d.flushBits()
+			}
 		}
 	case mPaletted:
 		img := dst.(*image.Paletted)
-		bpp := d.firstVal(tBitsPerSample)
 		for y := ymin; y < ymax; y++ {
 			for x := img.Rect.Min.X; x < img.Rect.Max.X; x++ {
-				img.SetColorIndex(x, y, uint8(d.readBits(bpp)))
+				img.SetColorIndex(x, y, uint8(d.readBits(d.bpp)))
 			}
 			d.flushBits()
 		}
@@ -299,6 +312,7 @@ func newDecoder(r io.Reader) (*decoder, error) {
 	if _, ok := d.features[tBitsPerSample]; !ok {
 		return nil, FormatError("BitsPerSample tag missing")
 	}
+	d.bpp = d.firstVal(tBitsPerSample)
 
 	// Determine the image mode.
 	switch d.firstVal(tPhotometricInterpretation) {
@@ -336,10 +350,18 @@ func newDecoder(r io.Reader) (*decoder, error) {
 		d.config.ColorModel = color.Palette(d.palette)
 	case pWhiteIsZero:
 		d.mode = mGrayInvert
-		d.config.ColorModel = color.GrayModel
+		if d.bpp == 16 {
+			d.config.ColorModel = color.Gray16Model
+		} else {
+			d.config.ColorModel = color.GrayModel
+		}
 	case pBlackIsZero:
 		d.mode = mGray
-		d.config.ColorModel = color.GrayModel
+		if d.bpp == 16 {
+			d.config.ColorModel = color.Gray16Model
+		} else {
+			d.config.ColorModel = color.GrayModel
+		}
 	default:
 		return nil, UnsupportedError("color model")
 	}
@@ -376,15 +398,20 @@ func Decode(r io.Reader) (img image.Image, err error) {
 		return nil, FormatError("inconsistent header")
 	}
 
+	imgRect := image.Rect(0, 0, d.config.Width, d.config.Height)
 	switch d.mode {
 	case mGray, mGrayInvert:
-		img = image.NewGray(image.Rect(0, 0, d.config.Width, d.config.Height))
+		if d.bpp == 16 {
+			img = image.NewGray16(imgRect)
+		} else {
+			img = image.NewGray(imgRect)
+		}
 	case mPaletted:
-		img = image.NewPaletted(image.Rect(0, 0, d.config.Width, d.config.Height), d.palette)
+		img = image.NewPaletted(imgRect, d.palette)
 	case mNRGBA:
-		img = image.NewNRGBA(image.Rect(0, 0, d.config.Width, d.config.Height))
+		img = image.NewNRGBA(imgRect)
 	case mRGB, mRGBA:
-		img = image.NewRGBA(image.Rect(0, 0, d.config.Width, d.config.Height))
+		img = image.NewRGBA(imgRect)
 	}
 
 	for i := 0; i < numStrips; i++ {
