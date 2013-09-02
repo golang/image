@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package tiff implements a TIFF image decoder.
+// Package tiff implements a TIFF image decoder and encoder.
 //
 // The TIFF specification is at http://partners.adobe.com/public/developer/en/tiff/TIFF6.pdf
 package tiff
