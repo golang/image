@@ -114,6 +114,10 @@ func (d *decoder) parseIFD(p []byte) error {
 		tStripOffsets,
 		tStripByteCounts,
 		tRowsPerStrip,
+		tTileWidth,
+		tTileLength,
+		tTileOffsets,
+		tTileByteCounts,
 		tImageLength,
 		tImageWidth:
 		val, err := d.ifdUint(p)
@@ -178,9 +182,17 @@ func (d *decoder) flushBits() {
 	d.nbits = 0
 }
 
+// minInt returns the smaller of x or y.
+func minInt(a, b int) int {
+	if a <= b {
+		return a
+	}
+	return b
+}
+
 // decode decodes the raw data of an image.
-// It reads from d.buf and writes the strip with ymin <= y < ymax into dst.
-func (d *decoder) decode(dst image.Image, ymin, ymax int) error {
+// It reads from d.buf and writes the strip or tile into dst.
+func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 	d.off = 0
 
 	// Apply horizontal predictor if necessary.
@@ -191,19 +203,21 @@ func (d *decoder) decode(dst image.Image, ymin, ymax int) error {
 		spp := len(d.features[tBitsPerSample]) // samples per pixel
 		for y := ymin; y < ymax; y++ {
 			off += spp
-			for x := 0; x < (dst.Bounds().Dx()-1)*spp; x++ {
+			for x := 0; x < (xmax-xmin-1)*spp; x++ {
 				d.buf[off] += d.buf[off-spp]
 				off++
 			}
 		}
 	}
 
+	rMaxX := minInt(xmax, dst.Bounds().Max.X)
+	rMaxY := minInt(ymax, dst.Bounds().Max.Y)
 	switch d.mode {
 	case mGray, mGrayInvert:
 		if d.bpp == 16 {
 			img := dst.(*image.Gray16)
-			for y := ymin; y < ymax; y++ {
-				for x := img.Rect.Min.X; x < img.Rect.Max.X; x++ {
+			for y := ymin; y < rMaxY; y++ {
+				for x := xmin; x < rMaxX; x++ {
 					v := d.byteOrder.Uint16(d.buf[d.off : d.off+2])
 					d.off += 2
 					if d.mode == mGrayInvert {
@@ -215,8 +229,8 @@ func (d *decoder) decode(dst image.Image, ymin, ymax int) error {
 		} else {
 			img := dst.(*image.Gray)
 			max := uint32((1 << d.bpp) - 1)
-			for y := ymin; y < ymax; y++ {
-				for x := img.Rect.Min.X; x < img.Rect.Max.X; x++ {
+			for y := ymin; y < rMaxY; y++ {
+				for x := xmin; x < rMaxX; x++ {
 					v := uint8(d.readBits(d.bpp) * 0xff / max)
 					if d.mode == mGrayInvert {
 						v = 0xff - v
@@ -228,40 +242,42 @@ func (d *decoder) decode(dst image.Image, ymin, ymax int) error {
 		}
 	case mPaletted:
 		img := dst.(*image.Paletted)
-		for y := ymin; y < ymax; y++ {
-			for x := img.Rect.Min.X; x < img.Rect.Max.X; x++ {
+		for y := ymin; y < rMaxY; y++ {
+			for x := xmin; x < rMaxX; x++ {
 				img.SetColorIndex(x, y, uint8(d.readBits(d.bpp)))
 			}
 			d.flushBits()
 		}
 	case mRGB:
 		img := dst.(*image.RGBA)
-		min := img.PixOffset(0, ymin)
-		max := img.PixOffset(0, ymax)
-		var off int
-		for i := min; i < max; i += 4 {
-			img.Pix[i+0] = d.buf[off+0]
-			img.Pix[i+1] = d.buf[off+1]
-			img.Pix[i+2] = d.buf[off+2]
-			img.Pix[i+3] = 0xff
-			off += 3
+		for y := ymin; y < rMaxY; y++ {
+			min := img.PixOffset(xmin, y)
+			max := img.PixOffset(rMaxX, y)
+			off := (y - ymin) * (xmax - xmin) * 3
+			for i := min; i < max; i += 4 {
+				img.Pix[i+0] = d.buf[off+0]
+				img.Pix[i+1] = d.buf[off+1]
+				img.Pix[i+2] = d.buf[off+2]
+				img.Pix[i+3] = 0xff
+				off += 3
+			}
 		}
 	case mNRGBA:
 		img := dst.(*image.NRGBA)
-		min := img.PixOffset(0, ymin)
-		max := img.PixOffset(0, ymax)
-		if len(d.buf) != max-min {
-			return FormatError("short data strip")
+		for y := ymin; y < rMaxY; y++ {
+			min := img.PixOffset(xmin, y)
+			max := img.PixOffset(rMaxX, y)
+			buf := d.buf[(y-ymin)*(xmax-xmin)*4 : (y-ymin+1)*(xmax-xmin)*4]
+			copy(img.Pix[min:max], buf)
 		}
-		copy(img.Pix[min:max], d.buf)
 	case mRGBA:
 		img := dst.(*image.RGBA)
-		min := img.PixOffset(0, ymin)
-		max := img.PixOffset(0, ymax)
-		if len(d.buf) != max-min {
-			return FormatError("short data strip")
+		for y := ymin; y < rMaxY; y++ {
+			min := img.PixOffset(xmin, y)
+			max := img.PixOffset(rMaxX, y)
+			buf := d.buf[(y-ymin)*(xmax-xmin)*4 : (y-ymin+1)*(xmax-xmin)*4]
+			copy(img.Pix[min:max], buf)
 		}
-		copy(img.Pix[min:max], d.buf)
 	}
 
 	return nil
@@ -387,14 +403,39 @@ func Decode(r io.Reader) (img image.Image, err error) {
 		return
 	}
 
-	// Check if we have the right number of strips, offsets and counts.
-	rps := int(d.firstVal(tRowsPerStrip))
-	if rps == 0 {
-		// Assume only one strip.
-		rps = d.config.Height
+	blockPadding := false
+	blockWidth := d.config.Width
+	blockHeight := d.config.Height
+	blocksAcross := 1
+	blocksDown := 1
+
+	var blockOffsets, blockCounts []uint
+
+	if int(d.firstVal(tTileWidth)) != 0 {
+		blockPadding = true
+
+		blockWidth = int(d.firstVal(tTileWidth))
+		blockHeight = int(d.firstVal(tTileLength))
+
+		blocksAcross = (d.config.Width + blockWidth - 1) / blockWidth
+		blocksDown = (d.config.Height + blockHeight - 1) / blockHeight
+
+		blockCounts = d.features[tTileByteCounts]
+		blockOffsets = d.features[tTileOffsets]
+
+	} else {
+		if int(d.firstVal(tRowsPerStrip)) != 0 {
+			blockHeight = int(d.firstVal(tRowsPerStrip))
+		}
+
+		blocksDown = (d.config.Height + blockHeight - 1) / blockHeight
+
+		blockOffsets = d.features[tStripOffsets]
+		blockCounts = d.features[tStripByteCounts]
 	}
-	numStrips := (d.config.Height + rps - 1) / rps
-	if rps == 0 || len(d.features[tStripOffsets]) < numStrips || len(d.features[tStripByteCounts]) < numStrips {
+
+	// Check if we have the right number of strips/tiles, offsets and counts.
+	if n := blocksAcross * blocksDown; len(blockOffsets) < n || len(blockCounts) < n {
 		return nil, FormatError("inconsistent header")
 	}
 
@@ -414,42 +455,55 @@ func Decode(r io.Reader) (img image.Image, err error) {
 		img = image.NewRGBA(imgRect)
 	}
 
-	for i := 0; i < numStrips; i++ {
-		ymin := i * rps
-		// The last strip may be shorter.
-		if i == numStrips-1 && d.config.Height%rps != 0 {
-			rps = d.config.Height % rps
+	for i := 0; i < blocksAcross; i++ {
+		blkW := blockWidth
+		if !blockPadding && i == blocksAcross-1 && d.config.Width%blockWidth != 0 {
+			blkW = d.config.Width % blockWidth
 		}
-		offset := int64(d.features[tStripOffsets][i])
-		n := int64(d.features[tStripByteCounts][i])
-		switch d.firstVal(tCompression) {
-		case cNone:
-			if b, ok := d.r.(*buffer); ok {
-				d.buf, err = b.Slice(int(offset), int(n))
-			} else {
-				d.buf = make([]byte, n)
-				_, err = d.r.ReadAt(d.buf, offset)
+		for j := 0; j < blocksDown; j++ {
+			blkH := blockHeight
+			if !blockPadding && j == blocksDown-1 && d.config.Height%blockHeight != 0 {
+				blkH = d.config.Height % blockHeight
 			}
-		case cLZW:
-			r := lzw.NewReader(io.NewSectionReader(d.r, offset, n), lzw.MSB, 8)
-			d.buf, err = ioutil.ReadAll(r)
-			r.Close()
-		case cDeflate, cDeflateOld:
-			r, err := zlib.NewReader(io.NewSectionReader(d.r, offset, n))
+			offset := int64(blockOffsets[j*blocksAcross+i])
+			n := int64(blockCounts[j*blocksAcross+i])
+			switch d.firstVal(tCompression) {
+			case cNone:
+				if b, ok := d.r.(*buffer); ok {
+					d.buf, err = b.Slice(int(offset), int(n))
+				} else {
+					d.buf = make([]byte, n)
+					_, err = d.r.ReadAt(d.buf, offset)
+				}
+			case cLZW:
+				r := lzw.NewReader(io.NewSectionReader(d.r, offset, n), lzw.MSB, 8)
+				d.buf, err = ioutil.ReadAll(r)
+				r.Close()
+			case cDeflate, cDeflateOld:
+				r, err := zlib.NewReader(io.NewSectionReader(d.r, offset, n))
+				if err != nil {
+					return nil, err
+				}
+				d.buf, err = ioutil.ReadAll(r)
+				r.Close()
+			case cPackBits:
+				d.buf, err = unpackBits(io.NewSectionReader(d.r, offset, n))
+			default:
+				err = UnsupportedError("compression")
+			}
 			if err != nil {
 				return nil, err
 			}
-			d.buf, err = ioutil.ReadAll(r)
-			r.Close()
-		case cPackBits:
-			d.buf, err = unpackBits(io.NewSectionReader(d.r, offset, n))
-		default:
-			err = UnsupportedError("compression")
+
+			xmin := i * blockWidth
+			ymin := j * blockHeight
+			xmax := xmin + blkW
+			ymax := ymin + blkH
+			err = d.decode(img, xmin, ymin, xmax, ymax)
+			if err != nil {
+				return nil, err
+			}
 		}
-		if err != nil {
-			return
-		}
-		err = d.decode(img, ymin, ymin+rps)
 	}
 	return
 }
