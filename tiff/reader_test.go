@@ -21,16 +21,24 @@ func (*buffer) Read([]byte) (int, error) {
 	panic("unimplemented")
 }
 
+func load(name string) (image.Image, error) {
+	f, err := os.Open(testdataDir + name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	img, _, err := image.Decode(f)
+	if err != nil {
+		return nil, err
+	}
+	return img, nil
+}
+
 // TestNoRPS tries to decode an image that has no RowsPerStrip tag.
 // The tag is mandatory according to the spec but some software omits
 // it in the case of a single strip.
 func TestNoRPS(t *testing.T) {
-	f, err := os.Open(testdataDir + "no_rps.tiff")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer f.Close()
-	_, err = Decode(f)
+	_, err := load("no_rps.tiff")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,27 +89,26 @@ func compare(t *testing.T, img0, img1 image.Image) {
 // TestDecode tests that decoding a PNG image and a TIFF image result in the
 // same pixel data.
 func TestDecode(t *testing.T) {
-	f0, err := os.Open(testdataDir + "video-001.png")
+	img0, err := load("video-001.png")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f0.Close()
-	img0, _, err := image.Decode(f0)
+	img1, err := load("video-001.tiff")
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	f1, err := os.Open(testdataDir + "video-001.tiff")
+	img2, err := load("video-001-strip-64.tiff")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f1.Close()
-	img1, _, err := image.Decode(f1)
+	img3, err := load("video-001-tile-64x64.tiff")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	compare(t, img0, img1)
+	compare(t, img0, img2)
+	compare(t, img0, img3)
 }
 
 // TestDecompress tests that decoding some TIFF images that use different
@@ -114,22 +121,13 @@ func TestDecompress(t *testing.T) {
 	}
 	var img0 image.Image
 	for _, name := range decompressTests {
-		f, err := os.Open(testdataDir + name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer f.Close()
-		if img0 == nil {
-			img0, err = Decode(f)
-			if err != nil {
-				t.Fatalf("decoding %s: %v", name, err)
-			}
-			continue
-		}
-
-		img1, err := Decode(f)
+		img1, err := load(name)
 		if err != nil {
 			t.Fatalf("decoding %s: %v", name, err)
+		}
+		if img0 == nil {
+			img0 = img1
+			continue
 		}
 		compare(t, img0, img1)
 	}

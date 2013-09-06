@@ -47,6 +47,11 @@ const (
 	tRowsPerStrip    = 278
 	tStripByteCounts = 279
 
+	tTileWidth      = 322
+	tTileLength     = 323
+	tTileOffsets    = 324
+	tTileByteCounts = 325
+
 	tXResolution    = 282
 	tYResolution    = 283
 	tResolutionUnit = 296
