@@ -55,13 +55,85 @@ func (d byTag) Len() int           { return len(d) }
 func (d byTag) Less(i, j int) bool { return d[i].tag < d[j].tag }
 func (d byTag) Swap(i, j int)      { d[i], d[j] = d[j], d[i] }
 
-// writeImgData writes the raw data of m into w, optionally using a
-// differencing predictor.
-func writeImgData(w io.Writer, m image.Image, predictor bool) error {
+func encodeGray(w io.Writer, pix []uint8, dx, dy, stride int, predictor bool) error {
+	if !predictor {
+		return writePix(w, pix, dy, dx, stride)
+	}
+	buf := make([]byte, dx)
+	for y := 0; y < dy; y++ {
+		min := y*stride + 0
+		max := y*stride + dx
+		off := 0
+		var v0 uint8
+		for i := min; i < max; i++ {
+			v1 := pix[i]
+			buf[off] = v1 - v0
+			v0 = v1
+			off++
+		}
+		if _, err := w.Write(buf); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func encodeGray16(w io.Writer, pix []uint8, dx, dy, stride int, predictor bool) error {
+	buf := make([]byte, dx*2)
+	for y := 0; y < dy; y++ {
+		min := y*stride + 0
+		max := y*stride + dx*2
+		off := 0
+		var v0 uint16
+		for i := min; i < max; i += 2 {
+			// An image.Gray16's Pix is in big-endian order.
+			v1 := uint16(pix[i])<<8 | uint16(pix[i+1])
+			if predictor {
+				v0, v1 = v1, v1-v0
+			}
+			// We only write little-endian TIFF files.
+			buf[off+0] = byte(v1)
+			buf[off+1] = byte(v1 >> 8)
+			off += 2
+		}
+		if _, err := w.Write(buf); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func encodeRGBA(w io.Writer, pix []uint8, dx, dy, stride int, predictor bool) error {
+	if !predictor {
+		return writePix(w, pix, dy, dx*4, stride)
+	}
+	buf := make([]byte, dx*4)
+	for y := 0; y < dy; y++ {
+		min := y*stride + 0
+		max := y*stride + dx*4
+		off := 0
+		var r0, g0, b0, a0 uint8
+		for i := min; i < max; i += 4 {
+			r1, g1, b1, a1 := pix[i+0], pix[i+1], pix[i+2], pix[i+3]
+			buf[off+0] = r1 - r0
+			buf[off+1] = g1 - g0
+			buf[off+2] = b1 - b0
+			buf[off+3] = a1 - a0
+			off += 4
+			r0, g0, b0, a0 = r1, g1, b1, a1
+		}
+		if _, err := w.Write(buf); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func encode(w io.Writer, m image.Image, predictor bool) error {
 	bounds := m.Bounds()
 	buf := make([]byte, 4*bounds.Dx())
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		i := 0
+		off := 0
 		if predictor {
 			var r0, g0, b0, a0 uint8
 			for x := bounds.Min.X; x < bounds.Max.X; x++ {
@@ -70,21 +142,21 @@ func writeImgData(w io.Writer, m image.Image, predictor bool) error {
 				g1 := uint8(g >> 8)
 				b1 := uint8(b >> 8)
 				a1 := uint8(a >> 8)
-				buf[i+0] = r1 - r0
-				buf[i+1] = g1 - g0
-				buf[i+2] = b1 - b0
-				buf[i+3] = a1 - a0
-				i += 4
+				buf[off+0] = r1 - r0
+				buf[off+1] = g1 - g0
+				buf[off+2] = b1 - b0
+				buf[off+3] = a1 - a0
+				off += 4
 				r0, g0, b0, a0 = r1, g1, b1, a1
 			}
 		} else {
 			for x := bounds.Min.X; x < bounds.Max.X; x++ {
 				r, g, b, a := m.At(x, y).RGBA()
-				buf[i+0] = uint8(r >> 8)
-				buf[i+1] = uint8(g >> 8)
-				buf[i+2] = uint8(b >> 8)
-				buf[i+3] = uint8(a >> 8)
-				i += 4
+				buf[off+0] = uint8(r >> 8)
+				buf[off+1] = uint8(g >> 8)
+				buf[off+2] = uint8(b >> 8)
+				buf[off+3] = uint8(a >> 8)
+				off += 4
 			}
 		}
 		if _, err := w.Write(buf); err != nil {
@@ -95,7 +167,7 @@ func writeImgData(w io.Writer, m image.Image, predictor bool) error {
 }
 
 // writePix writes the internal byte array of an image to w. It is less general
-// but much faster then writeImgData. writePix is used when pix directly
+// but much faster then encode. writePix is used when pix directly
 // corresponds to one of the TIFF image types.
 func writePix(w io.Writer, pix []byte, nrows, length, stride int) error {
 	if length == stride {
@@ -180,6 +252,8 @@ type Options struct {
 // encoding, such as the compression type. If opt is nil, an uncompressed
 // image is written.
 func Encode(w io.Writer, m image.Image, opt *Options) error {
+	d := m.Bounds().Size()
+
 	predictor := false
 	compression := uint32(cNone)
 	if opt != nil {
@@ -201,14 +275,21 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 	// imageLen is the length of the pixel data in bytes.
 	// The offset of the IFD is imageLen + 8 header bytes.
 	var imageLen int
-	bounds := m.Bounds()
-	width, height := bounds.Dx(), bounds.Dy()
 
 	switch compression {
 	case cNone:
 		dst = w
 		// Write IFD offset before outputting pixel data.
-		imageLen = width * height * 4
+		switch m.(type) {
+		case *image.Paletted:
+			imageLen = d.X * d.Y * 1
+		case *image.Gray:
+			imageLen = d.X * d.Y * 1
+		case *image.Gray16:
+			imageLen = d.X * d.Y * 2
+		default:
+			imageLen = d.X * d.Y * 4
+		}
 		err = binary.Write(w, enc, uint32(imageLen+8))
 		if err != nil {
 			return err
@@ -217,23 +298,46 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 		dst = zlib.NewWriter(&buf)
 	}
 
-	var pr uint32 = prNone
-	var extrasamples uint32 = 1 // Associated alpha (default).
+	pr := uint32(prNone)
+	photometricInterpretation := uint32(pRGB)
+	samplesPerPixel := uint32(4)
+	bitsPerSample := []uint32{8, 8, 8, 8}
+	extrasamples := uint32(1) // Associated alpha (default).
+	colorMap := []uint32{}
+
 	if predictor {
 		pr = prHorizontal
-		err = writeImgData(dst, m, predictor)
-	} else {
-		switch img := m.(type) {
-		case *image.NRGBA:
-			extrasamples = 2 // Unassociated alpha.
-			off := img.PixOffset(img.Rect.Min.X, img.Rect.Min.Y)
-			err = writePix(dst, img.Pix[off:], img.Rect.Dy(), 4*img.Rect.Dx(), img.Stride)
-		case *image.RGBA:
-			off := img.PixOffset(img.Rect.Min.X, img.Rect.Min.Y)
-			err = writePix(dst, img.Pix[off:], img.Rect.Dy(), 4*img.Rect.Dx(), img.Stride)
-		default:
-			err = writeImgData(dst, m, predictor)
+	}
+	switch m := m.(type) {
+	case *image.Paletted:
+		photometricInterpretation = pPaletted
+		samplesPerPixel = 3
+		bitsPerSample = []uint32{8}
+		colorMap = make([]uint32, 256*3)
+		for i := 0; i < 256 && i < len(m.Palette); i++ {
+			r, g, b, _ := m.Palette[i].RGBA()
+			colorMap[i+0*256] = uint32(r)
+			colorMap[i+1*256] = uint32(g)
+			colorMap[i+2*256] = uint32(b)
 		}
+		err = encodeGray(dst, m.Pix, d.X, d.Y, m.Stride, predictor)
+	case *image.Gray:
+		photometricInterpretation = pBlackIsZero
+		samplesPerPixel = 1
+		bitsPerSample = []uint32{8}
+		err = encodeGray(dst, m.Pix, d.X, d.Y, m.Stride, predictor)
+	case *image.Gray16:
+		photometricInterpretation = pBlackIsZero
+		samplesPerPixel = 1
+		bitsPerSample = []uint32{16}
+		err = encodeGray16(dst, m.Pix, d.X, d.Y, m.Stride, predictor)
+	case *image.NRGBA:
+		extrasamples = 2 // Unassociated alpha.
+		err = encodeRGBA(dst, m.Pix, d.X, d.Y, m.Stride, predictor)
+	case *image.RGBA:
+		err = encodeRGBA(dst, m.Pix, d.X, d.Y, m.Stride, predictor)
+	default:
+		err = encode(dst, m, predictor)
 	}
 	if err != nil {
 		return err
@@ -252,15 +356,15 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 		}
 	}
 
-	return writeIFD(w, imageLen+8, []ifdEntry{
-		{tImageWidth, dtShort, []uint32{uint32(width)}},
-		{tImageLength, dtShort, []uint32{uint32(height)}},
-		{tBitsPerSample, dtShort, []uint32{8, 8, 8, 8}},
+	ifd := []ifdEntry{
+		{tImageWidth, dtShort, []uint32{uint32(d.X)}},
+		{tImageLength, dtShort, []uint32{uint32(d.Y)}},
+		{tBitsPerSample, dtShort, bitsPerSample},
 		{tCompression, dtShort, []uint32{compression}},
-		{tPhotometricInterpretation, dtShort, []uint32{pRGB}},
+		{tPhotometricInterpretation, dtShort, []uint32{photometricInterpretation}},
 		{tStripOffsets, dtLong, []uint32{8}},
-		{tSamplesPerPixel, dtShort, []uint32{4}},
-		{tRowsPerStrip, dtShort, []uint32{uint32(height)}},
+		{tSamplesPerPixel, dtShort, []uint32{samplesPerPixel}},
+		{tRowsPerStrip, dtShort, []uint32{uint32(d.Y)}},
 		{tStripByteCounts, dtLong, []uint32{uint32(imageLen)}},
 		// There is currently no support for storing the image
 		// resolution, so give a bogus value of 72x72 dpi.
@@ -269,5 +373,10 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 		{tResolutionUnit, dtShort, []uint32{resPerInch}},
 		{tPredictor, dtShort, []uint32{pr}},
 		{tExtraSamples, dtShort, []uint32{extrasamples}},
-	})
+	}
+	if len(colorMap) != 0 {
+		ifd = append(ifd, ifdEntry{tColorMap, dtShort, colorMap})
+	}
+
+	return writeIFD(w, imageLen+8, ifd)
 }
