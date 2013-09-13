@@ -17,6 +17,9 @@ var roundtripTests = []struct {
 	opts     *Options
 }{
 	{"video-001.tiff", nil},
+	{"video-001-gray.tiff", nil},
+	{"video-001-gray-16bit.tiff", nil},
+	{"video-001-paletted.tiff", nil},
 	{"bw-packbits.tiff", nil},
 	{"video-001.tiff", &Options{Predictor: true}},
 	{"video-001.tiff", &Options{Compression: Deflate}},
@@ -70,16 +73,20 @@ func TestRoundtrip2(t *testing.T) {
 	compare(t, m0, m1)
 }
 
-// BenchmarkEncode benchmarks the encoding of an image.
-func BenchmarkEncode(b *testing.B) {
-	img, err := openImage("video-001.tiff")
+func benchmarkEncode(b *testing.B, name string, pixelSize int) {
+	img, err := openImage(name)
 	if err != nil {
 		b.Fatal(err)
 	}
 	s := img.Bounds().Size()
-	b.SetBytes(int64(s.X * s.Y * 4))
+	b.SetBytes(int64(s.X * s.Y * pixelSize))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Encode(ioutil.Discard, img, nil)
 	}
 }
+
+func BenchmarkEncode(b *testing.B)         { benchmarkEncode(b, "video-001.tiff", 4) }
+func BenchmarkEncodePaletted(b *testing.B) { benchmarkEncode(b, "video-001-paletted.tiff", 1) }
+func BenchmarkEncodeGray(b *testing.B)     { benchmarkEncode(b, "video-001-gray.tiff", 1) }
+func BenchmarkEncodeGray16(b *testing.B)   { benchmarkEncode(b, "video-001-gray-16bit.tiff", 2) }
