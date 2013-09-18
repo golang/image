@@ -105,10 +105,15 @@ func TestDecode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	img4, err := load("video-001-16bit.tiff")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	compare(t, img0, img1)
 	compare(t, img0, img2)
 	compare(t, img0, img3)
+	compare(t, img0, img4)
 }
 
 // TestDecompress tests that decoding some TIFF images that use different

@@ -198,14 +198,29 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 	// Apply horizontal predictor if necessary.
 	// In this case, p contains the color difference to the preceding pixel.
 	// See page 64-65 of the spec.
-	if d.firstVal(tPredictor) == prHorizontal && d.bpp == 8 {
-		var off int
-		spp := len(d.features[tBitsPerSample]) // samples per pixel
-		for y := ymin; y < ymax; y++ {
-			off += spp
-			for x := 0; x < (xmax-xmin-1)*spp; x++ {
-				d.buf[off] += d.buf[off-spp]
-				off++
+	if d.firstVal(tPredictor) == prHorizontal {
+		if d.bpp == 16 {
+			var off int
+			spp := len(d.features[tBitsPerSample]) // samples per pixel
+			bpp := spp * 2                         // bytes per pixel
+			for y := ymin; y < ymax; y++ {
+				off += spp * 2
+				for x := 0; x < (xmax-xmin-1)*bpp; x += 2 {
+					v0 := d.byteOrder.Uint16(d.buf[off-bpp : off-bpp+2])
+					v1 := d.byteOrder.Uint16(d.buf[off : off+2])
+					d.byteOrder.PutUint16(d.buf[off:off+2], v1+v0)
+					off += 2
+				}
+			}
+		} else if d.bpp == 8 {
+			var off int
+			spp := len(d.features[tBitsPerSample]) // samples per pixel
+			for y := ymin; y < ymax; y++ {
+				off += spp
+				for x := 0; x < (xmax-xmin-1)*spp; x++ {
+					d.buf[off] += d.buf[off-spp]
+					off++
+				}
 			}
 		}
 	}
@@ -249,34 +264,75 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 			d.flushBits()
 		}
 	case mRGB:
-		img := dst.(*image.RGBA)
-		for y := ymin; y < rMaxY; y++ {
-			min := img.PixOffset(xmin, y)
-			max := img.PixOffset(rMaxX, y)
-			off := (y - ymin) * (xmax - xmin) * 3
-			for i := min; i < max; i += 4 {
-				img.Pix[i+0] = d.buf[off+0]
-				img.Pix[i+1] = d.buf[off+1]
-				img.Pix[i+2] = d.buf[off+2]
-				img.Pix[i+3] = 0xff
-				off += 3
+		if d.bpp == 16 {
+			img := dst.(*image.RGBA64)
+			for y := ymin; y < rMaxY; y++ {
+				for x := xmin; x < rMaxX; x++ {
+					r := d.byteOrder.Uint16(d.buf[d.off+0 : d.off+2])
+					g := d.byteOrder.Uint16(d.buf[d.off+2 : d.off+4])
+					b := d.byteOrder.Uint16(d.buf[d.off+4 : d.off+6])
+					d.off += 6
+					img.SetRGBA64(x, y, color.RGBA64{r, g, b, 0xffff})
+				}
+			}
+		} else {
+			img := dst.(*image.RGBA)
+			for y := ymin; y < rMaxY; y++ {
+				min := img.PixOffset(xmin, y)
+				max := img.PixOffset(rMaxX, y)
+				off := (y - ymin) * (xmax - xmin) * 3
+				for i := min; i < max; i += 4 {
+					img.Pix[i+0] = d.buf[off+0]
+					img.Pix[i+1] = d.buf[off+1]
+					img.Pix[i+2] = d.buf[off+2]
+					img.Pix[i+3] = 0xff
+					off += 3
+				}
 			}
 		}
 	case mNRGBA:
-		img := dst.(*image.NRGBA)
-		for y := ymin; y < rMaxY; y++ {
-			min := img.PixOffset(xmin, y)
-			max := img.PixOffset(rMaxX, y)
-			buf := d.buf[(y-ymin)*(xmax-xmin)*4 : (y-ymin+1)*(xmax-xmin)*4]
-			copy(img.Pix[min:max], buf)
+		if d.bpp == 16 {
+			img := dst.(*image.NRGBA64)
+			for y := ymin; y < rMaxY; y++ {
+				for x := xmin; x < rMaxX; x++ {
+					r := d.byteOrder.Uint16(d.buf[d.off+0 : d.off+2])
+					g := d.byteOrder.Uint16(d.buf[d.off+2 : d.off+4])
+					b := d.byteOrder.Uint16(d.buf[d.off+4 : d.off+6])
+					a := d.byteOrder.Uint16(d.buf[d.off+6 : d.off+8])
+					d.off += 8
+					img.SetNRGBA64(x, y, color.NRGBA64{r, g, b, a})
+				}
+			}
+		} else {
+			img := dst.(*image.NRGBA)
+			for y := ymin; y < rMaxY; y++ {
+				min := img.PixOffset(xmin, y)
+				max := img.PixOffset(rMaxX, y)
+				buf := d.buf[(y-ymin)*(xmax-xmin)*4 : (y-ymin+1)*(xmax-xmin)*4]
+				copy(img.Pix[min:max], buf)
+			}
 		}
 	case mRGBA:
-		img := dst.(*image.RGBA)
-		for y := ymin; y < rMaxY; y++ {
-			min := img.PixOffset(xmin, y)
-			max := img.PixOffset(rMaxX, y)
-			buf := d.buf[(y-ymin)*(xmax-xmin)*4 : (y-ymin+1)*(xmax-xmin)*4]
-			copy(img.Pix[min:max], buf)
+		if d.bpp == 16 {
+			img := dst.(*image.RGBA64)
+			for y := ymin; y < rMaxY; y++ {
+				for x := xmin; x < rMaxX; x++ {
+					r := d.byteOrder.Uint16(d.buf[d.off+0 : d.off+2])
+					g := d.byteOrder.Uint16(d.buf[d.off+2 : d.off+4])
+					b := d.byteOrder.Uint16(d.buf[d.off+4 : d.off+6])
+					a := d.byteOrder.Uint16(d.buf[d.off+6 : d.off+8])
+					d.off += 8
+					img.SetRGBA64(x, y, color.RGBA64{r, g, b, a})
+				}
+			}
+		} else {
+			img := dst.(*image.RGBA)
+			for y := ymin; y < rMaxY; y++ {
+				min := img.PixOffset(xmin, y)
+				max := img.PixOffset(rMaxX, y)
+				buf := d.buf[(y-ymin)*(xmax-xmin)*4 : (y-ymin+1)*(xmax-xmin)*4]
+				copy(img.Pix[min:max], buf)
+			}
 		}
 	}
 
@@ -333,12 +389,19 @@ func newDecoder(r io.Reader) (*decoder, error) {
 	// Determine the image mode.
 	switch d.firstVal(tPhotometricInterpretation) {
 	case pRGB:
-		for _, b := range d.features[tBitsPerSample] {
-			if b != 8 {
-				return nil, UnsupportedError("non-8-bit RGB image")
+		if d.bpp == 16 {
+			for _, b := range d.features[tBitsPerSample] {
+				if b != 16 {
+					return nil, FormatError("wrong number of samples for 16bit RGB")
+				}
+			}
+		} else {
+			for _, b := range d.features[tBitsPerSample] {
+				if b != 8 {
+					return nil, FormatError("wrong number of samples for 8bit RGB")
+				}
 			}
 		}
-		d.config.ColorModel = color.RGBAModel
 		// RGB images normally have 3 samples per pixel.
 		// If there are more, ExtraSamples (p. 31-32 of the spec)
 		// gives their meaning (usually an alpha channel).
@@ -348,13 +411,27 @@ func newDecoder(r io.Reader) (*decoder, error) {
 		switch len(d.features[tBitsPerSample]) {
 		case 3:
 			d.mode = mRGB
+			if d.bpp == 16 {
+				d.config.ColorModel = color.RGBA64Model
+			} else {
+				d.config.ColorModel = color.RGBAModel
+			}
 		case 4:
 			switch d.firstVal(tExtraSamples) {
 			case 1:
 				d.mode = mRGBA
+				if d.bpp == 16 {
+					d.config.ColorModel = color.RGBA64Model
+				} else {
+					d.config.ColorModel = color.RGBAModel
+				}
 			case 2:
 				d.mode = mNRGBA
-				d.config.ColorModel = color.NRGBAModel
+				if d.bpp == 16 {
+					d.config.ColorModel = color.NRGBA64Model
+				} else {
+					d.config.ColorModel = color.NRGBAModel
+				}
 			default:
 				return nil, FormatError("wrong number of samples for RGB")
 			}
@@ -450,9 +527,17 @@ func Decode(r io.Reader) (img image.Image, err error) {
 	case mPaletted:
 		img = image.NewPaletted(imgRect, d.palette)
 	case mNRGBA:
-		img = image.NewNRGBA(imgRect)
+		if d.bpp == 16 {
+			img = image.NewNRGBA64(imgRect)
+		} else {
+			img = image.NewNRGBA(imgRect)
+		}
 	case mRGB, mRGBA:
-		img = image.NewRGBA(imgRect)
+		if d.bpp == 16 {
+			img = image.NewRGBA64(imgRect)
+		} else {
+			img = image.NewRGBA(imgRect)
+		}
 	}
 
 	for i := 0; i < blocksAcross; i++ {

@@ -17,6 +17,7 @@ var roundtripTests = []struct {
 	opts     *Options
 }{
 	{"video-001.tiff", nil},
+	{"video-001-16bit.tiff", nil},
 	{"video-001-gray.tiff", nil},
 	{"video-001-gray-16bit.tiff", nil},
 	{"video-001-paletted.tiff", nil},
@@ -90,3 +91,5 @@ func BenchmarkEncode(b *testing.B)         { benchmarkEncode(b, "video-001.tiff"
 func BenchmarkEncodePaletted(b *testing.B) { benchmarkEncode(b, "video-001-paletted.tiff", 1) }
 func BenchmarkEncodeGray(b *testing.B)     { benchmarkEncode(b, "video-001-gray.tiff", 1) }
 func BenchmarkEncodeGray16(b *testing.B)   { benchmarkEncode(b, "video-001-gray-16bit.tiff", 2) }
+func BenchmarkEncodeRGBA(b *testing.B)     { benchmarkEncode(b, "video-001.tiff", 4) }
+func BenchmarkEncodeRGBA64(b *testing.B)   { benchmarkEncode(b, "video-001-16bit.tiff", 8) }

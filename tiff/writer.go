@@ -129,6 +129,43 @@ func encodeRGBA(w io.Writer, pix []uint8, dx, dy, stride int, predictor bool) er
 	return nil
 }
 
+func encodeRGBA64(w io.Writer, pix []uint8, dx, dy, stride int, predictor bool) error {
+	buf := make([]byte, dx*8)
+	for y := 0; y < dy; y++ {
+		min := y*stride + 0
+		max := y*stride + dx*8
+		off := 0
+		var r0, g0, b0, a0 uint16
+		for i := min; i < max; i += 8 {
+			// An image.RGBA64's Pix is in big-endian order.
+			r1 := uint16(pix[i+0])<<8 | uint16(pix[i+1])
+			g1 := uint16(pix[i+2])<<8 | uint16(pix[i+3])
+			b1 := uint16(pix[i+4])<<8 | uint16(pix[i+5])
+			a1 := uint16(pix[i+6])<<8 | uint16(pix[i+7])
+			if predictor {
+				r0, r1 = r1, r1-r0
+				g0, g1 = g1, g1-g0
+				b0, b1 = b1, b1-b0
+				a0, a1 = a1, a1-a0
+			}
+			// We only write little-endian TIFF files.
+			buf[off+0] = byte(r1)
+			buf[off+1] = byte(r1 >> 8)
+			buf[off+2] = byte(g1)
+			buf[off+3] = byte(g1 >> 8)
+			buf[off+4] = byte(b1)
+			buf[off+5] = byte(b1 >> 8)
+			buf[off+6] = byte(a1)
+			buf[off+7] = byte(a1 >> 8)
+			off += 8
+		}
+		if _, err := w.Write(buf); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func encode(w io.Writer, m image.Image, predictor bool) error {
 	bounds := m.Bounds()
 	buf := make([]byte, 4*bounds.Dx())
@@ -287,6 +324,10 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 			imageLen = d.X * d.Y * 1
 		case *image.Gray16:
 			imageLen = d.X * d.Y * 2
+		case *image.RGBA64:
+			imageLen = d.X * d.Y * 8
+		case *image.NRGBA64:
+			imageLen = d.X * d.Y * 8
 		default:
 			imageLen = d.X * d.Y * 4
 		}
@@ -334,8 +375,15 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 	case *image.NRGBA:
 		extrasamples = 2 // Unassociated alpha.
 		err = encodeRGBA(dst, m.Pix, d.X, d.Y, m.Stride, predictor)
+	case *image.NRGBA64:
+		extrasamples = 2 // Unassociated alpha.
+		bitsPerSample = []uint32{16, 16, 16, 16}
+		err = encodeRGBA64(dst, m.Pix, d.X, d.Y, m.Stride, predictor)
 	case *image.RGBA:
 		err = encodeRGBA(dst, m.Pix, d.X, d.Y, m.Stride, predictor)
+	case *image.RGBA64:
+		bitsPerSample = []uint32{16, 16, 16, 16}
+		err = encodeRGBA64(dst, m.Pix, d.X, d.Y, m.Stride, predictor)
 	default:
 		err = encode(dst, m, predictor)
 	}
