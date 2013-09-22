@@ -291,11 +291,12 @@ type Options struct {
 func Encode(w io.Writer, m image.Image, opt *Options) error {
 	d := m.Bounds().Size()
 
-	predictor := false
 	compression := uint32(cNone)
+	predictor := false
 	if opt != nil {
-		predictor = opt.Predictor
 		compression = opt.Compression.specValue()
+		// The predictor field is only used with LZW. See page 64 of the spec.
+		predictor = opt.Predictor && compression == cLZW
 	}
 
 	_, err := io.WriteString(w, leHeader)
@@ -343,7 +344,7 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 	photometricInterpretation := uint32(pRGB)
 	samplesPerPixel := uint32(4)
 	bitsPerSample := []uint32{8, 8, 8, 8}
-	extrasamples := uint32(1) // Associated alpha (default).
+	extraSamples := uint32(0)
 	colorMap := []uint32{}
 
 	if predictor {
@@ -352,7 +353,7 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 	switch m := m.(type) {
 	case *image.Paletted:
 		photometricInterpretation = pPaletted
-		samplesPerPixel = 3
+		samplesPerPixel = 1
 		bitsPerSample = []uint32{8}
 		colorMap = make([]uint32, 256*3)
 		for i := 0; i < 256 && i < len(m.Palette); i++ {
@@ -373,18 +374,21 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 		bitsPerSample = []uint32{16}
 		err = encodeGray16(dst, m.Pix, d.X, d.Y, m.Stride, predictor)
 	case *image.NRGBA:
-		extrasamples = 2 // Unassociated alpha.
+		extraSamples = 2 // Unassociated alpha.
 		err = encodeRGBA(dst, m.Pix, d.X, d.Y, m.Stride, predictor)
 	case *image.NRGBA64:
-		extrasamples = 2 // Unassociated alpha.
+		extraSamples = 2 // Unassociated alpha.
 		bitsPerSample = []uint32{16, 16, 16, 16}
 		err = encodeRGBA64(dst, m.Pix, d.X, d.Y, m.Stride, predictor)
 	case *image.RGBA:
+		extraSamples = 1 // Associated alpha.
 		err = encodeRGBA(dst, m.Pix, d.X, d.Y, m.Stride, predictor)
 	case *image.RGBA64:
+		extraSamples = 1 // Associated alpha.
 		bitsPerSample = []uint32{16, 16, 16, 16}
 		err = encodeRGBA64(dst, m.Pix, d.X, d.Y, m.Stride, predictor)
 	default:
+		extraSamples = 1 // Associated alpha.
 		err = encode(dst, m, predictor)
 	}
 	if err != nil {
@@ -419,11 +423,15 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 		{tXResolution, dtRational, []uint32{72, 1}},
 		{tYResolution, dtRational, []uint32{72, 1}},
 		{tResolutionUnit, dtShort, []uint32{resPerInch}},
-		{tPredictor, dtShort, []uint32{pr}},
-		{tExtraSamples, dtShort, []uint32{extrasamples}},
+	}
+	if pr != prNone {
+		ifd = append(ifd, ifdEntry{tPredictor, dtShort, []uint32{pr}})
 	}
 	if len(colorMap) != 0 {
 		ifd = append(ifd, ifdEntry{tColorMap, dtShort, colorMap})
+	}
+	if extraSamples > 0 {
+		ifd = append(ifd, ifdEntry{tExtraSamples, dtShort, []uint32{extraSamples}})
 	}
 
 	return writeIFD(w, imageLen+8, ifd)
