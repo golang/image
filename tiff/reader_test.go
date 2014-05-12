@@ -44,6 +44,15 @@ func TestNoRPS(t *testing.T) {
 	}
 }
 
+// TestNoCompression tries to decode an images that has no Compression tag.
+// This tag is mandatory, but most tools interpret a missing value as no compression.
+func TestNoCompression(t *testing.T) {
+	_, err := load("no_compress.tiff")
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestUnpackBits tests the decoding of PackBits-encoded data.
 func TestUnpackBits(t *testing.T) {
 	var unpackBitsTests = []struct {
