@@ -11,6 +11,7 @@ import (
 	"compress/lzw"
 	"compress/zlib"
 	"encoding/binary"
+	"fmt"
 	"image"
 	"image/color"
 	"io"
@@ -553,7 +554,11 @@ func Decode(r io.Reader) (img image.Image, err error) {
 			offset := int64(blockOffsets[j*blocksAcross+i])
 			n := int64(blockCounts[j*blocksAcross+i])
 			switch d.firstVal(tCompression) {
-			case cNone:
+
+			// According to the spec, Compression does not have a default value,
+			// but some tools interpret a missing Compression value as none so we do
+			// the same.
+			case cNone, 0:
 				if b, ok := d.r.(*buffer); ok {
 					d.buf, err = b.Slice(int(offset), int(n))
 				} else {
@@ -574,7 +579,7 @@ func Decode(r io.Reader) (img image.Image, err error) {
 			case cPackBits:
 				d.buf, err = unpackBits(io.NewSectionReader(d.r, offset, n))
 			default:
-				err = UnsupportedError("compression")
+				err = UnsupportedError(fmt.Sprintf("compression value %d", d.firstVal(tCompression)))
 			}
 			if err != nil {
 				return nil, err
