@@ -385,7 +385,7 @@ func (d *Decoder) reconstructMacroblock(mbx, mby int) {
 }
 
 // reconstruct reconstructs one macroblock.
-func (d *Decoder) reconstruct(mbx, mby int) {
+func (d *Decoder) reconstruct(mbx, mby int) (skip bool) {
 	if d.segmentHeader.updateMap {
 		if !d.fp.readBit(d.segmentHeader.prob[0]) {
 			d.segment = int(d.fp.readUint(d.segmentHeader.prob[1], 1))
@@ -393,7 +393,6 @@ func (d *Decoder) reconstruct(mbx, mby int) {
 			d.segment = int(d.fp.readUint(d.segmentHeader.prob[2], 1)) + 2
 		}
 	}
-	skip := false
 	if d.useSkipProb {
 		skip = d.fp.readBit(d.skipProb)
 	}
@@ -412,6 +411,8 @@ func (d *Decoder) reconstruct(mbx, mby int) {
 	d.parsePredModeC8()
 	// Parse the residuals.
 	if !skip {
+		// TODO(nigeltao): make d.parseResiduals return a bool, and change this to
+		// skip = d.parseResiduals(mbx, mby)
 		d.parseResiduals(mbx, mby)
 	} else {
 		if d.usePredY16 {
@@ -432,4 +433,5 @@ func (d *Decoder) reconstruct(mbx, mby int) {
 		copy(d.img.Cb[i:i+8], d.ybr[ybrBY+y][ybrBX:ybrBX+8])
 		copy(d.img.Cr[i:i+8], d.ybr[ybrRY+y][ybrRX:ybrRX+8])
 	}
+	return skip
 }

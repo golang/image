@@ -4,8 +4,7 @@
 
 // Package vp8 implements a vp8 image and video decoder.
 //
-// The VP8 specification is at:
-// http://datatracker.ietf.org/doc/rfc6386/
+// The VP8 specification is RFC 6386.
 package vp8
 
 // This file implements the top-level decoding algorithm.
@@ -121,6 +120,9 @@ type Decoder struct {
 	tokenProb   [nPlane][nBand][nContext][nProb]uint8
 	useSkipProb bool
 	skipProb    uint8
+	// Loop filter parameters.
+	filterParams      [nSegment][2]filterParam
+	perMBFilterParams []filterParam
 
 	// The eight fields below relate to the current macroblock being decoded.
 	//
@@ -133,7 +135,7 @@ type Decoder struct {
 	// Bitmasks for which 4x4 regions of coeff contain non-zero coefficients.
 	nzDCMask, nzACMask uint32
 	// Predictor modes.
-	usePredY16 bool
+	usePredY16 bool // The libwebp C code calls this !is_i4x4_.
 	predY16    uint8
 	predC8     uint8
 	predY4     [4][4]uint8
@@ -202,6 +204,7 @@ func (d *Decoder) ensureImg() {
 	}
 	m := image.NewYCbCr(image.Rect(0, 0, 16*d.mbw, 16*d.mbh), image.YCbCrSubsampleRatio420)
 	d.img = m.SubImage(image.Rect(0, 0, d.frameHeader.Width, d.frameHeader.Height)).(*image.YCbCr)
+	d.perMBFilterParams = make([]filterParam, d.mbw*d.mbh)
 	d.upMB = make([]mb, d.mbw)
 }
 
@@ -262,6 +265,7 @@ func (d *Decoder) parseFilterHeader() {
 	} else {
 		d.filterHeader.perSegmentLevel[0] = d.filterHeader.level
 	}
+	d.computeFilterParams()
 }
 
 // parseOtherPartitions parses the other partitions, as specified in section 9.5.
@@ -334,15 +338,18 @@ func (d *Decoder) DecodeFrame() (*image.YCbCr, error) {
 	if err := d.parseOtherHeaders(); err != nil {
 		return nil, err
 	}
+	// Reconstruct the rows.
 	for mbx := 0; mbx < d.mbw; mbx++ {
 		d.upMB[mbx] = mb{}
 	}
 	for mby := 0; mby < d.mbh; mby++ {
 		d.leftMB = mb{}
 		for mbx := 0; mbx < d.mbw; mbx++ {
-			d.reconstruct(mbx, mby)
+			skip := d.reconstruct(mbx, mby)
+			fs := d.filterParams[d.segment][btou(!d.usePredY16)]
+			fs.inner = fs.inner || !skip
+			d.perMBFilterParams[d.mbw*mby+mbx] = fs
 		}
-		// TODO(nigeltao): filter, as specified in chapter 15.
 	}
 	if d.fp.unexpectedEOF {
 		return nil, io.ErrUnexpectedEOF
@@ -350,6 +357,18 @@ func (d *Decoder) DecodeFrame() (*image.YCbCr, error) {
 	for i := 0; i < d.nOP; i++ {
 		if d.op[i].unexpectedEOF {
 			return nil, io.ErrUnexpectedEOF
+		}
+	}
+	// Apply the loop filter.
+	//
+	// Even if we are using per-segment levels, section 15 says that "loop
+	// filtering must be skipped entirely if loop_filter_level at either the
+	// frame header level or macroblock override level is 0".
+	if d.filterHeader.level != 0 {
+		if d.filterHeader.simple {
+			d.simpleFilter()
+		} else {
+			// TODO(nigeltao): normal filtering.
 		}
 	}
 	return d.img, nil
