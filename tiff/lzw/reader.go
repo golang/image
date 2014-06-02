@@ -6,13 +6,32 @@
 // described in T. A. Welch, ``A Technique for High-Performance Data
 // Compression'', Computer, 17(6) (June 1984), pp 8-19.
 //
-// In particular, it implements LZW as used by the GIF, TIFF and PDF file
-// formats, which means variable-width codes up to 12 bits and the first
-// two non-literal codes are a clear code and an EOF code.
+// In particular, it implements LZW as used by the TIFF file format, including
+// an "off by one" algorithmic difference when compared to standard LZW.
 package lzw
 
-// TODO(nigeltao): check that TIFF and PDF use LZW in the same way as GIF,
-// modulo LSB/MSB packing order.
+/*
+This file was branched from src/pkg/compress/lzw/reader.go in the
+standard library. Differences from the original are marked with "NOTE".
+
+The tif_lzw.c file in the libtiff C library has this comment:
+
+----
+The 5.0 spec describes a different algorithm than Aldus
+implements.  Specifically, Aldus does code length transitions
+one code earlier than should be done (for real LZW).
+Earlier versions of this library implemented the correct
+LZW algorithm, but emitted codes in a bit order opposite
+to the TIFF spec.  Thus, to maintain compatibility w/ Aldus
+we interpret MSB-LSB ordered codes to be images written w/
+old versions of this library, but otherwise adhere to the
+Aldus "off by one" algorithm.
+----
+
+The Go code doesn't read (invalid) TIFF files written by old versions of
+libtiff, but the LZW algorithm in this package still differs from the one in
+Go's standard package library to accomodate this "off by one" in valid TIFFs.
+*/
 
 import (
 	"bufio"
@@ -53,7 +72,7 @@ type decoder struct {
 	// The next two codes mean clear and EOF.
 	// Other valid codes are in the range [lo, hi] where lo := clear + 2,
 	// with the upper bound incrementing on each code seen.
-	// overflow is the code at which hi overflows the code width.
+	// overflow is the code at which hi overflows the code width. NOTE: TIFF's LZW is "off by one".
 	// last is the most recently seen code, or decoderInvalidCode.
 	clear, eof, hi, overflow, last uint16
 
@@ -189,7 +208,7 @@ func (d *decoder) decode() {
 			return
 		}
 		d.last, d.hi = code, d.hi+1
-		if d.hi >= d.overflow {
+		if d.hi+1 >= d.overflow { // NOTE: the "+1" is where TIFF's LZW differs from the standard algorithm.
 			if d.width == maxWidth {
 				d.last = decoderInvalidCode
 			} else {
