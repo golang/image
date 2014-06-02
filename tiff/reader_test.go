@@ -125,6 +125,21 @@ func TestDecode(t *testing.T) {
 	compare(t, img0, img4)
 }
 
+// TestDecodeLZW tests that decoding a PNG image and a LZW-compressed TIFF image
+// result in the same pixel data.
+func TestDecodeLZW(t *testing.T) {
+	img0, err := load("blue-purple-pink.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	img1, err := load("blue-purple-pink.lzwcompressed.tiff")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	compare(t, img0, img1)
+}
+
 // TestDecompress tests that decoding some TIFF images that use different
 // compression formats result in the same pixel data.
 func TestDecompress(t *testing.T) {

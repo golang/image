@@ -8,7 +8,6 @@
 package tiff
 
 import (
-	"compress/lzw"
 	"compress/zlib"
 	"encoding/binary"
 	"fmt"
@@ -16,6 +15,8 @@ import (
 	"image/color"
 	"io"
 	"io/ioutil"
+
+	"code.google.com/p/go.image/tiff/lzw"
 )
 
 // A FormatError reports that the input is not a valid TIFF image.
