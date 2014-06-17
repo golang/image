@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package vp8 implements a vp8 image and video decoder.
+// Package vp8 implements a decoder for the VP8 lossy image format.
 //
 // The VP8 specification is RFC 6386.
 package vp8
