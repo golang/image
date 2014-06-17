@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -108,3 +110,105 @@ func TestDecodeVP8(t *testing.T) {
 		}
 	}
 }
+
+func TestDecodeVP8L(t *testing.T) {
+	testCases := []string{
+		"blue-purple-pink",
+		"gopher-doc.1bpp",
+		"gopher-doc.2bpp",
+		"gopher-doc.4bpp",
+		"gopher-doc.8bpp",
+		"tux",
+		"yellow_rose",
+	}
+
+loop:
+	for _, tc := range testCases {
+		f0, err := os.Open("../testdata/" + tc + ".lossless.webp")
+		if err != nil {
+			t.Errorf("%s: Open WEBP: %v", tc, err)
+			continue
+		}
+		defer f0.Close()
+		img0, err := Decode(f0)
+		if err != nil {
+			t.Errorf("%s: Decode WEBP: %v", tc, err)
+			continue
+		}
+		m0, ok := img0.(*image.NRGBA)
+		if !ok {
+			t.Errorf("%s: WEBP image is %T, want *image.NRGBA", tc, img0)
+			continue
+		}
+
+		f1, err := os.Open("../testdata/" + tc + ".png")
+		if err != nil {
+			t.Errorf("%s: Open PNG: %v", tc, err)
+			continue
+		}
+		defer f1.Close()
+		img1, err := png.Decode(f1)
+		if err != nil {
+			t.Errorf("%s: Decode PNG: %v", tc, err)
+			continue
+		}
+		m1, ok := img1.(*image.NRGBA)
+		if !ok {
+			rgba1, ok := img1.(*image.RGBA)
+			if !ok {
+				t.Fatalf("%s: PNG image is %T, want *image.NRGBA", tc, img1)
+				continue
+			}
+			if !rgba1.Opaque() {
+				t.Fatalf("%s: PNG image is non-opaque *image.RGBA, want *image.NRGBA", tc)
+				continue
+			}
+			// The image is fully opaque, so we can re-interpret the RGBA pixels
+			// as NRGBA pixels.
+			m1 = &image.NRGBA{
+				Pix:    rgba1.Pix,
+				Stride: rgba1.Stride,
+				Rect:   rgba1.Rect,
+			}
+		}
+
+		b0, b1 := m0.Bounds(), m1.Bounds()
+		if b0 != b1 {
+			t.Errorf("%s: bounds: got %v, want %v", tc, b0, b1)
+			continue
+		}
+		for i := range m0.Pix {
+			if m0.Pix[i] != m1.Pix[i] {
+				y := i / m0.Stride
+				x := (i - y*m0.Stride) / 4
+				i = 4 * (y*m0.Stride + x)
+				t.Errorf("%s: at (%d, %d):\ngot  %02x %02x %02x %02x\nwant %02x %02x %02x %02x",
+					tc, x, y,
+					m0.Pix[i+0], m0.Pix[i+1], m0.Pix[i+2], m0.Pix[i+3],
+					m1.Pix[i+0], m1.Pix[i+1], m1.Pix[i+2], m1.Pix[i+3],
+				)
+				continue loop
+			}
+		}
+	}
+}
+
+func benchmarkDecode(b *testing.B, filename string) {
+	data, err := ioutil.ReadFile("../testdata/" + filename + ".webp")
+	if err != nil {
+		b.Fatal(err)
+	}
+	s := string(data)
+	cfg, err := DecodeConfig(strings.NewReader(s))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.SetBytes(int64(cfg.Width * cfg.Height * 4))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		Decode(strings.NewReader(s))
+	}
+}
+
+func BenchmarkDecodeVP8(b *testing.B)  { benchmarkDecode(b, "yellow_rose.lossy") }
+func BenchmarkDecodeVP8L(b *testing.B) { benchmarkDecode(b, "yellow_rose.lossless") }
