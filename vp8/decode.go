@@ -368,7 +368,7 @@ func (d *Decoder) DecodeFrame() (*image.YCbCr, error) {
 		if d.filterHeader.simple {
 			d.simpleFilter()
 		} else {
-			// TODO(nigeltao): normal filtering.
+			d.normalFilter()
 		}
 	}
 	return d.img, nil
