@@ -55,5 +55,4 @@ func unpackBits(r io.Reader) ([]byte, error) {
 			dst = append(dst, buf[:1-code]...)
 		}
 	}
-	panic("unreachable")
 }
