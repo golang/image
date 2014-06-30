@@ -266,8 +266,9 @@ func (d *Decoder) parseResiduals4(r *partition, plane int, context uint8, quant 
 	return 1
 }
 
-// parseResiduals parses the residuals.
-func (d *Decoder) parseResiduals(mbx, mby int) {
+// parseResiduals parses the residuals and returns whether inner loop filtering
+// should be skipped for this macroblock.
+func (d *Decoder) parseResiduals(mbx, mby int) (skip bool) {
 	partition := &d.op[mby&(d.nOP-1)]
 	plane := planeY1SansY2
 	quant := &d.quant[d.segment]
@@ -332,6 +333,11 @@ func (d *Decoder) parseResiduals(mbx, mby int) {
 	d.upMB[mbx].nzMask = uint8(unzMask)
 	d.nzDCMask = nzDCMask
 	d.nzACMask = nzACMask
+
+	// Section 15.1 of the spec says that "Steps 2 and 4 [of the loop filter]
+	// are skipped... [if] there is no DCT coefficient coded for the whole
+	// macroblock."
+	return nzDCMask == 0 && nzACMask == 0
 }
 
 // reconstructMacroblock applies the predictor functions and adds the inverse-
@@ -384,7 +390,8 @@ func (d *Decoder) reconstructMacroblock(mbx, mby int) {
 	}
 }
 
-// reconstruct reconstructs one macroblock.
+// reconstruct reconstructs one macroblock and returns whether inner loop
+// filtering should be skipped for it.
 func (d *Decoder) reconstruct(mbx, mby int) (skip bool) {
 	if d.segmentHeader.updateMap {
 		if !d.fp.readBit(d.segmentHeader.prob[0]) {
@@ -411,9 +418,7 @@ func (d *Decoder) reconstruct(mbx, mby int) (skip bool) {
 	d.parsePredModeC8()
 	// Parse the residuals.
 	if !skip {
-		// TODO(nigeltao): make d.parseResiduals return a bool, and change this to
-		// skip = d.parseResiduals(mbx, mby)
-		d.parseResiduals(mbx, mby)
+		skip = d.parseResiduals(mbx, mby)
 	} else {
 		if d.usePredY16 {
 			d.leftMB.nzY16 = 0

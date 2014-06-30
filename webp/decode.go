@@ -65,7 +65,7 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 		return m, image.Config{}, nil
 	}
 
-	r = &io.LimitedReader{r, int64(dataLen)}
+	r = &io.LimitedReader{R: r, N: int64(dataLen)}
 	if configOnly {
 		c, err := vp8l.DecodeConfig(r)
 		return nil, c, err
