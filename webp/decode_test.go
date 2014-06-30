@@ -33,6 +33,9 @@ func hex(x []byte) string {
 func TestDecodeVP8(t *testing.T) {
 	testCases := []string{
 		"blue-purple-pink",
+		"blue-purple-pink-large.no-filter",
+		"blue-purple-pink-large.simple-filter",
+		"blue-purple-pink-large.normal-filter",
 		"video-001",
 		"yellow_rose",
 	}
@@ -40,17 +43,20 @@ func TestDecodeVP8(t *testing.T) {
 	for _, tc := range testCases {
 		f0, err := os.Open("../testdata/" + tc + ".lossy.webp")
 		if err != nil {
-			t.Fatal(err)
+			t.Errorf("%s: Open WEBP: %v", tc, err)
+			continue
 		}
 		defer f0.Close()
 		img0, err := Decode(f0)
 		if err != nil {
-			t.Fatal(err)
+			t.Errorf("%s: Decode WEBP: %v", tc, err)
+			continue
 		}
 
 		m0, ok := img0.(*image.YCbCr)
 		if !ok || m0.SubsampleRatio != image.YCbCrSubsampleRatio420 {
-			t.Fatal("decoded WEBP image is not a 4:2:0 YCbCr")
+			t.Errorf("%s: decoded WEBP image is not a 4:2:0 YCbCr", tc)
+			continue
 		}
 		// w2 and h2 are the half-width and half-height, rounded up.
 		w, h := m0.Bounds().Dx(), m0.Bounds().Dy()
@@ -58,12 +64,14 @@ func TestDecodeVP8(t *testing.T) {
 
 		f1, err := os.Open("../testdata/" + tc + ".lossy.webp.ycbcr.png")
 		if err != nil {
-			t.Fatal(err)
+			t.Errorf("%s: Open PNG: %v", tc, err)
+			continue
 		}
 		defer f1.Close()
 		img1, err := png.Decode(f1)
 		if err != nil {
-			t.Fatal(err)
+			t.Errorf("%s: Open PNG: %v", tc, err)
+			continue
 		}
 
 		// The split-into-YCbCr-planes golden image is a 2*w2 wide and h+h2 high
@@ -73,11 +81,13 @@ func TestDecodeVP8(t *testing.T) {
 		//   BBRR
 		// See http://www.fourcc.org/yuv.php#IMC4
 		if got, want := img1.Bounds(), image.Rect(0, 0, 2*w2, h+h2); got != want {
-			t.Fatalf("bounds0: got %v, want %v", got, want)
+			t.Errorf("%s: bounds0: got %v, want %v", tc, got, want)
+			continue
 		}
 		m1, ok := img1.(*image.Gray)
 		if !ok {
-			t.Fatal("decoded PNG image is not a Gray")
+			t.Errorf("%s: decoded PNG image is not a Gray", tc)
+			continue
 		}
 
 		planes := []struct {
@@ -101,14 +111,14 @@ func TestDecodeVP8(t *testing.T) {
 				}
 				nDiff++
 				if nDiff > 10 {
-					t.Errorf("%s plane: more rows differ", plane.name)
+					t.Errorf("%s: %s plane: more rows differ", tc, plane.name)
 					break
 				}
 				for i := range got {
 					diff[i] = got[i] - want[i]
 				}
-				t.Errorf("%s plane: m0 row %d, m1 row %d\ngot %s\nwant%s\ndiff%s",
-					plane.name, j, y, hex(got), hex(want), hex(diff))
+				t.Errorf("%s: %s plane: m0 row %d, m1 row %d\ngot %s\nwant%s\ndiff%s",
+					tc, plane.name, j, y, hex(got), hex(want), hex(diff))
 			}
 		}
 	}
@@ -117,6 +127,7 @@ func TestDecodeVP8(t *testing.T) {
 func TestDecodeVP8L(t *testing.T) {
 	testCases := []string{
 		"blue-purple-pink",
+		"blue-purple-pink-large",
 		"gopher-doc.1bpp",
 		"gopher-doc.2bpp",
 		"gopher-doc.4bpp",
@@ -197,7 +208,7 @@ loop:
 }
 
 func benchmarkDecode(b *testing.B, filename string) {
-	data, err := ioutil.ReadFile("../testdata/" + filename + ".webp")
+	data, err := ioutil.ReadFile("../testdata/blue-purple-pink-large." + filename + ".webp")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -213,6 +224,7 @@ func benchmarkDecode(b *testing.B, filename string) {
 	}
 }
 
-func BenchmarkDecodeVP8SimpleFilter(b *testing.B) { benchmarkDecode(b, "blue-purple-pink.lossy") }
-func BenchmarkDecodeVP8NormalFilter(b *testing.B) { benchmarkDecode(b, "yellow_rose.lossy") }
-func BenchmarkDecodeVP8L(b *testing.B)            { benchmarkDecode(b, "yellow_rose.lossless") }
+func BenchmarkDecodeVP8NoFilter(b *testing.B)     { benchmarkDecode(b, "no-filter.lossy") }
+func BenchmarkDecodeVP8SimpleFilter(b *testing.B) { benchmarkDecode(b, "simple-filter.lossy") }
+func BenchmarkDecodeVP8NormalFilter(b *testing.B) { benchmarkDecode(b, "normal-filter.lossy") }
+func BenchmarkDecodeVP8L(b *testing.B)            { benchmarkDecode(b, "lossless") }
