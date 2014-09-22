@@ -142,7 +142,7 @@ func inversePredictor(t *transform, pix []byte, h int32) []byte {
 				pix[p+2] += avg2(avg2(pix[p-2], pix[top-2]), avg2(pix[top+2], pix[top+6]))
 				pix[p+3] += avg2(avg2(pix[p-1], pix[top-1]), avg2(pix[top+3], pix[top+7]))
 
-			case 11: // Select(T, L, TL).
+			case 11: // Select(L, T, TL).
 				l0 := int32(pix[p-4])
 				l1 := int32(pix[p-3])
 				l2 := int32(pix[p-2])
@@ -155,18 +155,18 @@ func inversePredictor(t *transform, pix []byte, h int32) []byte {
 				t1 := int32(pix[top+1])
 				t2 := int32(pix[top+2])
 				t3 := int32(pix[top+3])
-				t := abs(c0-l0) + abs(c1-l1) + abs(c2-l2) + abs(c3-l3)
 				l := abs(c0-t0) + abs(c1-t1) + abs(c2-t2) + abs(c3-t3)
-				if t <= l {
-					pix[p+0] += uint8(t0)
-					pix[p+1] += uint8(t1)
-					pix[p+2] += uint8(t2)
-					pix[p+3] += uint8(t3)
-				} else {
+				t := abs(c0-l0) + abs(c1-l1) + abs(c2-l2) + abs(c3-l3)
+				if l < t {
 					pix[p+0] += uint8(l0)
 					pix[p+1] += uint8(l1)
 					pix[p+2] += uint8(l2)
 					pix[p+3] += uint8(l3)
+				} else {
+					pix[p+0] += uint8(t0)
+					pix[p+1] += uint8(t1)
+					pix[p+2] += uint8(t2)
+					pix[p+3] += uint8(t3)
 				}
 
 			case 12: // ClampAddSubtractFull(L, T, TL).

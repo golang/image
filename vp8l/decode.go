@@ -130,8 +130,9 @@ func (d *decoder) decodeTransform(w int32, h int32) (t transform, newWidth int32
 			pix[p+2] += pix[p-2]
 			pix[p+3] += pix[p-1]
 		}
-		// The C code fills in palette entries past the nColors upper limit as
-		// transparent black. In Go, we re-slice up to 256 4-byte pixels.
+		// The spec says that "if the index is equal or larger than color_table_size,
+		// the argb color value should be set to 0x00000000 (transparent black)."
+		// We re-slice up to 256 4-byte pixels.
 		t.pix = pix[:4*256]
 	}
 	return t, w, nil
@@ -530,7 +531,7 @@ func decodeHeader(r io.Reader) (d *decoder, w int32, h int32, err error) {
 		return nil, 0, 0, err
 	}
 	if version != 0 {
-		return nil, 0, 0, errors.New("vp8l: unsupported version")
+		return nil, 0, 0, errors.New("vp8l: invalid version")
 	}
 	return d, int32(width), int32(height), nil
 }
