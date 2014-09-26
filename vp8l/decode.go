@@ -180,7 +180,10 @@ func (d *decoder) decodeCodeLengths(dst []uint32, codeLengthCodeLengths []uint32
 		}
 	}
 
-	prevCodeLength := uint32(0)
+	// The spec says that "if code 16 [meaning repeat] is used before
+	// a non-zero value has been emitted, a value of 8 is repeated."
+	prevCodeLength := uint32(8)
+
 	for symbol := 0; symbol < len(dst); {
 		if maxSymbol == 0 {
 			break
