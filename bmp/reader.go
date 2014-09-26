@@ -27,14 +27,17 @@ func readUint32(b []byte) uint32 {
 }
 
 // decodePaletted reads an 8 bit-per-pixel BMP image from r.
-func decodePaletted(r io.Reader, c image.Config) (image.Image, error) {
+// If topDown is false, the image rows will be read bottom-up.
+func decodePaletted(r io.Reader, c image.Config, topDown bool) (image.Image, error) {
 	var tmp [4]byte
 	paletted := image.NewPaletted(image.Rect(0, 0, c.Width, c.Height), c.ColorModel.(color.Palette))
-	// BMP images are stored bottom-up rather than top-down.
-	for y := c.Height - 1; y >= 0; y-- {
+	y0, y1, yDelta := c.Height-1, -1, -1
+	if topDown {
+		y0, y1, yDelta = 0, c.Height, +1
+	}
+	for y := y0; y != y1; y += yDelta {
 		p := paletted.Pix[y*paletted.Stride : y*paletted.Stride+c.Width]
-		_, err := io.ReadFull(r, p)
-		if err != nil {
+		if _, err := io.ReadFull(r, p); err != nil {
 			return nil, err
 		}
 		// Each row is 4-byte aligned.
@@ -48,15 +51,18 @@ func decodePaletted(r io.Reader, c image.Config) (image.Image, error) {
 	return paletted, nil
 }
 
-// decodeRGBA reads a 24 bit-per-pixel BMP image from r.
-func decodeRGBA(r io.Reader, c image.Config) (image.Image, error) {
+// decodeRGB reads a 24 bit-per-pixel BMP image from r.
+// If topDown is false, the image rows will be read bottom-up.
+func decodeRGB(r io.Reader, c image.Config, topDown bool) (image.Image, error) {
 	rgba := image.NewRGBA(image.Rect(0, 0, c.Width, c.Height))
 	// There are 3 bytes per pixel, and each row is 4-byte aligned.
 	b := make([]byte, (3*c.Width+3)&^3)
-	// BMP images are stored bottom-up rather than top-down.
-	for y := c.Height - 1; y >= 0; y-- {
-		_, err := io.ReadFull(r, b)
-		if err != nil {
+	y0, y1, yDelta := c.Height-1, -1, -1
+	if topDown {
+		y0, y1, yDelta = 0, c.Height, +1
+	}
+	for y := y0; y != y1; y += yDelta {
+		if _, err := io.ReadFull(r, b); err != nil {
 			return nil, err
 		}
 		p := rgba.Pix[y*rgba.Stride : y*rgba.Stride+c.Width*4]
@@ -71,23 +77,54 @@ func decodeRGBA(r io.Reader, c image.Config) (image.Image, error) {
 	return rgba, nil
 }
 
+// decodeNRGBA reads a 32 bit-per-pixel BMP image from r.
+// If topDown is false, the image rows will be read bottom-up.
+func decodeNRGBA(r io.Reader, c image.Config, topDown bool) (image.Image, error) {
+	rgba := image.NewNRGBA(image.Rect(0, 0, c.Width, c.Height))
+	y0, y1, yDelta := c.Height-1, -1, -1
+	if topDown {
+		y0, y1, yDelta = 0, c.Height, +1
+	}
+	for y := y0; y != y1; y += yDelta {
+		p := rgba.Pix[y*rgba.Stride : y*rgba.Stride+c.Width*4]
+		if _, err := io.ReadFull(r, p); err != nil {
+			return nil, err
+		}
+		for i := 0; i < len(p); i += 4 {
+			// BMP images are stored in BGRA order rather than RGBA order.
+			p[i+0], p[i+2] = p[i+2], p[i+0]
+		}
+	}
+	return rgba, nil
+}
+
 // Decode reads a BMP image from r and returns it as an image.Image.
-// Limitation: The file must be 8 or 24 bits per pixel.
+// Limitation: The file must be 8, 24 or 32 bits per pixel.
 func Decode(r io.Reader) (image.Image, error) {
-	c, err := DecodeConfig(r)
+	c, bpp, topDown, err := decodeConfig(r)
 	if err != nil {
 		return nil, err
 	}
-	if c.ColorModel == color.RGBAModel {
-		return decodeRGBA(r, c)
+	switch bpp {
+	case 8:
+		return decodePaletted(r, c, topDown)
+	case 24:
+		return decodeRGB(r, c, topDown)
+	case 32:
+		return decodeNRGBA(r, c, topDown)
 	}
-	return decodePaletted(r, c)
+	panic("unreachable")
 }
 
 // DecodeConfig returns the color model and dimensions of a BMP image without
 // decoding the entire image.
-// Limitation: The file must be 8 or 24 bits per pixel.
-func DecodeConfig(r io.Reader) (config image.Config, err error) {
+// Limitation: The file must be 8, 24 or 32 bits per pixel.
+func DecodeConfig(r io.Reader) (image.Config, error) {
+	config, _, _, err := decodeConfig(r)
+	return config, err
+}
+
+func decodeConfig(r io.Reader) (config image.Config, bitsPerPixel int, topDown bool, err error) {
 	// We only support those BMP images that are a BITMAPFILEHEADER
 	// immediately followed by a BITMAPINFOHEADER.
 	const (
@@ -95,39 +132,37 @@ func DecodeConfig(r io.Reader) (config image.Config, err error) {
 		infoHeaderLen = 40
 	)
 	var b [1024]byte
-	if _, err = io.ReadFull(r, b[:fileHeaderLen+infoHeaderLen]); err != nil {
-		return
+	if _, err := io.ReadFull(r, b[:fileHeaderLen+infoHeaderLen]); err != nil {
+		return image.Config{}, 0, false, err
 	}
 	if string(b[:2]) != "BM" {
-		err = errors.New("bmp: invalid format")
-		return
+		return image.Config{}, 0, false, errors.New("bmp: invalid format")
 	}
 	offset := readUint32(b[10:14])
 	if readUint32(b[14:18]) != infoHeaderLen {
-		err = ErrUnsupported
-		return
+		return image.Config{}, 0, false, ErrUnsupported
 	}
-	width := int(readUint32(b[18:22]))
-	height := int(readUint32(b[22:26]))
+	width := int(int32(readUint32(b[18:22])))
+	height := int(int32(readUint32(b[22:26])))
+	if height < 0 {
+		height, topDown = -height, true
+	}
 	if width < 0 || height < 0 {
-		err = ErrUnsupported
-		return
+		return image.Config{}, 0, false, ErrUnsupported
 	}
 	// We only support 1 plane, 8 or 24 bits per pixel and no compression.
 	planes, bpp, compression := readUint16(b[26:28]), readUint16(b[28:30]), readUint32(b[30:34])
 	if planes != 1 || compression != 0 {
-		err = ErrUnsupported
-		return
+		return image.Config{}, 0, false, ErrUnsupported
 	}
 	switch bpp {
 	case 8:
 		if offset != fileHeaderLen+infoHeaderLen+256*4 {
-			err = ErrUnsupported
-			return
+			return image.Config{}, 0, false, ErrUnsupported
 		}
 		_, err = io.ReadFull(r, b[:256*4])
 		if err != nil {
-			return
+			return image.Config{}, 0, false, err
 		}
 		pcm := make(color.Palette, 256)
 		for i := range pcm {
@@ -135,16 +170,19 @@ func DecodeConfig(r io.Reader) (config image.Config, err error) {
 			// Every 4th byte is padding.
 			pcm[i] = color.RGBA{b[4*i+2], b[4*i+1], b[4*i+0], 0xFF}
 		}
-		return image.Config{ColorModel: pcm, Width: width, Height: height}, nil
+		return image.Config{ColorModel: pcm, Width: width, Height: height}, 8, topDown, nil
 	case 24:
 		if offset != fileHeaderLen+infoHeaderLen {
-			err = ErrUnsupported
-			return
+			return image.Config{}, 0, false, ErrUnsupported
 		}
-		return image.Config{ColorModel: color.RGBAModel, Width: width, Height: height}, nil
+		return image.Config{ColorModel: color.RGBAModel, Width: width, Height: height}, 24, topDown, nil
+	case 32:
+		if offset != fileHeaderLen+infoHeaderLen {
+			return image.Config{}, 0, false, ErrUnsupported
+		}
+		return image.Config{ColorModel: color.RGBAModel, Width: width, Height: height}, 32, topDown, nil
 	}
-	err = ErrUnsupported
-	return
+	return image.Config{}, 0, false, ErrUnsupported
 }
 
 func init() {
