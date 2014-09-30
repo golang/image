@@ -49,7 +49,10 @@ func (d *Decoder) parseQuant() {
 		if d.quant[i].y2[1] < 8 {
 			d.quant[i].y2[1] = 8
 		}
-		d.quant[i].uv[0] = dequantTableDC[clip(q+dquvDC, 0, 127)]
+		// The 117 is not a typo. The dequant_init function in the spec's Reference
+		// Decoder Source Code (http://tools.ietf.org/html/rfc6386#section-9.6 Page 145)
+		// says to clamp the LHS value at 132, which is equal to dequantTableDC[117].
+		d.quant[i].uv[0] = dequantTableDC[clip(q+dquvDC, 0, 117)]
 		d.quant[i].uv[1] = dequantTableAC[clip(q+dquvAC, 0, 127)]
 	}
 }
