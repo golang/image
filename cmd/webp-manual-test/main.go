@@ -17,10 +17,11 @@ import (
 	"strings"
 
 	"code.google.com/p/go.image/webp"
+	"code.google.com/p/go.image/webp/nycbcra"
 )
 
 var (
-	dwebp = flag.String("dwebp", "", "path to the dwebp program "+
+	dwebp = flag.String("dwebp", "/usr/bin/dwebp", "path to the dwebp program "+
 		"installed from https://developers.google.com/speed/webp/download")
 	testdata = flag.String("testdata", "", "path to the libwebp-test-data directory "+
 		"checked out from https://chromium.googlesource.com/webm/libwebp-test-data")
@@ -31,6 +32,10 @@ func main() {
 	if *dwebp == "" {
 		flag.Usage()
 		log.Fatal("dwebp flag was not specified")
+	}
+	if _, err := os.Stat(*dwebp); err != nil {
+		flag.Usage()
+		log.Fatalf("could not find dwebp program at %q", *dwebp)
 	}
 	if *testdata == "" {
 		flag.Usage()
@@ -80,9 +85,9 @@ func test(name string) error {
 	if err != nil {
 		return fmt.Errorf("Decode: %v", err)
 	}
-	format, encode := "-pam", encodePAM
-	if _, lossy := gotImage.(*image.YCbCr); lossy {
-		format, encode = "-pgm", encodePGM
+	format, encode := "-pgm", encodePGM
+	if _, lossless := gotImage.(*image.NRGBA); lossless {
+		format, encode = "-pam", encodePAM
 	}
 	got, err := encode(gotImage)
 	if err != nil {
@@ -130,8 +135,17 @@ func encodePAM(gotImage image.Image) ([]byte, error) {
 
 // encodePGM encodes gotImage in the PGM format in the IMC4 layout.
 func encodePGM(gotImage image.Image) ([]byte, error) {
-	m, ok := gotImage.(*image.YCbCr)
-	if !ok {
+	var (
+		m  *image.YCbCr
+		ma *nycbcra.Image
+	)
+	switch g := gotImage.(type) {
+	case *image.YCbCr:
+		m = g
+	case *nycbcra.Image:
+		m = &g.YCbCr
+		ma = g
+	default:
 		return nil, fmt.Errorf("lossy image did not decode to an *image.YCbCr")
 	}
 	if m.SubsampleRatio != image.YCbCrSubsampleRatio420 {
@@ -140,8 +154,12 @@ func encodePGM(gotImage image.Image) ([]byte, error) {
 	b := m.Bounds()
 	w, h := b.Dx(), b.Dy()
 	w2, h2 := (w+1)/2, (h+1)/2
+	outW, outH := 2*w2, h+h2
+	if ma != nil {
+		outH += h
+	}
 	buf := new(bytes.Buffer)
-	fmt.Fprintf(buf, "P5\n%d %d\n255\n", 2*w2, h+h2)
+	fmt.Fprintf(buf, "P5\n%d %d\n255\n", outW, outH)
 	for y := b.Min.Y; y < b.Max.Y; y++ {
 		o := m.YOffset(b.Min.X, y)
 		buf.Write(m.Y[o : o+w])
@@ -153,6 +171,15 @@ func encodePGM(gotImage image.Image) ([]byte, error) {
 		o := m.COffset(b.Min.X, y)
 		buf.Write(m.Cb[o : o+w2])
 		buf.Write(m.Cr[o : o+w2])
+	}
+	if ma != nil {
+		for y := b.Min.Y; y < b.Max.Y; y++ {
+			o := ma.AOffset(b.Min.X, y)
+			buf.Write(ma.A[o : o+w])
+			if w&1 != 0 {
+				buf.WriteByte(0x00)
+			}
+		}
 	}
 	return buf.Bytes(), nil
 }
