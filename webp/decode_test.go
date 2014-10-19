@@ -13,6 +13,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"code.google.com/p/go.image/webp/nycbcra"
 )
 
 // hex is like fmt.Sprintf("% x", x) but also inserts dots every 16 bytes, to
@@ -30,6 +32,120 @@ func hex(x []byte) string {
 	return buf.String()
 }
 
+func testDecodeLossy(t *testing.T, tc string, withAlpha bool) {
+	webpFilename := "../testdata/" + tc + ".lossy.webp"
+	pngFilename := webpFilename + ".ycbcr.png"
+	if withAlpha {
+		webpFilename = "../testdata/" + tc + ".lossy-with-alpha.webp"
+		pngFilename = webpFilename + ".nycbcra.png"
+	}
+
+	f0, err := os.Open(webpFilename)
+	if err != nil {
+		t.Errorf("%s: Open WEBP: %v", tc, err)
+		return
+	}
+	defer f0.Close()
+	img0, err := Decode(f0)
+	if err != nil {
+		t.Errorf("%s: Decode WEBP: %v", tc, err)
+		return
+	}
+
+	var (
+		m0 *image.YCbCr
+		a0 *nycbcra.Image
+		ok bool
+	)
+	if withAlpha {
+		a0, ok = img0.(*nycbcra.Image)
+		if ok {
+			m0 = &a0.YCbCr
+		}
+	} else {
+		m0, ok = img0.(*image.YCbCr)
+	}
+	if !ok || m0.SubsampleRatio != image.YCbCrSubsampleRatio420 {
+		t.Errorf("%s: decoded WEBP image is not a 4:2:0 YCbCr or 4:2:0 NYCbCrA", tc)
+		return
+	}
+	// w2 and h2 are the half-width and half-height, rounded up.
+	w, h := m0.Bounds().Dx(), m0.Bounds().Dy()
+	w2, h2 := int((w+1)/2), int((h+1)/2)
+
+	f1, err := os.Open(pngFilename)
+	if err != nil {
+		t.Errorf("%s: Open PNG: %v", tc, err)
+		return
+	}
+	defer f1.Close()
+	img1, err := png.Decode(f1)
+	if err != nil {
+		t.Errorf("%s: Open PNG: %v", tc, err)
+		return
+	}
+
+	// The split-into-YCbCr-planes golden image is a 2*w2 wide and h+h2 high
+	// (or 2*h+h2 high, if with Alpha) gray image arranged in IMC4 format:
+	//   YYYY
+	//   YYYY
+	//   BBRR
+	//   AAAA
+	// See http://www.fourcc.org/yuv.php#IMC4
+	pngW, pngH := 2*w2, h+h2
+	if withAlpha {
+		pngH += h
+	}
+	if got, want := img1.Bounds(), image.Rect(0, 0, pngW, pngH); got != want {
+		t.Errorf("%s: bounds0: got %v, want %v", tc, got, want)
+		return
+	}
+	m1, ok := img1.(*image.Gray)
+	if !ok {
+		t.Errorf("%s: decoded PNG image is not a Gray", tc)
+		return
+	}
+
+	type plane struct {
+		name     string
+		m0Pix    []uint8
+		m0Stride int
+		m1Rect   image.Rectangle
+	}
+	planes := []plane{
+		{"Y", m0.Y, m0.YStride, image.Rect(0, 0, w, h)},
+		{"Cb", m0.Cb, m0.CStride, image.Rect(0*w2, h, 1*w2, h+h2)},
+		{"Cr", m0.Cr, m0.CStride, image.Rect(1*w2, h, 2*w2, h+h2)},
+	}
+	if withAlpha {
+		planes = append(planes, plane{
+			"A", a0.A, a0.AStride, image.Rect(0, h+h2, w, 2*h+h2),
+		})
+	}
+
+	for _, plane := range planes {
+		dx := plane.m1Rect.Dx()
+		nDiff, diff := 0, make([]byte, dx)
+		for j, y := 0, plane.m1Rect.Min.Y; y < plane.m1Rect.Max.Y; j, y = j+1, y+1 {
+			got := plane.m0Pix[j*plane.m0Stride:][:dx]
+			want := m1.Pix[y*m1.Stride+plane.m1Rect.Min.X:][:dx]
+			if bytes.Equal(got, want) {
+				continue
+			}
+			nDiff++
+			if nDiff > 10 {
+				t.Errorf("%s: %s plane: more rows differ", tc, plane.name)
+				break
+			}
+			for i := range got {
+				diff[i] = got[i] - want[i]
+			}
+			t.Errorf("%s: %s plane: m0 row %d, m1 row %d\ngot %s\nwant%s\ndiff%s",
+				tc, plane.name, j, y, hex(got), hex(want), hex(diff))
+		}
+	}
+}
+
 func TestDecodeVP8(t *testing.T) {
 	testCases := []string{
 		"blue-purple-pink",
@@ -41,86 +157,17 @@ func TestDecodeVP8(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		f0, err := os.Open("../testdata/" + tc + ".lossy.webp")
-		if err != nil {
-			t.Errorf("%s: Open WEBP: %v", tc, err)
-			continue
-		}
-		defer f0.Close()
-		img0, err := Decode(f0)
-		if err != nil {
-			t.Errorf("%s: Decode WEBP: %v", tc, err)
-			continue
-		}
+		testDecodeLossy(t, tc, false)
+	}
+}
 
-		m0, ok := img0.(*image.YCbCr)
-		if !ok || m0.SubsampleRatio != image.YCbCrSubsampleRatio420 {
-			t.Errorf("%s: decoded WEBP image is not a 4:2:0 YCbCr", tc)
-			continue
-		}
-		// w2 and h2 are the half-width and half-height, rounded up.
-		w, h := m0.Bounds().Dx(), m0.Bounds().Dy()
-		w2, h2 := int((w+1)/2), int((h+1)/2)
+func TestDecodeVP8XAlpha(t *testing.T) {
+	testCases := []string{
+		"yellow_rose",
+	}
 
-		f1, err := os.Open("../testdata/" + tc + ".lossy.webp.ycbcr.png")
-		if err != nil {
-			t.Errorf("%s: Open PNG: %v", tc, err)
-			continue
-		}
-		defer f1.Close()
-		img1, err := png.Decode(f1)
-		if err != nil {
-			t.Errorf("%s: Open PNG: %v", tc, err)
-			continue
-		}
-
-		// The split-into-YCbCr-planes golden image is a 2*w2 wide and h+h2 high
-		// gray image arranged in IMC4 format:
-		//   YYYY
-		//   YYYY
-		//   BBRR
-		// See http://www.fourcc.org/yuv.php#IMC4
-		if got, want := img1.Bounds(), image.Rect(0, 0, 2*w2, h+h2); got != want {
-			t.Errorf("%s: bounds0: got %v, want %v", tc, got, want)
-			continue
-		}
-		m1, ok := img1.(*image.Gray)
-		if !ok {
-			t.Errorf("%s: decoded PNG image is not a Gray", tc)
-			continue
-		}
-
-		planes := []struct {
-			name     string
-			m0Pix    []uint8
-			m0Stride int
-			m1Rect   image.Rectangle
-		}{
-			{"Y", m0.Y, m0.YStride, image.Rect(0, 0, w, h)},
-			{"Cb", m0.Cb, m0.CStride, image.Rect(0*w2, h, 1*w2, h+h2)},
-			{"Cr", m0.Cr, m0.CStride, image.Rect(1*w2, h, 2*w2, h+h2)},
-		}
-		for _, plane := range planes {
-			dx := plane.m1Rect.Dx()
-			nDiff, diff := 0, make([]byte, dx)
-			for j, y := 0, plane.m1Rect.Min.Y; y < plane.m1Rect.Max.Y; j, y = j+1, y+1 {
-				got := plane.m0Pix[j*plane.m0Stride:][:dx]
-				want := m1.Pix[y*m1.Stride+plane.m1Rect.Min.X:][:dx]
-				if bytes.Equal(got, want) {
-					continue
-				}
-				nDiff++
-				if nDiff > 10 {
-					t.Errorf("%s: %s plane: more rows differ", tc, plane.name)
-					break
-				}
-				for i := range got {
-					diff[i] = got[i] - want[i]
-				}
-				t.Errorf("%s: %s plane: m0 row %d, m1 row %d\ngot %s\nwant%s\ndiff%s",
-					tc, plane.name, j, y, hex(got), hex(want), hex(diff))
-			}
-		}
+	for _, tc := range testCases {
+		testDecodeLossy(t, tc, true)
 	}
 }
 
