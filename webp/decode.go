@@ -15,10 +15,10 @@ import (
 	"image/color"
 	"io"
 
-	"code.google.com/p/go.image/riff"
-	"code.google.com/p/go.image/vp8"
-	"code.google.com/p/go.image/vp8l"
-	"code.google.com/p/go.image/webp/nycbcra"
+	"golang.org/x/image/riff"
+	"golang.org/x/image/vp8"
+	"golang.org/x/image/vp8l"
+	"golang.org/x/image/webp/nycbcra"
 )
 
 var errInvalidFormat = errors.New("webp: invalid format")

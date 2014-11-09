@@ -16,8 +16,8 @@ import (
 	"sort"
 	"strings"
 
-	"code.google.com/p/go.image/webp"
-	"code.google.com/p/go.image/webp/nycbcra"
+	"golang.org/x/image/webp"
+	"golang.org/x/image/webp/nycbcra"
 )
 
 var (
