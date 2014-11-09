@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"code.google.com/p/go.image/webp/nycbcra"
+	"golang.org/x/image/webp/nycbcra"
 )
 
 // hex is like fmt.Sprintf("% x", x) but also inserts dots every 16 bytes, to
