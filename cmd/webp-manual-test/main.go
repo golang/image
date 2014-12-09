@@ -1,6 +1,6 @@
 // Program webp-manual-test checks that the Go WEBP library's decodings match
 // the C WEBP library's.
-package main
+package main // import "golang.org/x/image/cmd/webp-manual-test"
 
 import (
 	"bytes"
