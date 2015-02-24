@@ -11,8 +11,111 @@ func (z *nnScaler) Scale(dst Image, dp image.Point, src image.Image, sp image.Po
 	if z.dw <= 0 || z.dh <= 0 || z.sw <= 0 || z.sh <= 0 {
 		return
 	}
-	// TODO: generate type switches for the different dsTypes.
-	z.scale_Image_Image(dst, dp, src, sp)
+	switch dst := dst.(type) {
+	case *image.RGBA:
+		switch src := src.(type) {
+		case *image.NRGBA:
+			z.scale_RGBA_NRGBA(dst, dp, src, sp)
+		case *image.RGBA:
+			z.scale_RGBA_RGBA(dst, dp, src, sp)
+		case *image.Uniform:
+			z.scale_RGBA_Uniform(dst, dp, src, sp)
+		case *image.YCbCr:
+			z.scale_RGBA_YCbCr(dst, dp, src, sp)
+		default:
+			z.scale_RGBA_Image(dst, dp, src, sp)
+		}
+	default:
+		switch src := src.(type) {
+		default:
+			z.scale_Image_Image(dst, dp, src, sp)
+		}
+	}
+}
+
+func (z *nnScaler) scale_RGBA_NRGBA(dst *image.RGBA, dp image.Point, src *image.NRGBA, sp image.Point) {
+	dstColorRGBA64 := &color.RGBA64{}
+	dstColor := color.Color(dstColorRGBA64)
+	for dy := int32(0); dy < z.dh; dy++ {
+		sy := (2*uint64(dy) + 1) * uint64(z.sh) / (2 * uint64(z.dh))
+		for dx := int32(0); dx < z.dw; dx++ {
+			sx := (2*uint64(dx) + 1) * uint64(z.sw) / (2 * uint64(z.dw))
+			pr, pg, pb, pa := src.At(sp.X+int(sx), sp.Y+int(sy)).RGBA()
+			dstColorRGBA64.R = uint16(pr)
+			dstColorRGBA64.G = uint16(pg)
+			dstColorRGBA64.B = uint16(pb)
+			dstColorRGBA64.A = uint16(pa)
+			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+		}
+	}
+}
+
+func (z *nnScaler) scale_RGBA_RGBA(dst *image.RGBA, dp image.Point, src *image.RGBA, sp image.Point) {
+	dstColorRGBA64 := &color.RGBA64{}
+	dstColor := color.Color(dstColorRGBA64)
+	for dy := int32(0); dy < z.dh; dy++ {
+		sy := (2*uint64(dy) + 1) * uint64(z.sh) / (2 * uint64(z.dh))
+		for dx := int32(0); dx < z.dw; dx++ {
+			sx := (2*uint64(dx) + 1) * uint64(z.sw) / (2 * uint64(z.dw))
+			pr, pg, pb, pa := src.At(sp.X+int(sx), sp.Y+int(sy)).RGBA()
+			dstColorRGBA64.R = uint16(pr)
+			dstColorRGBA64.G = uint16(pg)
+			dstColorRGBA64.B = uint16(pb)
+			dstColorRGBA64.A = uint16(pa)
+			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+		}
+	}
+}
+
+func (z *nnScaler) scale_RGBA_Uniform(dst *image.RGBA, dp image.Point, src *image.Uniform, sp image.Point) {
+	dstColorRGBA64 := &color.RGBA64{}
+	dstColor := color.Color(dstColorRGBA64)
+	for dy := int32(0); dy < z.dh; dy++ {
+		sy := (2*uint64(dy) + 1) * uint64(z.sh) / (2 * uint64(z.dh))
+		for dx := int32(0); dx < z.dw; dx++ {
+			sx := (2*uint64(dx) + 1) * uint64(z.sw) / (2 * uint64(z.dw))
+			pr, pg, pb, pa := src.At(sp.X+int(sx), sp.Y+int(sy)).RGBA()
+			dstColorRGBA64.R = uint16(pr)
+			dstColorRGBA64.G = uint16(pg)
+			dstColorRGBA64.B = uint16(pb)
+			dstColorRGBA64.A = uint16(pa)
+			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+		}
+	}
+}
+
+func (z *nnScaler) scale_RGBA_YCbCr(dst *image.RGBA, dp image.Point, src *image.YCbCr, sp image.Point) {
+	dstColorRGBA64 := &color.RGBA64{}
+	dstColor := color.Color(dstColorRGBA64)
+	for dy := int32(0); dy < z.dh; dy++ {
+		sy := (2*uint64(dy) + 1) * uint64(z.sh) / (2 * uint64(z.dh))
+		for dx := int32(0); dx < z.dw; dx++ {
+			sx := (2*uint64(dx) + 1) * uint64(z.sw) / (2 * uint64(z.dw))
+			pr, pg, pb, pa := src.At(sp.X+int(sx), sp.Y+int(sy)).RGBA()
+			dstColorRGBA64.R = uint16(pr)
+			dstColorRGBA64.G = uint16(pg)
+			dstColorRGBA64.B = uint16(pb)
+			dstColorRGBA64.A = uint16(pa)
+			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+		}
+	}
+}
+
+func (z *nnScaler) scale_RGBA_Image(dst *image.RGBA, dp image.Point, src image.Image, sp image.Point) {
+	dstColorRGBA64 := &color.RGBA64{}
+	dstColor := color.Color(dstColorRGBA64)
+	for dy := int32(0); dy < z.dh; dy++ {
+		sy := (2*uint64(dy) + 1) * uint64(z.sh) / (2 * uint64(z.dh))
+		for dx := int32(0); dx < z.dw; dx++ {
+			sx := (2*uint64(dx) + 1) * uint64(z.sw) / (2 * uint64(z.dw))
+			pr, pg, pb, pa := src.At(sp.X+int(sx), sp.Y+int(sy)).RGBA()
+			dstColorRGBA64.R = uint16(pr)
+			dstColorRGBA64.G = uint16(pg)
+			dstColorRGBA64.B = uint16(pb)
+			dstColorRGBA64.A = uint16(pa)
+			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+		}
+	}
 }
 
 func (z *nnScaler) scale_Image_Image(dst Image, dp image.Point, src image.Image, sp image.Point) {
@@ -36,8 +139,386 @@ func (z *ablScaler) Scale(dst Image, dp image.Point, src image.Image, sp image.P
 	if z.dw <= 0 || z.dh <= 0 || z.sw <= 0 || z.sh <= 0 {
 		return
 	}
-	// TODO: generate type switches for the different dsTypes.
-	z.scale_Image_Image(dst, dp, src, sp)
+	switch dst := dst.(type) {
+	case *image.RGBA:
+		switch src := src.(type) {
+		case *image.NRGBA:
+			z.scale_RGBA_NRGBA(dst, dp, src, sp)
+		case *image.RGBA:
+			z.scale_RGBA_RGBA(dst, dp, src, sp)
+		case *image.Uniform:
+			z.scale_RGBA_Uniform(dst, dp, src, sp)
+		case *image.YCbCr:
+			z.scale_RGBA_YCbCr(dst, dp, src, sp)
+		default:
+			z.scale_RGBA_Image(dst, dp, src, sp)
+		}
+	default:
+		switch src := src.(type) {
+		default:
+			z.scale_Image_Image(dst, dp, src, sp)
+		}
+	}
+}
+
+func (z *ablScaler) scale_RGBA_NRGBA(dst *image.RGBA, dp image.Point, src *image.NRGBA, sp image.Point) {
+	yscale := float64(z.sh) / float64(z.dh)
+	xscale := float64(z.sw) / float64(z.dw)
+	dstColorRGBA64 := &color.RGBA64{}
+	dstColor := color.Color(dstColorRGBA64)
+	for dy := int32(0); dy < z.dh; dy++ {
+		sy := (float64(dy)+0.5)*yscale - 0.5
+		sy0 := int32(sy)
+		yFrac0 := sy - float64(sy0)
+		yFrac1 := 1 - yFrac0
+		sy1 := sy0 + 1
+		if sy < 0 {
+			sy0, sy1 = 0, 0
+			yFrac0, yFrac1 = 0, 1
+		} else if sy1 >= z.sh {
+			sy1 = sy0
+			yFrac0, yFrac1 = 1, 0
+		}
+		for dx := int32(0); dx < z.dw; dx++ {
+			sx := (float64(dx)+0.5)*xscale - 0.5
+			sx0 := int32(sx)
+			xFrac0 := sx - float64(sx0)
+			xFrac1 := 1 - xFrac0
+			sx1 := sx0 + 1
+			if sx < 0 {
+				sx0, sx1 = 0, 0
+				xFrac0, xFrac1 = 0, 1
+			} else if sx1 >= z.sw {
+				sx1 = sx0
+				xFrac0, xFrac1 = 1, 0
+			}
+			s00ru, s00gu, s00bu, s00au := src.At(sp.X+int(sx0), sp.Y+int(sy0)).RGBA()
+			s00r := float64(s00ru)
+			s00g := float64(s00gu)
+			s00b := float64(s00bu)
+			s00a := float64(s00au)
+			s10ru, s10gu, s10bu, s10au := src.At(sp.X+int(sx1), sp.Y+int(sy0)).RGBA()
+			s10r := float64(s10ru)
+			s10g := float64(s10gu)
+			s10b := float64(s10bu)
+			s10a := float64(s10au)
+			s10r = xFrac1*s00r + xFrac0*s10r
+			s10g = xFrac1*s00g + xFrac0*s10g
+			s10b = xFrac1*s00b + xFrac0*s10b
+			s10a = xFrac1*s00a + xFrac0*s10a
+			s01ru, s01gu, s01bu, s01au := src.At(sp.X+int(sx0), sp.Y+int(sy1)).RGBA()
+			s01r := float64(s01ru)
+			s01g := float64(s01gu)
+			s01b := float64(s01bu)
+			s01a := float64(s01au)
+			s11ru, s11gu, s11bu, s11au := src.At(sp.X+int(sx1), sp.Y+int(sy1)).RGBA()
+			s11r := float64(s11ru)
+			s11g := float64(s11gu)
+			s11b := float64(s11bu)
+			s11a := float64(s11au)
+			s11r = xFrac1*s01r + xFrac0*s11r
+			s11g = xFrac1*s01g + xFrac0*s11g
+			s11b = xFrac1*s01b + xFrac0*s11b
+			s11a = xFrac1*s01a + xFrac0*s11a
+			s11r = yFrac1*s10r + yFrac0*s11r
+			s11g = yFrac1*s10g + yFrac0*s11g
+			s11b = yFrac1*s10b + yFrac0*s11b
+			s11a = yFrac1*s10a + yFrac0*s11a
+			dstColorRGBA64.R = uint16(s11r)
+			dstColorRGBA64.G = uint16(s11g)
+			dstColorRGBA64.B = uint16(s11b)
+			dstColorRGBA64.A = uint16(s11a)
+			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+		}
+	}
+}
+
+func (z *ablScaler) scale_RGBA_RGBA(dst *image.RGBA, dp image.Point, src *image.RGBA, sp image.Point) {
+	yscale := float64(z.sh) / float64(z.dh)
+	xscale := float64(z.sw) / float64(z.dw)
+	dstColorRGBA64 := &color.RGBA64{}
+	dstColor := color.Color(dstColorRGBA64)
+	for dy := int32(0); dy < z.dh; dy++ {
+		sy := (float64(dy)+0.5)*yscale - 0.5
+		sy0 := int32(sy)
+		yFrac0 := sy - float64(sy0)
+		yFrac1 := 1 - yFrac0
+		sy1 := sy0 + 1
+		if sy < 0 {
+			sy0, sy1 = 0, 0
+			yFrac0, yFrac1 = 0, 1
+		} else if sy1 >= z.sh {
+			sy1 = sy0
+			yFrac0, yFrac1 = 1, 0
+		}
+		for dx := int32(0); dx < z.dw; dx++ {
+			sx := (float64(dx)+0.5)*xscale - 0.5
+			sx0 := int32(sx)
+			xFrac0 := sx - float64(sx0)
+			xFrac1 := 1 - xFrac0
+			sx1 := sx0 + 1
+			if sx < 0 {
+				sx0, sx1 = 0, 0
+				xFrac0, xFrac1 = 0, 1
+			} else if sx1 >= z.sw {
+				sx1 = sx0
+				xFrac0, xFrac1 = 1, 0
+			}
+			s00ru, s00gu, s00bu, s00au := src.At(sp.X+int(sx0), sp.Y+int(sy0)).RGBA()
+			s00r := float64(s00ru)
+			s00g := float64(s00gu)
+			s00b := float64(s00bu)
+			s00a := float64(s00au)
+			s10ru, s10gu, s10bu, s10au := src.At(sp.X+int(sx1), sp.Y+int(sy0)).RGBA()
+			s10r := float64(s10ru)
+			s10g := float64(s10gu)
+			s10b := float64(s10bu)
+			s10a := float64(s10au)
+			s10r = xFrac1*s00r + xFrac0*s10r
+			s10g = xFrac1*s00g + xFrac0*s10g
+			s10b = xFrac1*s00b + xFrac0*s10b
+			s10a = xFrac1*s00a + xFrac0*s10a
+			s01ru, s01gu, s01bu, s01au := src.At(sp.X+int(sx0), sp.Y+int(sy1)).RGBA()
+			s01r := float64(s01ru)
+			s01g := float64(s01gu)
+			s01b := float64(s01bu)
+			s01a := float64(s01au)
+			s11ru, s11gu, s11bu, s11au := src.At(sp.X+int(sx1), sp.Y+int(sy1)).RGBA()
+			s11r := float64(s11ru)
+			s11g := float64(s11gu)
+			s11b := float64(s11bu)
+			s11a := float64(s11au)
+			s11r = xFrac1*s01r + xFrac0*s11r
+			s11g = xFrac1*s01g + xFrac0*s11g
+			s11b = xFrac1*s01b + xFrac0*s11b
+			s11a = xFrac1*s01a + xFrac0*s11a
+			s11r = yFrac1*s10r + yFrac0*s11r
+			s11g = yFrac1*s10g + yFrac0*s11g
+			s11b = yFrac1*s10b + yFrac0*s11b
+			s11a = yFrac1*s10a + yFrac0*s11a
+			dstColorRGBA64.R = uint16(s11r)
+			dstColorRGBA64.G = uint16(s11g)
+			dstColorRGBA64.B = uint16(s11b)
+			dstColorRGBA64.A = uint16(s11a)
+			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+		}
+	}
+}
+
+func (z *ablScaler) scale_RGBA_Uniform(dst *image.RGBA, dp image.Point, src *image.Uniform, sp image.Point) {
+	yscale := float64(z.sh) / float64(z.dh)
+	xscale := float64(z.sw) / float64(z.dw)
+	dstColorRGBA64 := &color.RGBA64{}
+	dstColor := color.Color(dstColorRGBA64)
+	for dy := int32(0); dy < z.dh; dy++ {
+		sy := (float64(dy)+0.5)*yscale - 0.5
+		sy0 := int32(sy)
+		yFrac0 := sy - float64(sy0)
+		yFrac1 := 1 - yFrac0
+		sy1 := sy0 + 1
+		if sy < 0 {
+			sy0, sy1 = 0, 0
+			yFrac0, yFrac1 = 0, 1
+		} else if sy1 >= z.sh {
+			sy1 = sy0
+			yFrac0, yFrac1 = 1, 0
+		}
+		for dx := int32(0); dx < z.dw; dx++ {
+			sx := (float64(dx)+0.5)*xscale - 0.5
+			sx0 := int32(sx)
+			xFrac0 := sx - float64(sx0)
+			xFrac1 := 1 - xFrac0
+			sx1 := sx0 + 1
+			if sx < 0 {
+				sx0, sx1 = 0, 0
+				xFrac0, xFrac1 = 0, 1
+			} else if sx1 >= z.sw {
+				sx1 = sx0
+				xFrac0, xFrac1 = 1, 0
+			}
+			s00ru, s00gu, s00bu, s00au := src.At(sp.X+int(sx0), sp.Y+int(sy0)).RGBA()
+			s00r := float64(s00ru)
+			s00g := float64(s00gu)
+			s00b := float64(s00bu)
+			s00a := float64(s00au)
+			s10ru, s10gu, s10bu, s10au := src.At(sp.X+int(sx1), sp.Y+int(sy0)).RGBA()
+			s10r := float64(s10ru)
+			s10g := float64(s10gu)
+			s10b := float64(s10bu)
+			s10a := float64(s10au)
+			s10r = xFrac1*s00r + xFrac0*s10r
+			s10g = xFrac1*s00g + xFrac0*s10g
+			s10b = xFrac1*s00b + xFrac0*s10b
+			s10a = xFrac1*s00a + xFrac0*s10a
+			s01ru, s01gu, s01bu, s01au := src.At(sp.X+int(sx0), sp.Y+int(sy1)).RGBA()
+			s01r := float64(s01ru)
+			s01g := float64(s01gu)
+			s01b := float64(s01bu)
+			s01a := float64(s01au)
+			s11ru, s11gu, s11bu, s11au := src.At(sp.X+int(sx1), sp.Y+int(sy1)).RGBA()
+			s11r := float64(s11ru)
+			s11g := float64(s11gu)
+			s11b := float64(s11bu)
+			s11a := float64(s11au)
+			s11r = xFrac1*s01r + xFrac0*s11r
+			s11g = xFrac1*s01g + xFrac0*s11g
+			s11b = xFrac1*s01b + xFrac0*s11b
+			s11a = xFrac1*s01a + xFrac0*s11a
+			s11r = yFrac1*s10r + yFrac0*s11r
+			s11g = yFrac1*s10g + yFrac0*s11g
+			s11b = yFrac1*s10b + yFrac0*s11b
+			s11a = yFrac1*s10a + yFrac0*s11a
+			dstColorRGBA64.R = uint16(s11r)
+			dstColorRGBA64.G = uint16(s11g)
+			dstColorRGBA64.B = uint16(s11b)
+			dstColorRGBA64.A = uint16(s11a)
+			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+		}
+	}
+}
+
+func (z *ablScaler) scale_RGBA_YCbCr(dst *image.RGBA, dp image.Point, src *image.YCbCr, sp image.Point) {
+	yscale := float64(z.sh) / float64(z.dh)
+	xscale := float64(z.sw) / float64(z.dw)
+	dstColorRGBA64 := &color.RGBA64{}
+	dstColor := color.Color(dstColorRGBA64)
+	for dy := int32(0); dy < z.dh; dy++ {
+		sy := (float64(dy)+0.5)*yscale - 0.5
+		sy0 := int32(sy)
+		yFrac0 := sy - float64(sy0)
+		yFrac1 := 1 - yFrac0
+		sy1 := sy0 + 1
+		if sy < 0 {
+			sy0, sy1 = 0, 0
+			yFrac0, yFrac1 = 0, 1
+		} else if sy1 >= z.sh {
+			sy1 = sy0
+			yFrac0, yFrac1 = 1, 0
+		}
+		for dx := int32(0); dx < z.dw; dx++ {
+			sx := (float64(dx)+0.5)*xscale - 0.5
+			sx0 := int32(sx)
+			xFrac0 := sx - float64(sx0)
+			xFrac1 := 1 - xFrac0
+			sx1 := sx0 + 1
+			if sx < 0 {
+				sx0, sx1 = 0, 0
+				xFrac0, xFrac1 = 0, 1
+			} else if sx1 >= z.sw {
+				sx1 = sx0
+				xFrac0, xFrac1 = 1, 0
+			}
+			s00ru, s00gu, s00bu, s00au := src.At(sp.X+int(sx0), sp.Y+int(sy0)).RGBA()
+			s00r := float64(s00ru)
+			s00g := float64(s00gu)
+			s00b := float64(s00bu)
+			s00a := float64(s00au)
+			s10ru, s10gu, s10bu, s10au := src.At(sp.X+int(sx1), sp.Y+int(sy0)).RGBA()
+			s10r := float64(s10ru)
+			s10g := float64(s10gu)
+			s10b := float64(s10bu)
+			s10a := float64(s10au)
+			s10r = xFrac1*s00r + xFrac0*s10r
+			s10g = xFrac1*s00g + xFrac0*s10g
+			s10b = xFrac1*s00b + xFrac0*s10b
+			s10a = xFrac1*s00a + xFrac0*s10a
+			s01ru, s01gu, s01bu, s01au := src.At(sp.X+int(sx0), sp.Y+int(sy1)).RGBA()
+			s01r := float64(s01ru)
+			s01g := float64(s01gu)
+			s01b := float64(s01bu)
+			s01a := float64(s01au)
+			s11ru, s11gu, s11bu, s11au := src.At(sp.X+int(sx1), sp.Y+int(sy1)).RGBA()
+			s11r := float64(s11ru)
+			s11g := float64(s11gu)
+			s11b := float64(s11bu)
+			s11a := float64(s11au)
+			s11r = xFrac1*s01r + xFrac0*s11r
+			s11g = xFrac1*s01g + xFrac0*s11g
+			s11b = xFrac1*s01b + xFrac0*s11b
+			s11a = xFrac1*s01a + xFrac0*s11a
+			s11r = yFrac1*s10r + yFrac0*s11r
+			s11g = yFrac1*s10g + yFrac0*s11g
+			s11b = yFrac1*s10b + yFrac0*s11b
+			s11a = yFrac1*s10a + yFrac0*s11a
+			dstColorRGBA64.R = uint16(s11r)
+			dstColorRGBA64.G = uint16(s11g)
+			dstColorRGBA64.B = uint16(s11b)
+			dstColorRGBA64.A = uint16(s11a)
+			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+		}
+	}
+}
+
+func (z *ablScaler) scale_RGBA_Image(dst *image.RGBA, dp image.Point, src image.Image, sp image.Point) {
+	yscale := float64(z.sh) / float64(z.dh)
+	xscale := float64(z.sw) / float64(z.dw)
+	dstColorRGBA64 := &color.RGBA64{}
+	dstColor := color.Color(dstColorRGBA64)
+	for dy := int32(0); dy < z.dh; dy++ {
+		sy := (float64(dy)+0.5)*yscale - 0.5
+		sy0 := int32(sy)
+		yFrac0 := sy - float64(sy0)
+		yFrac1 := 1 - yFrac0
+		sy1 := sy0 + 1
+		if sy < 0 {
+			sy0, sy1 = 0, 0
+			yFrac0, yFrac1 = 0, 1
+		} else if sy1 >= z.sh {
+			sy1 = sy0
+			yFrac0, yFrac1 = 1, 0
+		}
+		for dx := int32(0); dx < z.dw; dx++ {
+			sx := (float64(dx)+0.5)*xscale - 0.5
+			sx0 := int32(sx)
+			xFrac0 := sx - float64(sx0)
+			xFrac1 := 1 - xFrac0
+			sx1 := sx0 + 1
+			if sx < 0 {
+				sx0, sx1 = 0, 0
+				xFrac0, xFrac1 = 0, 1
+			} else if sx1 >= z.sw {
+				sx1 = sx0
+				xFrac0, xFrac1 = 1, 0
+			}
+			s00ru, s00gu, s00bu, s00au := src.At(sp.X+int(sx0), sp.Y+int(sy0)).RGBA()
+			s00r := float64(s00ru)
+			s00g := float64(s00gu)
+			s00b := float64(s00bu)
+			s00a := float64(s00au)
+			s10ru, s10gu, s10bu, s10au := src.At(sp.X+int(sx1), sp.Y+int(sy0)).RGBA()
+			s10r := float64(s10ru)
+			s10g := float64(s10gu)
+			s10b := float64(s10bu)
+			s10a := float64(s10au)
+			s10r = xFrac1*s00r + xFrac0*s10r
+			s10g = xFrac1*s00g + xFrac0*s10g
+			s10b = xFrac1*s00b + xFrac0*s10b
+			s10a = xFrac1*s00a + xFrac0*s10a
+			s01ru, s01gu, s01bu, s01au := src.At(sp.X+int(sx0), sp.Y+int(sy1)).RGBA()
+			s01r := float64(s01ru)
+			s01g := float64(s01gu)
+			s01b := float64(s01bu)
+			s01a := float64(s01au)
+			s11ru, s11gu, s11bu, s11au := src.At(sp.X+int(sx1), sp.Y+int(sy1)).RGBA()
+			s11r := float64(s11ru)
+			s11g := float64(s11gu)
+			s11b := float64(s11bu)
+			s11a := float64(s11au)
+			s11r = xFrac1*s01r + xFrac0*s11r
+			s11g = xFrac1*s01g + xFrac0*s11g
+			s11b = xFrac1*s01b + xFrac0*s11b
+			s11a = xFrac1*s01a + xFrac0*s11a
+			s11r = yFrac1*s10r + yFrac0*s11r
+			s11g = yFrac1*s10g + yFrac0*s11g
+			s11b = yFrac1*s10b + yFrac0*s11b
+			s11a = yFrac1*s10a + yFrac0*s11a
+			dstColorRGBA64.R = uint16(s11r)
+			dstColorRGBA64.G = uint16(s11g)
+			dstColorRGBA64.B = uint16(s11b)
+			dstColorRGBA64.A = uint16(s11a)
+			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+		}
+	}
 }
 
 func (z *ablScaler) scale_Image_Image(dst Image, dp image.Point, src image.Image, sp image.Point) {
@@ -121,9 +602,116 @@ func (z *kernelScaler) Scale(dst Image, dp image.Point, src image.Image, sp imag
 	// scaleY distributes the temporary image's rows over the destination image.
 	// TODO: is it worth having a sync.Pool for this temporary buffer?
 	tmp := make([][4]float64, z.dw*z.sh)
-	// TODO: generate type switches for the different dTypes and sTypes.
-	z.scaleX_Image(tmp, src, sp)
-	z.scaleY_Image(dst, dp, tmp)
+	switch src := src.(type) {
+	case *image.NRGBA:
+		z.scaleX_NRGBA(tmp, src, sp)
+	case *image.RGBA:
+		z.scaleX_RGBA(tmp, src, sp)
+	case *image.Uniform:
+		z.scaleX_Uniform(tmp, src, sp)
+	case *image.YCbCr:
+		z.scaleX_YCbCr(tmp, src, sp)
+	default:
+		z.scaleX_Image(tmp, src, sp)
+	}
+	switch dst := dst.(type) {
+	case *image.RGBA:
+		z.scaleY_RGBA(dst, dp, tmp)
+	default:
+		z.scaleY_Image(dst, dp, tmp)
+	}
+}
+
+func (z *kernelScaler) scaleX_NRGBA(tmp [][4]float64, src *image.NRGBA, sp image.Point) {
+	t := 0
+	for y := int32(0); y < z.sh; y++ {
+		for _, s := range z.horizontal.sources {
+			var pr, pg, pb, pa float64
+			for _, c := range z.horizontal.contribs[s.i:s.j] {
+				pru, pgu, pbu, pau := src.At(sp.X+int(c.coord), sp.Y+int(y)).RGBA()
+				pr += float64(pru) * c.weight
+				pg += float64(pgu) * c.weight
+				pb += float64(pbu) * c.weight
+				pa += float64(pau) * c.weight
+			}
+			tmp[t] = [4]float64{
+				pr * s.invTotalWeightFFFF,
+				pg * s.invTotalWeightFFFF,
+				pb * s.invTotalWeightFFFF,
+				pa * s.invTotalWeightFFFF,
+			}
+			t++
+		}
+	}
+}
+
+func (z *kernelScaler) scaleX_RGBA(tmp [][4]float64, src *image.RGBA, sp image.Point) {
+	t := 0
+	for y := int32(0); y < z.sh; y++ {
+		for _, s := range z.horizontal.sources {
+			var pr, pg, pb, pa float64
+			for _, c := range z.horizontal.contribs[s.i:s.j] {
+				pru, pgu, pbu, pau := src.At(sp.X+int(c.coord), sp.Y+int(y)).RGBA()
+				pr += float64(pru) * c.weight
+				pg += float64(pgu) * c.weight
+				pb += float64(pbu) * c.weight
+				pa += float64(pau) * c.weight
+			}
+			tmp[t] = [4]float64{
+				pr * s.invTotalWeightFFFF,
+				pg * s.invTotalWeightFFFF,
+				pb * s.invTotalWeightFFFF,
+				pa * s.invTotalWeightFFFF,
+			}
+			t++
+		}
+	}
+}
+
+func (z *kernelScaler) scaleX_Uniform(tmp [][4]float64, src *image.Uniform, sp image.Point) {
+	t := 0
+	for y := int32(0); y < z.sh; y++ {
+		for _, s := range z.horizontal.sources {
+			var pr, pg, pb, pa float64
+			for _, c := range z.horizontal.contribs[s.i:s.j] {
+				pru, pgu, pbu, pau := src.At(sp.X+int(c.coord), sp.Y+int(y)).RGBA()
+				pr += float64(pru) * c.weight
+				pg += float64(pgu) * c.weight
+				pb += float64(pbu) * c.weight
+				pa += float64(pau) * c.weight
+			}
+			tmp[t] = [4]float64{
+				pr * s.invTotalWeightFFFF,
+				pg * s.invTotalWeightFFFF,
+				pb * s.invTotalWeightFFFF,
+				pa * s.invTotalWeightFFFF,
+			}
+			t++
+		}
+	}
+}
+
+func (z *kernelScaler) scaleX_YCbCr(tmp [][4]float64, src *image.YCbCr, sp image.Point) {
+	t := 0
+	for y := int32(0); y < z.sh; y++ {
+		for _, s := range z.horizontal.sources {
+			var pr, pg, pb, pa float64
+			for _, c := range z.horizontal.contribs[s.i:s.j] {
+				pru, pgu, pbu, pau := src.At(sp.X+int(c.coord), sp.Y+int(y)).RGBA()
+				pr += float64(pru) * c.weight
+				pg += float64(pgu) * c.weight
+				pb += float64(pbu) * c.weight
+				pa += float64(pau) * c.weight
+			}
+			tmp[t] = [4]float64{
+				pr * s.invTotalWeightFFFF,
+				pg * s.invTotalWeightFFFF,
+				pb * s.invTotalWeightFFFF,
+				pa * s.invTotalWeightFFFF,
+			}
+			t++
+		}
+	}
 }
 
 func (z *kernelScaler) scaleX_Image(tmp [][4]float64, src image.Image, sp image.Point) {
@@ -145,6 +733,28 @@ func (z *kernelScaler) scaleX_Image(tmp [][4]float64, src image.Image, sp image.
 				pa * s.invTotalWeightFFFF,
 			}
 			t++
+		}
+	}
+}
+
+func (z *kernelScaler) scaleY_RGBA(dst *image.RGBA, dp image.Point, tmp [][4]float64) {
+	dstColorRGBA64 := &color.RGBA64{}
+	dstColor := color.Color(dstColorRGBA64)
+	for x := int32(0); x < z.dw; x++ {
+		for y, s := range z.vertical.sources {
+			var pr, pg, pb, pa float64
+			for _, c := range z.vertical.contribs[s.i:s.j] {
+				p := &tmp[c.coord*z.dw+x]
+				pr += p[0] * c.weight
+				pg += p[1] * c.weight
+				pb += p[2] * c.weight
+				pa += p[3] * c.weight
+			}
+			dstColorRGBA64.R = ftou(pr * s.invTotalWeight)
+			dstColorRGBA64.G = ftou(pg * s.invTotalWeight)
+			dstColorRGBA64.B = ftou(pb * s.invTotalWeight)
+			dstColorRGBA64.A = ftou(pa * s.invTotalWeight)
+			dst.Set(dp.X+int(x), dp.Y+int(y), dstColor)
 		}
 	}
 }
