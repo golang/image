@@ -43,13 +43,39 @@ func main() {
 	}
 }
 
-// dsTypes are the space-separated (dst image type, src image type) pairs to
-// generate scale_DType_SType implementations for. The last element in the
-// slice should be the fallback pair "Image image.Image".
-//
-// TODO: add more concrete types: *image.RGBA, *image.YCbCr, etc.
-var dsTypes = []string{
-	"Image image.Image",
+var (
+	// dsTypes are the (dst image type, src image type) pairs to generate
+	// scale_DType_SType implementations for. The last element in the slice
+	// should be the fallback pair ("Image", "image.Image").
+	//
+	// TODO: add *image.CMYK src type after Go 1.5 is released.
+	dsTypes = []struct{ dType, sType string }{
+		{"*image.RGBA", "*image.NRGBA"},
+		{"*image.RGBA", "*image.RGBA"},
+		{"*image.RGBA", "*image.Uniform"},
+		{"*image.RGBA", "*image.YCbCr"},
+		{"*image.RGBA", "image.Image"},
+		{"Image", "image.Image"},
+	}
+	dTypes, sTypes []string
+	sTypesForDType = map[string][]string{}
+)
+
+func init() {
+	dTypesSeen := map[string]bool{}
+	sTypesSeen := map[string]bool{}
+	for _, t := range dsTypes {
+		if !sTypesSeen[t.sType] {
+			sTypesSeen[t.sType] = true
+			sTypes = append(sTypes, t.sType)
+		}
+		if !dTypesSeen[t.dType] {
+			dTypesSeen[t.dType] = true
+			dTypes = append(dTypes, t.dType)
+		}
+		sTypesForDType[t.dType] = append(sTypesForDType[t.dType], t.sType)
+	}
+	sTypesForDType["anyDType"] = sTypes
 }
 
 type data struct {
@@ -60,12 +86,10 @@ type data struct {
 
 func gen(w *bytes.Buffer, receiver string, code string) {
 	expn(w, codeRoot, &data{receiver: receiver})
-
-	for _, dsType := range dsTypes {
-		dType, sType := split(dsType, " ")
+	for _, t := range dsTypes {
 		expn(w, code, &data{
-			dType:    dType,
-			sType:    sType,
+			dType:    t.dType,
+			sType:    t.sType,
 			receiver: receiver,
 		})
 	}
@@ -73,55 +97,51 @@ func gen(w *bytes.Buffer, receiver string, code string) {
 
 func genKernel(w *bytes.Buffer) {
 	expn(w, codeKernelRoot, &data{})
-
-	dTypesSeen := map[string]bool{}
-	sTypesSeen := map[string]bool{}
-	for _, dsType := range dsTypes {
-		dType, sType := split(dsType, " ")
-		if !sTypesSeen[sType] {
-			sTypesSeen[sType] = true
-			expn(w, codeKernelLeafX, &data{
-				sType: sType,
-			})
-		}
-		if !dTypesSeen[dType] {
-			dTypesSeen[dType] = true
-			expn(w, codeKernelLeafY, &data{
-				dType: dType,
-			})
-		}
+	for _, sType := range sTypes {
+		expn(w, codeKernelLeafX, &data{
+			sType: sType,
+		})
+	}
+	for _, dType := range dTypes {
+		expn(w, codeKernelLeafY, &data{
+			dType: dType,
+		})
 	}
 }
 
 func expn(w *bytes.Buffer, code string, d *data) {
 	for _, line := range strings.Split(code, "\n") {
-		for {
-			i := strings.IndexByte(line, '$')
-			if i < 0 {
-				break
-			}
-			prefix, s := line[:i], line[i+1:]
-
-			i = len(s)
-			for j, c := range s {
-				if !('A' <= c && c <= 'Z' || 'a' <= c && c <= 'z') {
-					i = j
-					break
-				}
-			}
-			dollar, suffix := s[:i], s[i:]
-
-			e := expnLine(prefix, dollar, suffix, d)
-			if e == "" {
-				log.Fatalf("couldn't expand %q", line)
-			}
-			line = e
-		}
-		fmt.Fprintln(w, line)
+		fmt.Fprintln(w, expnLine(line, d))
 	}
 }
 
-func expnLine(prefix, dollar, suffix string, d *data) string {
+func expnLine(line string, d *data) string {
+	for {
+		i := strings.IndexByte(line, '$')
+		if i < 0 {
+			break
+		}
+		prefix, s := line[:i], line[i+1:]
+
+		i = len(s)
+		for j, c := range s {
+			if !('A' <= c && c <= 'Z' || 'a' <= c && c <= 'z') {
+				i = j
+				break
+			}
+		}
+		dollar, suffix := s[:i], s[i:]
+
+		e := expnDollar(prefix, dollar, suffix, d)
+		if e == "" {
+			log.Fatalf("couldn't expand %q", line)
+		}
+		line = e
+	}
+	return line
+}
+
+func expnDollar(prefix, dollar, suffix string, d *data) string {
 	switch dollar {
 	case "dType":
 		return prefix + d.dType + suffix
@@ -134,8 +154,15 @@ func expnLine(prefix, dollar, suffix string, d *data) string {
 	case "receiver":
 		return prefix + d.receiver + suffix
 
+	case "switch":
+		return expnSwitch("", true, suffix)
+	case "switchD":
+		return expnSwitch("", false, suffix)
+	case "switchS":
+		return expnSwitch("anyDType", false, suffix)
+
 	case "dstColorDecl":
-		if d.dType == "Image" {
+		if d.dType == "Image" || d.dType == "*image.RGBA" { // TODO: separate code for concrete types.
 			return "dstColorRGBA64 := &color.RGBA64{}\n" +
 				"dstColor := color.Color(dstColorRGBA64)"
 		}
@@ -165,7 +192,7 @@ func expnLine(prefix, dollar, suffix string, d *data) string {
 		switch d.dType {
 		default:
 			log.Fatalf("bad dType %q", d.dType)
-		case "Image":
+		case "Image", "*image.RGBA": // TODO: separate code for concrete types.
 			return fmt.Sprintf(""+
 				"dstColorRGBA64.R = uint16(%sr)\n"+
 				"dstColorRGBA64.G = uint16(%sg)\n"+
@@ -185,7 +212,7 @@ func expnLine(prefix, dollar, suffix string, d *data) string {
 		switch d.dType {
 		default:
 			log.Fatalf("bad dType %q", d.dType)
-		case "Image":
+		case "Image", "*image.RGBA": // TODO: separate code for concrete types.
 			return fmt.Sprintf(""+
 				"dstColorRGBA64.R = ftou(%sr * %s)\n"+
 				"dstColorRGBA64.G = ftou(%sg * %s)\n"+
@@ -216,7 +243,7 @@ func expnLine(prefix, dollar, suffix string, d *data) string {
 		switch d.sType {
 		default:
 			log.Fatalf("bad sType %q", d.sType)
-		case "image.Image":
+		case "image.Image", "*image.NRGBA", "*image.RGBA", "*image.Uniform", "*image.YCbCr": // TODO: separate code for concrete types.
 			fmt.Fprintf(buf, "%sr%s, %sg%s, %sb%s, %sa%s := "+
 				"src.At(sp.X + int(%s), sp.Y+int(%s)).RGBA()\n",
 				lhs, tmp, lhs, tmp, lhs, tmp, lhs, tmp, args[0], args[1])
@@ -238,6 +265,37 @@ func expnLine(prefix, dollar, suffix string, d *data) string {
 		return strings.TrimSpace(buf.String())
 	}
 	return ""
+}
+
+func expnSwitch(dType string, expandBoth bool, template string) string {
+	switchVar := "dst"
+	if dType != "" {
+		switchVar = "src"
+	}
+	lines := []string{fmt.Sprintf("switch %s := %s.(type) {", switchVar, switchVar)}
+
+	fallback, values := "Image", dTypes
+	if dType != "" {
+		fallback, values = "image.Image", sTypesForDType[dType]
+	}
+	for _, v := range values {
+		if v == fallback {
+			lines = append(lines, "default:")
+		} else {
+			lines = append(lines, fmt.Sprintf("case %s:", v))
+		}
+
+		if dType != "" {
+			lines = append(lines, expnLine(template, &data{dType: dType, sType: v}))
+		} else if !expandBoth {
+			lines = append(lines, expnLine(template, &data{dType: v}))
+		} else {
+			lines = append(lines, expnSwitch(v, false, template))
+		}
+	}
+
+	lines = append(lines, "}")
+	return strings.Join(lines, "\n")
 }
 
 func split(s, sep string) (string, string) {
@@ -289,8 +347,7 @@ const (
 			if z.dw <= 0 || z.dh <= 0 || z.sw <= 0 || z.sh <= 0 {
 				return
 			}
-			// TODO: generate type switches for the different dsTypes.
-			z.scale_Image_Image(dst, dp, src, sp)
+			$switch z.scale_$dTypeRN_$sTypeRN(dst, dp, src, sp)
 		}
 	`
 
@@ -362,9 +419,8 @@ const (
 			// scaleY distributes the temporary image's rows over the destination image.
 			// TODO: is it worth having a sync.Pool for this temporary buffer?
 			tmp := make([][4]float64, z.dw*z.sh)
-			// TODO: generate type switches for the different dTypes and sTypes.
-			z.scaleX_Image(tmp, src, sp)
-			z.scaleY_Image(dst, dp, tmp)
+			$switchS z.scaleX_$sTypeRN(tmp, src, sp)
+			$switchD z.scaleY_$dTypeRN(dst, dp, tmp)
 		}
 	`
 
