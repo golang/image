@@ -5,10 +5,13 @@
 package draw
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
+	"math/rand"
 	"os"
 	"reflect"
 	"testing"
@@ -81,33 +84,123 @@ func testScale(t *testing.T, w int, h int, direction, srcFilename string) {
 func TestScaleDown(t *testing.T) { testScale(t, 100, 100, "down", "280x360.jpeg") }
 func TestScaleUp(t *testing.T)   { testScale(t, 75, 100, "up", "14x18.png") }
 
-// TODO: test that scaling concrete types like *image.RGBA and *image.YCbCr
-// give the same results as scaling those images wrapped in another Image or
-// image.Image type that would skip the fast-path type switch.
+// The fooWrapper types wrap the dst or src image to avoid triggering the
+// type-specific fast path implementations.
+type (
+	dstWrapper struct{ Image }
+	srcWrapper struct{ image.Image }
+)
 
-func srcNRGBA() (image.Image, error) {
-	return image.NewNRGBA(image.Rect(0, 0, 1024, 768)), nil
+// TestFastPaths tests that the fast path implementations produce identical
+// results to the generic implementation.
+func TestFastPaths(t *testing.T) {
+	drs := []image.Rectangle{
+		image.Rect(0, 0, 10, 10),   // The dst bounds.
+		image.Rect(3, 4, 8, 6),     // A strict subset of the dst bounds.
+		image.Rect(-3, -5, 2, 4),   // Partial out-of-bounds #0.
+		image.Rect(4, -2, 6, 12),   // Partial out-of-bounds #1.
+		image.Rect(12, 14, 23, 45), // Complete out-of-bounds.
+		image.Rect(5, 5, 5, 5),     // Empty.
+	}
+	srs := []image.Rectangle{
+		image.Rect(0, 0, 12, 9),    // The src bounds.
+		image.Rect(2, 2, 10, 8),    // A strict subset of the src bounds.
+		image.Rect(10, 5, 20, 20),  // Partial out-of-bounds #0.
+		image.Rect(-40, 0, 40, 8),  // Partial out-of-bounds #1.
+		image.Rect(-8, -8, -4, -4), // Complete out-of-bounds.
+		image.Rect(5, 5, 5, 5),     // Empty.
+	}
+	srcfs := []func(image.Rectangle) (image.Image, error){
+		srcNRGBA,
+		srcRGBA,
+		srcUniform,
+		srcYCbCr,
+	}
+	var srcs []image.Image
+	for _, srcf := range srcfs {
+		src, err := srcf(srs[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		srcs = append(srcs, src)
+	}
+	qs := []Interpolator{
+		NearestNeighbor,
+		ApproxBiLinear,
+		CatmullRom,
+	}
+	blue := image.NewUniform(color.RGBA{0x11, 0x22, 0x44, 0x7f})
+
+	for _, dr := range drs {
+		for _, src := range srcs {
+			for _, sr := range srs {
+				for _, q := range qs {
+					dst0 := image.NewRGBA(drs[0])
+					dst1 := image.NewRGBA(drs[0])
+					Draw(dst0, dst0.Bounds(), blue, image.Point{}, Src)
+					Draw(dstWrapper{dst1}, dst1.Bounds(), srcWrapper{blue}, image.Point{}, Src)
+					Scale(dst0, dr, src, sr, q)
+					Scale(dstWrapper{dst1}, dr, srcWrapper{src}, sr, q)
+					if !bytes.Equal(dst0.Pix, dst1.Pix) {
+						t.Errorf("pix differ for dr=%v, src=%T, sr=%v, q=%T", dr, src, sr, q)
+					}
+				}
+			}
+		}
+	}
 }
 
-func srcRGBA() (image.Image, error) {
-	return image.NewRGBA(image.Rect(0, 0, 1024, 768)), nil
+func srcNRGBA(boundsHint image.Rectangle) (image.Image, error) {
+	m := image.NewNRGBA(boundsHint)
+	r := rand.New(rand.NewSource(1))
+	for i := range m.Pix {
+		m.Pix[i] = uint8(r.Intn(256))
+	}
+	return m, nil
 }
 
-func srcUniform() (image.Image, error) {
-	return image.White, nil
+func srcRGBA(boundsHint image.Rectangle) (image.Image, error) {
+	m := image.NewRGBA(boundsHint)
+	r := rand.New(rand.NewSource(2))
+	for i := range m.Pix {
+		m.Pix[i] = uint8(r.Intn(256))
+	}
+	// RGBA is alpha-premultiplied, so the R, G and B values should
+	// be <= the A values.
+	for i := 0; i < len(m.Pix); i += 4 {
+		m.Pix[i+0] = uint8(uint32(m.Pix[i+0]) * uint32(m.Pix[i+3]) / 0xff)
+		m.Pix[i+1] = uint8(uint32(m.Pix[i+1]) * uint32(m.Pix[i+3]) / 0xff)
+		m.Pix[i+2] = uint8(uint32(m.Pix[i+2]) * uint32(m.Pix[i+3]) / 0xff)
+	}
+	return m, nil
 }
 
-func srcYCbCr() (image.Image, error) {
-	return image.NewYCbCr(image.Rect(0, 0, 1024, 768), image.YCbCrSubsampleRatio420), nil
+func srcUniform(boundsHint image.Rectangle) (image.Image, error) {
+	return image.NewUniform(color.RGBA64{0x1234, 0x5555, 0x9181, 0xbeef}), nil
 }
 
-func srcYCbCrLarge() (image.Image, error) {
+func srcYCbCr(boundsHint image.Rectangle) (image.Image, error) {
+	m := image.NewYCbCr(boundsHint, image.YCbCrSubsampleRatio420)
+	r := rand.New(rand.NewSource(3))
+	for i := range m.Y {
+		m.Y[i] = uint8(r.Intn(256))
+	}
+	for i := range m.Cb {
+		m.Cb[i] = uint8(r.Intn(256))
+	}
+	for i := range m.Cr {
+		m.Cr[i] = uint8(r.Intn(256))
+	}
+	return m, nil
+}
+
+func srcYCbCrLarge(boundsHint image.Rectangle) (image.Image, error) {
 	// 3072 x 2304 is over 7 million pixels at 4:3, comparable to a
 	// 2015 smart-phone camera's output.
-	return image.NewYCbCr(image.Rect(0, 0, 3072, 2304), image.YCbCrSubsampleRatio420), nil
+	return srcYCbCr(image.Rect(0, 0, 3072, 2304))
 }
 
-func srcTux() (image.Image, error) {
+func srcTux(boundsHint image.Rectangle) (image.Image, error) {
 	// tux.png is a 386 x 395 image.
 	f, err := os.Open("../testdata/tux.png")
 	if err != nil {
@@ -121,9 +214,9 @@ func srcTux() (image.Image, error) {
 	return src, nil
 }
 
-func benchScale(b *testing.B, srcf func() (image.Image, error), w int, h int, q Interpolator) {
+func benchScale(b *testing.B, srcf func(image.Rectangle) (image.Image, error), w int, h int, q Interpolator) {
 	dst := image.NewRGBA(image.Rect(0, 0, w, h))
-	src, err := srcf()
+	src, err := srcf(image.Rect(0, 0, 1024, 768))
 	if err != nil {
 		b.Fatal(err)
 	}
