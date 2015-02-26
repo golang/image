@@ -84,6 +84,53 @@ func testScale(t *testing.T, w int, h int, direction, srcFilename string) {
 func TestScaleDown(t *testing.T) { testScale(t, 100, 100, "down", "280x360.jpeg") }
 func TestScaleUp(t *testing.T)   { testScale(t, 75, 100, "up", "14x18.png") }
 
+func fillPix(r *rand.Rand, pixs ...[]byte) {
+	for _, pix := range pixs {
+		for i := range pix {
+			pix[i] = uint8(r.Intn(256))
+		}
+	}
+}
+
+func TestScaleClipCommute(t *testing.T) {
+	src := image.NewNRGBA(image.Rect(0, 0, 20, 20))
+	fillPix(rand.New(rand.NewSource(0)), src.Pix)
+
+	outer := image.Rect(1, 1, 8, 5)
+	inner := image.Rect(2, 3, 6, 5)
+	qs := []Interpolator{
+		NearestNeighbor,
+		ApproxBiLinear,
+		CatmullRom,
+	}
+	for _, q := range qs {
+		dst0 := image.NewRGBA(image.Rect(1, 1, 10, 10))
+		dst1 := image.NewRGBA(image.Rect(1, 1, 10, 10))
+		for i := range dst0.Pix {
+			dst0.Pix[i] = uint8(i / 4)
+			dst1.Pix[i] = uint8(i / 4)
+		}
+
+		// Scale then clip.
+		Scale(dst0, outer, src, src.Bounds(), q)
+		dst0 = dst0.SubImage(inner).(*image.RGBA)
+
+		// Clip then scale.
+		dst1 = dst1.SubImage(inner).(*image.RGBA)
+		Scale(dst1, outer, src, src.Bounds(), q)
+
+	loop:
+		for y := inner.Min.Y; y < inner.Max.Y; y++ {
+			for x := inner.Min.X; x < inner.Max.X; x++ {
+				if c0, c1 := dst0.RGBAAt(x, y), dst1.RGBAAt(x, y); c0 != c1 {
+					t.Errorf("q=%T: at (%d, %d): c0=%v, c1=%v", q, x, y, c0, c1)
+					break loop
+				}
+			}
+		}
+	}
+}
+
 // The fooWrapper types wrap the dst or src image to avoid triggering the
 // type-specific fast path implementations.
 type (
@@ -152,19 +199,13 @@ func TestFastPaths(t *testing.T) {
 
 func srcNRGBA(boundsHint image.Rectangle) (image.Image, error) {
 	m := image.NewNRGBA(boundsHint)
-	r := rand.New(rand.NewSource(1))
-	for i := range m.Pix {
-		m.Pix[i] = uint8(r.Intn(256))
-	}
+	fillPix(rand.New(rand.NewSource(1)), m.Pix)
 	return m, nil
 }
 
 func srcRGBA(boundsHint image.Rectangle) (image.Image, error) {
 	m := image.NewRGBA(boundsHint)
-	r := rand.New(rand.NewSource(2))
-	for i := range m.Pix {
-		m.Pix[i] = uint8(r.Intn(256))
-	}
+	fillPix(rand.New(rand.NewSource(2)), m.Pix)
 	// RGBA is alpha-premultiplied, so the R, G and B values should
 	// be <= the A values.
 	for i := 0; i < len(m.Pix); i += 4 {
@@ -181,16 +222,7 @@ func srcUniform(boundsHint image.Rectangle) (image.Image, error) {
 
 func srcYCbCr(boundsHint image.Rectangle) (image.Image, error) {
 	m := image.NewYCbCr(boundsHint, image.YCbCrSubsampleRatio420)
-	r := rand.New(rand.NewSource(3))
-	for i := range m.Y {
-		m.Y[i] = uint8(r.Intn(256))
-	}
-	for i := range m.Cb {
-		m.Cb[i] = uint8(r.Intn(256))
-	}
-	for i := range m.Cr {
-		m.Cr[i] = uint8(r.Intn(256))
-	}
+	fillPix(rand.New(rand.NewSource(3)), m.Y, m.Cb, m.Cr)
 	return m, nil
 }
 

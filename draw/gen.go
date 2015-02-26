@@ -347,16 +347,21 @@ const (
 			if z.dw <= 0 || z.dh <= 0 || z.sw <= 0 || z.sh <= 0 {
 				return
 			}
-			$switch z.scale_$dTypeRN_$sTypeRN(dst, dp, src, sp)
+			// dr is the affected destination pixels, relative to dp.
+			dr := dst.Bounds().Sub(dp).Intersect(image.Rectangle{Max: image.Point{int(z.dw), int(z.dh)}})
+			if dr.Empty() {
+				return
+			}
+			$switch z.scale_$dTypeRN_$sTypeRN(dst, dp, dr, src, sp)
 		}
 	`
 
 	codeNNLeaf = `
-		func (z *nnScaler) scale_$dTypeRN_$sTypeRN(dst $dType, dp image.Point, src $sType, sp image.Point) {
+		func (z *nnScaler) scale_$dTypeRN_$sTypeRN(dst $dType, dp image.Point, dr image.Rectangle, src $sType, sp image.Point) {
 			$dstColorDecl
-			for dy := int32(0); dy < z.dh; dy++ {
+			for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
 				sy := (2*uint64(dy) + 1) * uint64(z.sh) / (2 * uint64(z.dh))
-				for dx := int32(0); dx < z.dw; dx++ {
+				for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 					sx := (2*uint64(dx) + 1) * uint64(z.sw) / (2 * uint64(z.dw))
 					p := $srcu[sx, sy]
 					$outputu[dx, dy, p]
@@ -366,11 +371,11 @@ const (
 	`
 
 	codeABLLeaf = `
-		func (z *ablScaler) scale_$dTypeRN_$sTypeRN(dst $dType, dp image.Point, src $sType, sp image.Point) {
+		func (z *ablScaler) scale_$dTypeRN_$sTypeRN(dst $dType, dp image.Point, dr image.Rectangle, src $sType, sp image.Point) {
 			yscale := float64(z.sh) / float64(z.dh)
 			xscale := float64(z.sw) / float64(z.dw)
 			$dstColorDecl
-			for dy := int32(0); dy < z.dh; dy++ {
+			for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
 				sy := (float64(dy)+0.5)*yscale - 0.5
 				sy0 := int32(sy)
 				yFrac0 := sy - float64(sy0)
@@ -383,7 +388,7 @@ const (
 					sy1 = sy0
 					yFrac0, yFrac1 = 1, 0
 				}
-				for dx := int32(0); dx < z.dw; dx++ {
+				for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 					sx := (float64(dx)+0.5)*xscale - 0.5
 					sx0 := int32(sx)
 					xFrac0 := sx - float64(sx0)
@@ -414,13 +419,18 @@ const (
 			if z.dw <= 0 || z.dh <= 0 || z.sw <= 0 || z.sh <= 0 {
 				return
 			}
+			// dr is the affected destination pixels, relative to dp.
+			dr := dst.Bounds().Sub(dp).Intersect(image.Rectangle{Max: image.Point{int(z.dw), int(z.dh)}})
+			if dr.Empty() {
+				return
+			}
 			// Create a temporary buffer:
 			// scaleX distributes the source image's columns over the temporary image.
 			// scaleY distributes the temporary image's rows over the destination image.
 			// TODO: is it worth having a sync.Pool for this temporary buffer?
 			tmp := make([][4]float64, z.dw*z.sh)
 			$switchS z.scaleX_$sTypeRN(tmp, src, sp)
-			$switchD z.scaleY_$dTypeRN(dst, dp, tmp)
+			$switchD z.scaleY_$dTypeRN(dst, dp, dr, tmp)
 		}
 	`
 
@@ -446,19 +456,19 @@ const (
 	`
 
 	codeKernelLeafY = `
-		func (z *kernelScaler) scaleY_$dTypeRN(dst $dType, dp image.Point, tmp [][4]float64) {
+		func (z *kernelScaler) scaleY_$dTypeRN(dst $dType, dp image.Point, dr image.Rectangle, tmp [][4]float64) {
 			$dstColorDecl
-			for x := int32(0); x < z.dw; x++ {
-				for y, s := range z.vertical.sources {
+			for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
+				for dy, s := range z.vertical.sources[dr.Min.Y:dr.Max.Y] {
 					var pr, pg, pb, pa float64
 					for _, c := range z.vertical.contribs[s.i:s.j] {
-						p := &tmp[c.coord*z.dw+x]
+						p := &tmp[c.coord*z.dw+dx]
 						pr += p[0] * c.weight
 						pg += p[1] * c.weight
 						pb += p[2] * c.weight
 						pa += p[3] * c.weight
 					}
-					$outputf[x, y, p, s.invTotalWeight]
+					$outputf[dx, dr.Min.Y+dy, p, s.invTotalWeight]
 				}
 			}
 		}
