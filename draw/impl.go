@@ -39,86 +39,81 @@ func (z *nnScaler) Scale(dst Image, dp image.Point, src image.Image, sp image.Po
 }
 
 func (z *nnScaler) scale_RGBA_NRGBA(dst *image.RGBA, dp image.Point, dr image.Rectangle, src *image.NRGBA, sp image.Point) {
-	dstColorRGBA64 := &color.RGBA64{}
-	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
 		sy := (2*uint64(dy) + 1) * uint64(z.sh) / (2 * uint64(z.dh))
+		d := dst.PixOffset(dp.X+dr.Min.X, dp.Y+int(dy))
 		for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 			sx := (2*uint64(dx) + 1) * uint64(z.sw) / (2 * uint64(z.dw))
 			pr, pg, pb, pa := src.At(sp.X+int(sx), sp.Y+int(sy)).RGBA()
-			dstColorRGBA64.R = uint16(pr)
-			dstColorRGBA64.G = uint16(pg)
-			dstColorRGBA64.B = uint16(pb)
-			dstColorRGBA64.A = uint16(pa)
-			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
+			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
+			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
+			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			d += 4
 		}
 	}
 }
 
 func (z *nnScaler) scale_RGBA_RGBA(dst *image.RGBA, dp image.Point, dr image.Rectangle, src *image.RGBA, sp image.Point) {
-	dstColorRGBA64 := &color.RGBA64{}
-	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
 		sy := (2*uint64(dy) + 1) * uint64(z.sh) / (2 * uint64(z.dh))
+		d := dst.PixOffset(dp.X+dr.Min.X, dp.Y+int(dy))
 		for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 			sx := (2*uint64(dx) + 1) * uint64(z.sw) / (2 * uint64(z.dw))
 			pr, pg, pb, pa := src.At(sp.X+int(sx), sp.Y+int(sy)).RGBA()
-			dstColorRGBA64.R = uint16(pr)
-			dstColorRGBA64.G = uint16(pg)
-			dstColorRGBA64.B = uint16(pb)
-			dstColorRGBA64.A = uint16(pa)
-			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
+			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
+			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
+			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			d += 4
 		}
 	}
 }
 
 func (z *nnScaler) scale_RGBA_Uniform(dst *image.RGBA, dp image.Point, dr image.Rectangle, src *image.Uniform, sp image.Point) {
-	dstColorRGBA64 := &color.RGBA64{}
-	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
 		sy := (2*uint64(dy) + 1) * uint64(z.sh) / (2 * uint64(z.dh))
+		d := dst.PixOffset(dp.X+dr.Min.X, dp.Y+int(dy))
 		for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 			sx := (2*uint64(dx) + 1) * uint64(z.sw) / (2 * uint64(z.dw))
 			pr, pg, pb, pa := src.At(sp.X+int(sx), sp.Y+int(sy)).RGBA()
-			dstColorRGBA64.R = uint16(pr)
-			dstColorRGBA64.G = uint16(pg)
-			dstColorRGBA64.B = uint16(pb)
-			dstColorRGBA64.A = uint16(pa)
-			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
+			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
+			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
+			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			d += 4
 		}
 	}
 }
 
 func (z *nnScaler) scale_RGBA_YCbCr(dst *image.RGBA, dp image.Point, dr image.Rectangle, src *image.YCbCr, sp image.Point) {
-	dstColorRGBA64 := &color.RGBA64{}
-	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
 		sy := (2*uint64(dy) + 1) * uint64(z.sh) / (2 * uint64(z.dh))
+		d := dst.PixOffset(dp.X+dr.Min.X, dp.Y+int(dy))
 		for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 			sx := (2*uint64(dx) + 1) * uint64(z.sw) / (2 * uint64(z.dw))
 			pr, pg, pb, pa := src.At(sp.X+int(sx), sp.Y+int(sy)).RGBA()
-			dstColorRGBA64.R = uint16(pr)
-			dstColorRGBA64.G = uint16(pg)
-			dstColorRGBA64.B = uint16(pb)
-			dstColorRGBA64.A = uint16(pa)
-			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
+			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
+			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
+			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			d += 4
 		}
 	}
 }
 
 func (z *nnScaler) scale_RGBA_Image(dst *image.RGBA, dp image.Point, dr image.Rectangle, src image.Image, sp image.Point) {
-	dstColorRGBA64 := &color.RGBA64{}
-	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
 		sy := (2*uint64(dy) + 1) * uint64(z.sh) / (2 * uint64(z.dh))
+		d := dst.PixOffset(dp.X+dr.Min.X, dp.Y+int(dy))
 		for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 			sx := (2*uint64(dx) + 1) * uint64(z.sw) / (2 * uint64(z.dw))
 			pr, pg, pb, pa := src.At(sp.X+int(sx), sp.Y+int(sy)).RGBA()
-			dstColorRGBA64.R = uint16(pr)
-			dstColorRGBA64.G = uint16(pg)
-			dstColorRGBA64.B = uint16(pb)
-			dstColorRGBA64.A = uint16(pa)
-			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
+			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
+			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
+			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			d += 4
 		}
 	}
 }
@@ -174,8 +169,6 @@ func (z *ablScaler) Scale(dst Image, dp image.Point, src image.Image, sp image.P
 func (z *ablScaler) scale_RGBA_NRGBA(dst *image.RGBA, dp image.Point, dr image.Rectangle, src *image.NRGBA, sp image.Point) {
 	yscale := float64(z.sh) / float64(z.dh)
 	xscale := float64(z.sw) / float64(z.dw)
-	dstColorRGBA64 := &color.RGBA64{}
-	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
 		sy := (float64(dy)+0.5)*yscale - 0.5
 		sy0 := int32(sy)
@@ -189,6 +182,7 @@ func (z *ablScaler) scale_RGBA_NRGBA(dst *image.RGBA, dp image.Point, dr image.R
 			sy1 = sy0
 			yFrac0, yFrac1 = 1, 0
 		}
+		d := dst.PixOffset(dp.X+dr.Min.X, dp.Y+int(dy))
 		for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 			sx := (float64(dx)+0.5)*xscale - 0.5
 			sx0 := int32(sx)
@@ -234,11 +228,11 @@ func (z *ablScaler) scale_RGBA_NRGBA(dst *image.RGBA, dp image.Point, dr image.R
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			dstColorRGBA64.R = uint16(s11r)
-			dstColorRGBA64.G = uint16(s11g)
-			dstColorRGBA64.B = uint16(s11b)
-			dstColorRGBA64.A = uint16(s11a)
-			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
+			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
+			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
+			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			d += 4
 		}
 	}
 }
@@ -246,8 +240,6 @@ func (z *ablScaler) scale_RGBA_NRGBA(dst *image.RGBA, dp image.Point, dr image.R
 func (z *ablScaler) scale_RGBA_RGBA(dst *image.RGBA, dp image.Point, dr image.Rectangle, src *image.RGBA, sp image.Point) {
 	yscale := float64(z.sh) / float64(z.dh)
 	xscale := float64(z.sw) / float64(z.dw)
-	dstColorRGBA64 := &color.RGBA64{}
-	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
 		sy := (float64(dy)+0.5)*yscale - 0.5
 		sy0 := int32(sy)
@@ -261,6 +253,7 @@ func (z *ablScaler) scale_RGBA_RGBA(dst *image.RGBA, dp image.Point, dr image.Re
 			sy1 = sy0
 			yFrac0, yFrac1 = 1, 0
 		}
+		d := dst.PixOffset(dp.X+dr.Min.X, dp.Y+int(dy))
 		for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 			sx := (float64(dx)+0.5)*xscale - 0.5
 			sx0 := int32(sx)
@@ -306,11 +299,11 @@ func (z *ablScaler) scale_RGBA_RGBA(dst *image.RGBA, dp image.Point, dr image.Re
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			dstColorRGBA64.R = uint16(s11r)
-			dstColorRGBA64.G = uint16(s11g)
-			dstColorRGBA64.B = uint16(s11b)
-			dstColorRGBA64.A = uint16(s11a)
-			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
+			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
+			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
+			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			d += 4
 		}
 	}
 }
@@ -318,8 +311,6 @@ func (z *ablScaler) scale_RGBA_RGBA(dst *image.RGBA, dp image.Point, dr image.Re
 func (z *ablScaler) scale_RGBA_Uniform(dst *image.RGBA, dp image.Point, dr image.Rectangle, src *image.Uniform, sp image.Point) {
 	yscale := float64(z.sh) / float64(z.dh)
 	xscale := float64(z.sw) / float64(z.dw)
-	dstColorRGBA64 := &color.RGBA64{}
-	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
 		sy := (float64(dy)+0.5)*yscale - 0.5
 		sy0 := int32(sy)
@@ -333,6 +324,7 @@ func (z *ablScaler) scale_RGBA_Uniform(dst *image.RGBA, dp image.Point, dr image
 			sy1 = sy0
 			yFrac0, yFrac1 = 1, 0
 		}
+		d := dst.PixOffset(dp.X+dr.Min.X, dp.Y+int(dy))
 		for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 			sx := (float64(dx)+0.5)*xscale - 0.5
 			sx0 := int32(sx)
@@ -378,11 +370,11 @@ func (z *ablScaler) scale_RGBA_Uniform(dst *image.RGBA, dp image.Point, dr image
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			dstColorRGBA64.R = uint16(s11r)
-			dstColorRGBA64.G = uint16(s11g)
-			dstColorRGBA64.B = uint16(s11b)
-			dstColorRGBA64.A = uint16(s11a)
-			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
+			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
+			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
+			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			d += 4
 		}
 	}
 }
@@ -390,8 +382,6 @@ func (z *ablScaler) scale_RGBA_Uniform(dst *image.RGBA, dp image.Point, dr image
 func (z *ablScaler) scale_RGBA_YCbCr(dst *image.RGBA, dp image.Point, dr image.Rectangle, src *image.YCbCr, sp image.Point) {
 	yscale := float64(z.sh) / float64(z.dh)
 	xscale := float64(z.sw) / float64(z.dw)
-	dstColorRGBA64 := &color.RGBA64{}
-	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
 		sy := (float64(dy)+0.5)*yscale - 0.5
 		sy0 := int32(sy)
@@ -405,6 +395,7 @@ func (z *ablScaler) scale_RGBA_YCbCr(dst *image.RGBA, dp image.Point, dr image.R
 			sy1 = sy0
 			yFrac0, yFrac1 = 1, 0
 		}
+		d := dst.PixOffset(dp.X+dr.Min.X, dp.Y+int(dy))
 		for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 			sx := (float64(dx)+0.5)*xscale - 0.5
 			sx0 := int32(sx)
@@ -450,11 +441,11 @@ func (z *ablScaler) scale_RGBA_YCbCr(dst *image.RGBA, dp image.Point, dr image.R
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			dstColorRGBA64.R = uint16(s11r)
-			dstColorRGBA64.G = uint16(s11g)
-			dstColorRGBA64.B = uint16(s11b)
-			dstColorRGBA64.A = uint16(s11a)
-			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
+			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
+			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
+			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			d += 4
 		}
 	}
 }
@@ -462,8 +453,6 @@ func (z *ablScaler) scale_RGBA_YCbCr(dst *image.RGBA, dp image.Point, dr image.R
 func (z *ablScaler) scale_RGBA_Image(dst *image.RGBA, dp image.Point, dr image.Rectangle, src image.Image, sp image.Point) {
 	yscale := float64(z.sh) / float64(z.dh)
 	xscale := float64(z.sw) / float64(z.dw)
-	dstColorRGBA64 := &color.RGBA64{}
-	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
 		sy := (float64(dy)+0.5)*yscale - 0.5
 		sy0 := int32(sy)
@@ -477,6 +466,7 @@ func (z *ablScaler) scale_RGBA_Image(dst *image.RGBA, dp image.Point, dr image.R
 			sy1 = sy0
 			yFrac0, yFrac1 = 1, 0
 		}
+		d := dst.PixOffset(dp.X+dr.Min.X, dp.Y+int(dy))
 		for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 			sx := (float64(dx)+0.5)*xscale - 0.5
 			sx0 := int32(sx)
@@ -522,11 +512,11 @@ func (z *ablScaler) scale_RGBA_Image(dst *image.RGBA, dp image.Point, dr image.R
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			dstColorRGBA64.R = uint16(s11r)
-			dstColorRGBA64.G = uint16(s11g)
-			dstColorRGBA64.B = uint16(s11b)
-			dstColorRGBA64.A = uint16(s11a)
-			dst.Set(dp.X+int(dx), dp.Y+int(dy), dstColor)
+			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
+			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
+			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
+			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			d += 4
 		}
 	}
 }
@@ -753,10 +743,9 @@ func (z *kernelScaler) scaleX_Image(tmp [][4]float64, src image.Image, sp image.
 }
 
 func (z *kernelScaler) scaleY_RGBA(dst *image.RGBA, dp image.Point, dr image.Rectangle, tmp [][4]float64) {
-	dstColorRGBA64 := &color.RGBA64{}
-	dstColor := color.Color(dstColorRGBA64)
 	for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
-		for dy, s := range z.vertical.sources[dr.Min.Y:dr.Max.Y] {
+		d := dst.PixOffset(dp.X+int(dx), dp.Y+dr.Min.Y)
+		for _, s := range z.vertical.sources[dr.Min.Y:dr.Max.Y] {
 			var pr, pg, pb, pa float64
 			for _, c := range z.vertical.contribs[s.i:s.j] {
 				p := &tmp[c.coord*z.dw+dx]
@@ -765,11 +754,11 @@ func (z *kernelScaler) scaleY_RGBA(dst *image.RGBA, dp image.Point, dr image.Rec
 				pb += p[2] * c.weight
 				pa += p[3] * c.weight
 			}
-			dstColorRGBA64.R = ftou(pr * s.invTotalWeight)
-			dstColorRGBA64.G = ftou(pg * s.invTotalWeight)
-			dstColorRGBA64.B = ftou(pb * s.invTotalWeight)
-			dstColorRGBA64.A = ftou(pa * s.invTotalWeight)
-			dst.Set(dp.X+int(dx), dp.Y+int(dr.Min.Y+dy), dstColor)
+			dst.Pix[d+0] = uint8(ftou(pr*s.invTotalWeight) >> 8)
+			dst.Pix[d+1] = uint8(ftou(pg*s.invTotalWeight) >> 8)
+			dst.Pix[d+2] = uint8(ftou(pb*s.invTotalWeight) >> 8)
+			dst.Pix[d+3] = uint8(ftou(pa*s.invTotalWeight) >> 8)
+			d += dst.Stride
 		}
 	}
 }
