@@ -16,24 +16,31 @@ func (z *nnScaler) Scale(dst Image, dp image.Point, src image.Image, sp image.Po
 	if dr.Empty() {
 		return
 	}
-	switch dst := dst.(type) {
-	case *image.RGBA:
-		switch src := src.(type) {
-		case *image.NRGBA:
-			z.scale_RGBA_NRGBA(dst, dp, dr, src, sp)
+	// sr is the source pixels. If it extends beyond the src bounds,
+	// we cannot use the type-specific fast paths, as they access
+	// the Pix fields directly without bounds checking.
+	if sr := (image.Rectangle{sp, sp.Add(image.Point{int(z.sw), int(z.sh)})}); !sr.In(src.Bounds()) {
+		z.scale_Image_Image(dst, dp, dr, src, sp)
+	} else {
+		switch dst := dst.(type) {
 		case *image.RGBA:
-			z.scale_RGBA_RGBA(dst, dp, dr, src, sp)
-		case *image.Uniform:
-			z.scale_RGBA_Uniform(dst, dp, dr, src, sp)
-		case *image.YCbCr:
-			z.scale_RGBA_YCbCr(dst, dp, dr, src, sp)
+			switch src := src.(type) {
+			case *image.NRGBA:
+				z.scale_RGBA_NRGBA(dst, dp, dr, src, sp)
+			case *image.RGBA:
+				z.scale_RGBA_RGBA(dst, dp, dr, src, sp)
+			case *image.Uniform:
+				z.scale_RGBA_Uniform(dst, dp, dr, src, sp)
+			case *image.YCbCr:
+				z.scale_RGBA_YCbCr(dst, dp, dr, src, sp)
+			default:
+				z.scale_RGBA_Image(dst, dp, dr, src, sp)
+			}
 		default:
-			z.scale_RGBA_Image(dst, dp, dr, src, sp)
-		}
-	default:
-		switch src := src.(type) {
-		default:
-			z.scale_Image_Image(dst, dp, dr, src, sp)
+			switch src := src.(type) {
+			default:
+				z.scale_Image_Image(dst, dp, dr, src, sp)
+			}
 		}
 	}
 }
@@ -60,7 +67,11 @@ func (z *nnScaler) scale_RGBA_RGBA(dst *image.RGBA, dp image.Point, dr image.Rec
 		d := dst.PixOffset(dp.X+dr.Min.X, dp.Y+int(dy))
 		for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 			sx := (2*uint64(dx) + 1) * uint64(z.sw) / (2 * uint64(z.dw))
-			pr, pg, pb, pa := src.At(sp.X+int(sx), sp.Y+int(sy)).RGBA()
+			pi := src.PixOffset(sp.X+int(sx), sp.Y+int(sy))
+			pr := uint32(src.Pix[pi+0]) * 0x101
+			pg := uint32(src.Pix[pi+1]) * 0x101
+			pb := uint32(src.Pix[pi+2]) * 0x101
+			pa := uint32(src.Pix[pi+3]) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
@@ -144,24 +155,31 @@ func (z *ablScaler) Scale(dst Image, dp image.Point, src image.Image, sp image.P
 	if dr.Empty() {
 		return
 	}
-	switch dst := dst.(type) {
-	case *image.RGBA:
-		switch src := src.(type) {
-		case *image.NRGBA:
-			z.scale_RGBA_NRGBA(dst, dp, dr, src, sp)
+	// sr is the source pixels. If it extends beyond the src bounds,
+	// we cannot use the type-specific fast paths, as they access
+	// the Pix fields directly without bounds checking.
+	if sr := (image.Rectangle{sp, sp.Add(image.Point{int(z.sw), int(z.sh)})}); !sr.In(src.Bounds()) {
+		z.scale_Image_Image(dst, dp, dr, src, sp)
+	} else {
+		switch dst := dst.(type) {
 		case *image.RGBA:
-			z.scale_RGBA_RGBA(dst, dp, dr, src, sp)
-		case *image.Uniform:
-			z.scale_RGBA_Uniform(dst, dp, dr, src, sp)
-		case *image.YCbCr:
-			z.scale_RGBA_YCbCr(dst, dp, dr, src, sp)
+			switch src := src.(type) {
+			case *image.NRGBA:
+				z.scale_RGBA_NRGBA(dst, dp, dr, src, sp)
+			case *image.RGBA:
+				z.scale_RGBA_RGBA(dst, dp, dr, src, sp)
+			case *image.Uniform:
+				z.scale_RGBA_Uniform(dst, dp, dr, src, sp)
+			case *image.YCbCr:
+				z.scale_RGBA_YCbCr(dst, dp, dr, src, sp)
+			default:
+				z.scale_RGBA_Image(dst, dp, dr, src, sp)
+			}
 		default:
-			z.scale_RGBA_Image(dst, dp, dr, src, sp)
-		}
-	default:
-		switch src := src.(type) {
-		default:
-			z.scale_Image_Image(dst, dp, dr, src, sp)
+			switch src := src.(type) {
+			default:
+				z.scale_Image_Image(dst, dp, dr, src, sp)
+			}
 		}
 	}
 }
@@ -267,12 +285,20 @@ func (z *ablScaler) scale_RGBA_RGBA(dst *image.RGBA, dp image.Point, dr image.Re
 				sx1 = sx0
 				xFrac0, xFrac1 = 1, 0
 			}
-			s00ru, s00gu, s00bu, s00au := src.At(sp.X+int(sx0), sp.Y+int(sy0)).RGBA()
+			s00i := src.PixOffset(sp.X+int(sx0), sp.Y+int(sy0))
+			s00ru := uint32(src.Pix[s00i+0]) * 0x101
+			s00gu := uint32(src.Pix[s00i+1]) * 0x101
+			s00bu := uint32(src.Pix[s00i+2]) * 0x101
+			s00au := uint32(src.Pix[s00i+3]) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
 			s00a := float64(s00au)
-			s10ru, s10gu, s10bu, s10au := src.At(sp.X+int(sx1), sp.Y+int(sy0)).RGBA()
+			s10i := src.PixOffset(sp.X+int(sx1), sp.Y+int(sy0))
+			s10ru := uint32(src.Pix[s10i+0]) * 0x101
+			s10gu := uint32(src.Pix[s10i+1]) * 0x101
+			s10bu := uint32(src.Pix[s10i+2]) * 0x101
+			s10au := uint32(src.Pix[s10i+3]) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
@@ -281,12 +307,20 @@ func (z *ablScaler) scale_RGBA_RGBA(dst *image.RGBA, dp image.Point, dr image.Re
 			s10g = xFrac1*s00g + xFrac0*s10g
 			s10b = xFrac1*s00b + xFrac0*s10b
 			s10a = xFrac1*s00a + xFrac0*s10a
-			s01ru, s01gu, s01bu, s01au := src.At(sp.X+int(sx0), sp.Y+int(sy1)).RGBA()
+			s01i := src.PixOffset(sp.X+int(sx0), sp.Y+int(sy1))
+			s01ru := uint32(src.Pix[s01i+0]) * 0x101
+			s01gu := uint32(src.Pix[s01i+1]) * 0x101
+			s01bu := uint32(src.Pix[s01i+2]) * 0x101
+			s01au := uint32(src.Pix[s01i+3]) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
 			s01a := float64(s01au)
-			s11ru, s11gu, s11bu, s11au := src.At(sp.X+int(sx1), sp.Y+int(sy1)).RGBA()
+			s11i := src.PixOffset(sp.X+int(sx1), sp.Y+int(sy1))
+			s11ru := uint32(src.Pix[s11i+0]) * 0x101
+			s11gu := uint32(src.Pix[s11i+1]) * 0x101
+			s11bu := uint32(src.Pix[s11i+2]) * 0x101
+			s11au := uint32(src.Pix[s11i+3]) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
@@ -607,18 +641,27 @@ func (z *kernelScaler) Scale(dst Image, dp image.Point, src image.Image, sp imag
 	// scaleY distributes the temporary image's rows over the destination image.
 	// TODO: is it worth having a sync.Pool for this temporary buffer?
 	tmp := make([][4]float64, z.dw*z.sh)
-	switch src := src.(type) {
-	case *image.NRGBA:
-		z.scaleX_NRGBA(tmp, src, sp)
-	case *image.RGBA:
-		z.scaleX_RGBA(tmp, src, sp)
-	case *image.Uniform:
-		z.scaleX_Uniform(tmp, src, sp)
-	case *image.YCbCr:
-		z.scaleX_YCbCr(tmp, src, sp)
-	default:
+
+	// sr is the source pixels. If it extends beyond the src bounds,
+	// we cannot use the type-specific fast paths, as they access
+	// the Pix fields directly without bounds checking.
+	if sr := (image.Rectangle{sp, sp.Add(image.Point{int(z.sw), int(z.sh)})}); !sr.In(src.Bounds()) {
 		z.scaleX_Image(tmp, src, sp)
+	} else {
+		switch src := src.(type) {
+		case *image.NRGBA:
+			z.scaleX_NRGBA(tmp, src, sp)
+		case *image.RGBA:
+			z.scaleX_RGBA(tmp, src, sp)
+		case *image.Uniform:
+			z.scaleX_Uniform(tmp, src, sp)
+		case *image.YCbCr:
+			z.scaleX_YCbCr(tmp, src, sp)
+		default:
+			z.scaleX_Image(tmp, src, sp)
+		}
 	}
+
 	switch dst := dst.(type) {
 	case *image.RGBA:
 		z.scaleY_RGBA(dst, dp, dr, tmp)
@@ -656,7 +699,11 @@ func (z *kernelScaler) scaleX_RGBA(tmp [][4]float64, src *image.RGBA, sp image.P
 		for _, s := range z.horizontal.sources {
 			var pr, pg, pb, pa float64
 			for _, c := range z.horizontal.contribs[s.i:s.j] {
-				pru, pgu, pbu, pau := src.At(sp.X+int(c.coord), sp.Y+int(y)).RGBA()
+				pi := src.PixOffset(sp.X+int(c.coord), sp.Y+int(y))
+				pru := uint32(src.Pix[pi+0]) * 0x101
+				pgu := uint32(src.Pix[pi+1]) * 0x101
+				pbu := uint32(src.Pix[pi+2]) * 0x101
+				pau := uint32(src.Pix[pi+3]) * 0x101
 				pr += float64(pru) * c.weight
 				pg += float64(pgu) * c.weight
 				pb += float64(pbu) * c.weight
