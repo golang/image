@@ -284,10 +284,26 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		switch d.sType {
 		default:
 			log.Fatalf("bad sType %q", d.sType)
-		case "image.Image", "*image.NRGBA", "*image.RGBA", "*image.Uniform", "*image.YCbCr": // TODO: separate code for concrete types.
+		case "image.Image", "*image.NRGBA", "*image.Uniform", "*image.YCbCr": // TODO: separate code for concrete types.
 			fmt.Fprintf(buf, "%sr%s, %sg%s, %sb%s, %sa%s := "+
 				"src.At(sp.X + int(%s), sp.Y+int(%s)).RGBA()\n",
-				lhs, tmp, lhs, tmp, lhs, tmp, lhs, tmp, args[0], args[1])
+				lhs, tmp, lhs, tmp, lhs, tmp, lhs, tmp,
+				args[0], args[1],
+			)
+		case "*image.RGBA":
+			// TODO: there's no need to multiply by 0x101 if the next thing
+			// we're going to do is shift right by 8.
+			fmt.Fprintf(buf, "%si := src.PixOffset(sp.X + int(%s), sp.Y+int(%s))\n"+
+				"%sr%s := uint32(src.Pix[%si+0]) * 0x101\n"+
+				"%sg%s := uint32(src.Pix[%si+1]) * 0x101\n"+
+				"%sb%s := uint32(src.Pix[%si+2]) * 0x101\n"+
+				"%sa%s := uint32(src.Pix[%si+3]) * 0x101\n",
+				lhs, args[0], args[1],
+				lhs, tmp, lhs,
+				lhs, tmp, lhs,
+				lhs, tmp, lhs,
+				lhs, tmp, lhs,
+			)
 		}
 
 		if dollar == "srcf" {
@@ -399,7 +415,14 @@ const (
 			if dr.Empty() {
 				return
 			}
-			$switch z.scale_$dTypeRN_$sTypeRN(dst, dp, dr, src, sp)
+			// sr is the source pixels. If it extends beyond the src bounds,
+			// we cannot use the type-specific fast paths, as they access
+			// the Pix fields directly without bounds checking.
+			if sr := (image.Rectangle{sp, sp.Add(image.Point{int(z.sw), int(z.sh)})}); !sr.In(src.Bounds()) {
+				z.scale_Image_Image(dst, dp, dr, src, sp)
+			} else {
+				$switch z.scale_$dTypeRN_$sTypeRN(dst, dp, dr, src, sp)
+			}
 		}
 	`
 
@@ -478,7 +501,16 @@ const (
 			// scaleY distributes the temporary image's rows over the destination image.
 			// TODO: is it worth having a sync.Pool for this temporary buffer?
 			tmp := make([][4]float64, z.dw*z.sh)
-			$switchS z.scaleX_$sTypeRN(tmp, src, sp)
+
+			// sr is the source pixels. If it extends beyond the src bounds,
+			// we cannot use the type-specific fast paths, as they access
+			// the Pix fields directly without bounds checking.
+			if sr := (image.Rectangle{sp, sp.Add(image.Point{int(z.sw), int(z.sh)})}); !sr.In(src.Bounds()) {
+				z.scaleX_Image(tmp, src, sp)
+			} else {
+				$switchS z.scaleX_$sTypeRN(tmp, src, sp)
+			}
+
 			$switchD z.scaleY_$dTypeRN(dst, dp, dr, tmp)
 		}
 	`
