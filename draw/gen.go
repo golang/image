@@ -111,7 +111,11 @@ func genKernel(w *bytes.Buffer) {
 
 func expn(w *bytes.Buffer, code string, d *data) {
 	for _, line := range strings.Split(code, "\n") {
-		fmt.Fprintln(w, expnLine(line, d))
+		line = expnLine(line, d)
+		if line == ";" {
+			continue
+		}
+		fmt.Fprintln(w, line)
 	}
 }
 
@@ -161,12 +165,31 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 	case "switchS":
 		return expnSwitch("anyDType", false, suffix)
 
-	case "dstColorDecl":
-		if d.dType == "Image" || d.dType == "*image.RGBA" { // TODO: separate code for concrete types.
-			return "dstColorRGBA64 := &color.RGBA64{}\n" +
+	case "preOuter":
+		switch d.dType {
+		default:
+			return ";"
+		case "Image":
+			return "" +
+				"dstColorRGBA64 := &color.RGBA64{}\n" +
 				"dstColor := color.Color(dstColorRGBA64)"
 		}
-		return ";"
+
+	case "preInner":
+		switch d.dType {
+		default:
+			return ";"
+		case "*image.RGBA":
+			return "d := dst.PixOffset(dp.X+dr.Min.X, dp.Y+int(dy))"
+		}
+
+	case "preKernelInner":
+		switch d.dType {
+		default:
+			return ";"
+		case "*image.RGBA":
+			return "d := dst.PixOffset(dp.X+int(dx), dp.Y+dr.Min.Y)"
+		}
 
 	case "blend":
 		args, _ := splitArgs(suffix)
@@ -192,7 +215,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		switch d.dType {
 		default:
 			log.Fatalf("bad dType %q", d.dType)
-		case "Image", "*image.RGBA": // TODO: separate code for concrete types.
+		case "Image":
 			return fmt.Sprintf(""+
 				"dstColorRGBA64.R = uint16(%sr)\n"+
 				"dstColorRGBA64.G = uint16(%sg)\n"+
@@ -201,6 +224,15 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				"dst.Set(dp.X+int(%s), dp.Y+int(%s), dstColor)",
 				args[2], args[2], args[2], args[2],
 				args[0], args[1],
+			)
+		case "*image.RGBA":
+			return fmt.Sprintf(""+
+				"dst.Pix[d+0] = uint8(uint32(%sr) >> 8)\n"+
+				"dst.Pix[d+1] = uint8(uint32(%sg) >> 8)\n"+
+				"dst.Pix[d+2] = uint8(uint32(%sb) >> 8)\n"+
+				"dst.Pix[d+3] = uint8(uint32(%sa) >> 8)\n"+
+				"d += 4",
+				args[2], args[2], args[2], args[2],
 			)
 		}
 
@@ -212,7 +244,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		switch d.dType {
 		default:
 			log.Fatalf("bad dType %q", d.dType)
-		case "Image", "*image.RGBA": // TODO: separate code for concrete types.
+		case "Image":
 			return fmt.Sprintf(""+
 				"dstColorRGBA64.R = ftou(%sr * %s)\n"+
 				"dstColorRGBA64.G = ftou(%sg * %s)\n"+
@@ -221,6 +253,15 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				"dst.Set(dp.X+int(%s), dp.Y+int(%s), dstColor)",
 				args[2], args[3], args[2], args[3], args[2], args[3], args[2], args[3],
 				args[0], args[1],
+			)
+		case "*image.RGBA":
+			return fmt.Sprintf(""+
+				"dst.Pix[d+0] = uint8(ftou(%sr * %s) >> 8)\n"+
+				"dst.Pix[d+1] = uint8(ftou(%sg * %s) >> 8)\n"+
+				"dst.Pix[d+2] = uint8(ftou(%sb * %s) >> 8)\n"+
+				"dst.Pix[d+3] = uint8(ftou(%sa * %s) >> 8)\n"+
+				"d += dst.Stride",
+				args[2], args[3], args[2], args[3], args[2], args[3], args[2], args[3],
 			)
 		}
 
@@ -263,6 +304,12 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		}
 
 		return strings.TrimSpace(buf.String())
+
+	case "tweakDy":
+		if d.dType == "*image.RGBA" {
+			return strings.Replace(suffix, "for dy, s", "for _, s", 1)
+		}
+		return suffix
 	}
 	return ""
 }
@@ -358,9 +405,10 @@ const (
 
 	codeNNLeaf = `
 		func (z *nnScaler) scale_$dTypeRN_$sTypeRN(dst $dType, dp image.Point, dr image.Rectangle, src $sType, sp image.Point) {
-			$dstColorDecl
+			$preOuter
 			for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
 				sy := (2*uint64(dy) + 1) * uint64(z.sh) / (2 * uint64(z.dh))
+				$preInner
 				for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 					sx := (2*uint64(dx) + 1) * uint64(z.sw) / (2 * uint64(z.dw))
 					p := $srcu[sx, sy]
@@ -374,7 +422,7 @@ const (
 		func (z *ablScaler) scale_$dTypeRN_$sTypeRN(dst $dType, dp image.Point, dr image.Rectangle, src $sType, sp image.Point) {
 			yscale := float64(z.sh) / float64(z.dh)
 			xscale := float64(z.sw) / float64(z.dw)
-			$dstColorDecl
+			$preOuter
 			for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
 				sy := (float64(dy)+0.5)*yscale - 0.5
 				sy0 := int32(sy)
@@ -388,6 +436,7 @@ const (
 					sy1 = sy0
 					yFrac0, yFrac1 = 1, 0
 				}
+				$preInner
 				for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
 					sx := (float64(dx)+0.5)*xscale - 0.5
 					sx0 := int32(sx)
@@ -457,9 +506,10 @@ const (
 
 	codeKernelLeafY = `
 		func (z *kernelScaler) scaleY_$dTypeRN(dst $dType, dp image.Point, dr image.Rectangle, tmp [][4]float64) {
-			$dstColorDecl
+			$preOuter
 			for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
-				for dy, s := range z.vertical.sources[dr.Min.Y:dr.Max.Y] {
+				$preKernelInner
+				$tweakDy for dy, s := range z.vertical.sources[dr.Min.Y:dr.Max.Y] {
 					var pr, pg, pb, pa float64
 					for _, c := range z.vertical.contribs[s.i:s.j] {
 						p := &tmp[c.coord*z.dw+dx]
