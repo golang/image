@@ -158,6 +158,7 @@ func TestFastPaths(t *testing.T) {
 		image.Rect(5, 5, 5, 5),     // Empty.
 	}
 	srcfs := []func(image.Rectangle) (image.Image, error){
+		srcGray,
 		srcNRGBA,
 		srcRGBA,
 		srcUniform,
@@ -195,6 +196,12 @@ func TestFastPaths(t *testing.T) {
 			}
 		}
 	}
+}
+
+func srcGray(boundsHint image.Rectangle) (image.Image, error) {
+	m := image.NewGray(boundsHint)
+	fillPix(rand.New(rand.NewSource(0)), m.Pix)
+	return m, nil
 }
 
 func srcNRGBA(boundsHint image.Rectangle) (image.Image, error) {
@@ -276,6 +283,7 @@ func BenchmarkScaleUpAB(b *testing.B) { benchScale(b, srcTux, 800, 600, ApproxBi
 func BenchmarkScaleUpBL(b *testing.B) { benchScale(b, srcTux, 800, 600, BiLinear) }
 func BenchmarkScaleUpCR(b *testing.B) { benchScale(b, srcTux, 800, 600, CatmullRom) }
 
+func BenchmarkScaleSrcGray(b *testing.B)    { benchScale(b, srcGray, 200, 150, ApproxBiLinear) }
 func BenchmarkScaleSrcNRGBA(b *testing.B)   { benchScale(b, srcNRGBA, 200, 150, ApproxBiLinear) }
 func BenchmarkScaleSrcRGBA(b *testing.B)    { benchScale(b, srcRGBA, 200, 150, ApproxBiLinear) }
 func BenchmarkScaleSrcUniform(b *testing.B) { benchScale(b, srcUniform, 200, 150, ApproxBiLinear) }

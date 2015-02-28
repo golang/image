@@ -50,6 +50,7 @@ var (
 	//
 	// TODO: add *image.CMYK src type after Go 1.5 is released.
 	dsTypes = []struct{ dType, sType string }{
+		{"*image.RGBA", "*image.Gray"},
 		{"*image.RGBA", "*image.NRGBA"},
 		{"*image.RGBA", "*image.RGBA"},
 		{"*image.RGBA", "*image.Uniform"},
@@ -284,7 +285,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		switch d.sType {
 		default:
 			log.Fatalf("bad sType %q", d.sType)
-		case "image.Image", "*image.NRGBA", "*image.Uniform", "*image.YCbCr": // TODO: separate code for concrete types.
+		case "image.Image", "*image.Gray", "*image.NRGBA", "*image.Uniform", "*image.YCbCr": // TODO: separate code for concrete types.
 			fmt.Fprintf(buf, "%sr%s, %sg%s, %sb%s, %sa%s := "+
 				"src.At(sp.X + int(%s), sp.Y+int(%s)).RGBA()\n",
 				lhs, tmp, lhs, tmp, lhs, tmp, lhs, tmp,
