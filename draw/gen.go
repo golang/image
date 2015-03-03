@@ -181,7 +181,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		default:
 			return ";"
 		case "*image.RGBA":
-			return "d := dst.PixOffset(dp.X+dr.Min.X, dp.Y+int(dy))"
+			return "d := dst.PixOffset(dp.X+adr.Min.X, dp.Y+int(dy))"
 		}
 
 	case "preKernelInner":
@@ -189,7 +189,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		default:
 			return ";"
 		case "*image.RGBA":
-			return "d := dst.PixOffset(dp.X+int(dx), dp.Y+dr.Min.Y)"
+			return "d := dst.PixOffset(dp.X+int(dx), dp.Y+adr.Min.Y)"
 		}
 
 	case "blend":
@@ -411,29 +411,29 @@ const (
 			if z.dw <= 0 || z.dh <= 0 || z.sw <= 0 || z.sh <= 0 {
 				return
 			}
-			// dr is the affected destination pixels, relative to dp.
-			dr := dst.Bounds().Sub(dp).Intersect(image.Rectangle{Max: image.Point{int(z.dw), int(z.dh)}})
-			if dr.Empty() {
+			// adr is the affected destination pixels, relative to dp.
+			adr := dst.Bounds().Sub(dp).Intersect(image.Rectangle{Max: image.Point{int(z.dw), int(z.dh)}})
+			if adr.Empty() {
 				return
 			}
 			// sr is the source pixels. If it extends beyond the src bounds,
 			// we cannot use the type-specific fast paths, as they access
 			// the Pix fields directly without bounds checking.
 			if sr := (image.Rectangle{sp, sp.Add(image.Point{int(z.sw), int(z.sh)})}); !sr.In(src.Bounds()) {
-				z.scale_Image_Image(dst, dp, dr, src, sp)
+				z.scale_Image_Image(dst, dp, adr, src, sp)
 			} else {
-				$switch z.scale_$dTypeRN_$sTypeRN(dst, dp, dr, src, sp)
+				$switch z.scale_$dTypeRN_$sTypeRN(dst, dp, adr, src, sp)
 			}
 		}
 	`
 
 	codeNNLeaf = `
-		func (z *nnScaler) scale_$dTypeRN_$sTypeRN(dst $dType, dp image.Point, dr image.Rectangle, src $sType, sp image.Point) {
+		func (z *nnScaler) scale_$dTypeRN_$sTypeRN(dst $dType, dp image.Point, adr image.Rectangle, src $sType, sp image.Point) {
 			$preOuter
-			for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
+			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 				sy := (2*uint64(dy) + 1) * uint64(z.sh) / (2 * uint64(z.dh))
 				$preInner
-				for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
+				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 					sx := (2*uint64(dx) + 1) * uint64(z.sw) / (2 * uint64(z.dw))
 					p := $srcu[sx, sy]
 					$outputu[dx, dy, p]
@@ -443,11 +443,11 @@ const (
 	`
 
 	codeABLLeaf = `
-		func (z *ablScaler) scale_$dTypeRN_$sTypeRN(dst $dType, dp image.Point, dr image.Rectangle, src $sType, sp image.Point) {
+		func (z *ablScaler) scale_$dTypeRN_$sTypeRN(dst $dType, dp image.Point, adr image.Rectangle, src $sType, sp image.Point) {
 			yscale := float64(z.sh) / float64(z.dh)
 			xscale := float64(z.sw) / float64(z.dw)
 			$preOuter
-			for dy := int32(dr.Min.Y); dy < int32(dr.Max.Y); dy++ {
+			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 				sy := (float64(dy)+0.5)*yscale - 0.5
 				sy0 := int32(sy)
 				yFrac0 := sy - float64(sy0)
@@ -461,7 +461,7 @@ const (
 					yFrac0, yFrac1 = 1, 0
 				}
 				$preInner
-				for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
+				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 					sx := (float64(dx)+0.5)*xscale - 0.5
 					sx0 := int32(sx)
 					xFrac0 := sx - float64(sx0)
@@ -492,9 +492,9 @@ const (
 			if z.dw <= 0 || z.dh <= 0 || z.sw <= 0 || z.sh <= 0 {
 				return
 			}
-			// dr is the affected destination pixels, relative to dp.
-			dr := dst.Bounds().Sub(dp).Intersect(image.Rectangle{Max: image.Point{int(z.dw), int(z.dh)}})
-			if dr.Empty() {
+			// adr is the affected destination pixels, relative to dp.
+			adr := dst.Bounds().Sub(dp).Intersect(image.Rectangle{Max: image.Point{int(z.dw), int(z.dh)}})
+			if adr.Empty() {
 				return
 			}
 			// Create a temporary buffer:
@@ -512,7 +512,7 @@ const (
 				$switchS z.scaleX_$sTypeRN(tmp, src, sp)
 			}
 
-			$switchD z.scaleY_$dTypeRN(dst, dp, dr, tmp)
+			$switchD z.scaleY_$dTypeRN(dst, dp, adr, tmp)
 		}
 	`
 
@@ -538,11 +538,11 @@ const (
 	`
 
 	codeKernelLeafY = `
-		func (z *kernelScaler) scaleY_$dTypeRN(dst $dType, dp image.Point, dr image.Rectangle, tmp [][4]float64) {
+		func (z *kernelScaler) scaleY_$dTypeRN(dst $dType, dp image.Point, adr image.Rectangle, tmp [][4]float64) {
 			$preOuter
-			for dx := int32(dr.Min.X); dx < int32(dr.Max.X); dx++ {
+			for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 				$preKernelInner
-				$tweakDy for dy, s := range z.vertical.sources[dr.Min.Y:dr.Max.Y] {
+				$tweakDy for dy, s := range z.vertical.sources[adr.Min.Y:adr.Max.Y] {
 					var pr, pg, pb, pa float64
 					for _, c := range z.vertical.contribs[s.i:s.j] {
 						p := &tmp[c.coord*z.dw+dx]
@@ -551,7 +551,7 @@ const (
 						pb += p[2] * c.weight
 						pa += p[3] * c.weight
 					}
-					$outputf[dx, dr.Min.Y+dy, p, s.invTotalWeight]
+					$outputf[dx, adr.Min.Y+dy, p, s.invTotalWeight]
 				}
 			}
 		}
