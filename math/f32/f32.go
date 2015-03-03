@@ -23,3 +23,15 @@ type Mat3 [9]float32
 //
 // m[4*r + c] is the element in the r'th row and c'th column.
 type Mat4 [16]float32
+
+// Aff3 is a 3x3 matrix in row major order, where the bottom row
+// is implicitly [0 0 1].
+//
+// m[3*r + c] is the element in the r'th row and c'th column.
+type Aff3 [6]float32
+
+// Aff4 is a 4x4 matrix in row major order, where the bottom row
+// is implicitly [0 0 0 1].
+//
+// m[4*r + c] is the element in the r'th row and c'th column.
+type Aff4 [12]float32
