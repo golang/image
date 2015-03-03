@@ -6,15 +6,24 @@
 
 package draw
 
-// TODO: should Scale and NewScaler also take an Op argument?
+// TODO: add an Options type a la
+// https://groups.google.com/forum/#!topic/golang-dev/fgn_xM0aeq4
 
 import (
 	"image"
 	"math"
 )
 
-// Scale scales the part of the source image defined by src and sr and writes
+// Scaler scales the part of the source image defined by src and sr and writes
 // to the part of the destination image defined by dst and dr.
+//
+// A Scaler is safe to use concurrently.
+type Scaler interface {
+	Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle)
+}
+
+// Interpolator is an interpolation algorithm, when dst and src pixels don't
+// have a 1:1 correspondance.
 //
 // Of the interpolators provided by this package:
 //	- NearestNeighbor is fast but usually looks worst.
@@ -24,23 +33,9 @@ import (
 // The time taken depends on the size of dr. For kernel interpolators, the
 // speed also depends on the size of sr, and so are often slower than
 // non-kernel interpolators, especially when scaling down.
-func Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, q Interpolator) {
-	q.NewScaler(int32(dr.Dx()), int32(dr.Dy()), int32(sr.Dx()), int32(sr.Dy())).Scale(dst, dr.Min, src, sr.Min)
-}
-
-// Scaler scales part of a source image, starting from sp, and writes to a
-// destination image, starting from dp. The destination and source width and
-// heights are pre-determined, as part of the Scaler.
-//
-// A Scaler is safe to use concurrently.
-type Scaler interface {
-	Scale(dst Image, dp image.Point, src image.Image, sp image.Point)
-}
-
-// Interpolator creates scalers for a given destination and source width and
-// heights.
 type Interpolator interface {
-	NewScaler(dw, dh, sw, sh int32) Scaler
+	Scaler
+	// TODO: Transformer
 }
 
 // Kernel is an interpolator that blends source pixels weighted by a symmetric
@@ -54,15 +49,22 @@ type Kernel struct {
 	At func(t float64) float64
 }
 
-// NewScaler implements the Interpolator interface.
-func (k *Kernel) NewScaler(dw, dh, sw, sh int32) Scaler {
+// Scale implements the Scaler interface.
+func (k *Kernel) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle) {
+	k.NewScaler(dr.Dx(), dr.Dy(), sr.Dx(), sr.Dy()).Scale(dst, dr, src, sr)
+}
+
+// NewScaler returns a Scaler that is optimized for scaling multiple times with
+// the same fixed destination and source width and height.
+func (k *Kernel) NewScaler(dw, dh, sw, sh int) Scaler {
 	return &kernelScaler{
-		dw:         dw,
-		dh:         dh,
-		sw:         sw,
-		sh:         sh,
-		horizontal: newDistrib(k, dw, sw),
-		vertical:   newDistrib(k, dh, sh),
+		kernel:     k,
+		dw:         int32(dw),
+		dh:         int32(dh),
+		sw:         int32(sw),
+		sh:         int32(sh),
+		horizontal: newDistrib(k, int32(dw), int32(sw)),
+		vertical:   newDistrib(k, int32(dh), int32(sh)),
 	}
 }
 
@@ -107,21 +109,10 @@ var (
 
 type nnInterpolator struct{}
 
-func (nnInterpolator) NewScaler(dw, dh, sw, sh int32) Scaler { return &nnScaler{dw, dh, sw, sh} }
-
-type nnScaler struct {
-	dw, dh, sw, sh int32
-}
-
 type ablInterpolator struct{}
 
-func (ablInterpolator) NewScaler(dw, dh, sw, sh int32) Scaler { return &ablScaler{dw, dh, sw, sh} }
-
-type ablScaler struct {
-	dw, dh, sw, sh int32
-}
-
 type kernelScaler struct {
+	kernel               *Kernel
 	dw, dh, sw, sh       int32
 	horizontal, vertical distrib
 }
