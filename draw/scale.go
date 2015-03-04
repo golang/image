@@ -23,7 +23,7 @@ type Scaler interface {
 }
 
 // Interpolator is an interpolation algorithm, when dst and src pixels don't
-// have a 1:1 correspondance.
+// have a 1:1 correspondence.
 //
 // Of the interpolators provided by this package:
 //	- NearestNeighbor is fast but usually looks worst.
