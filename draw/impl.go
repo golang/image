@@ -5,9 +5,11 @@ package draw
 import (
 	"image"
 	"image/color"
+
+	"golang.org/x/image/math/f64"
 )
 
-func (z nnInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle) {
+func (z nnInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
 	// adr is the affected destination pixels, relative to dr.Min.
 	adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
 	if adr.Empty() || sr.Empty() {
@@ -42,6 +44,10 @@ func (z nnInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, sr
 			}
 		}
 	}
+}
+
+func (z nnInterpolator) Transform(dst Image, m *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
+	panic("unimplemented")
 }
 
 func (nnInterpolator) scale_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, src *image.Gray, sr image.Rectangle) {
@@ -189,7 +195,7 @@ func (nnInterpolator) scale_Image_Image(dst Image, dr, adr image.Rectangle, src 
 	}
 }
 
-func (z ablInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle) {
+func (z ablInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
 	// adr is the affected destination pixels, relative to dr.Min.
 	adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
 	if adr.Empty() || sr.Empty() {
@@ -224,6 +230,10 @@ func (z ablInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, s
 			}
 		}
 	}
+}
+
+func (z ablInterpolator) Transform(dst Image, m *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
+	panic("unimplemented")
 }
 
 func (ablInterpolator) scale_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, src *image.Gray, sr image.Rectangle) {
@@ -754,9 +764,9 @@ func (ablInterpolator) scale_Image_Image(dst Image, dr, adr image.Rectangle, src
 	}
 }
 
-func (z *kernelScaler) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle) {
+func (z *kernelScaler) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
 	if z.dw != int32(dr.Dx()) || z.dh != int32(dr.Dy()) || z.sw != int32(sr.Dx()) || z.sh != int32(sr.Dy()) {
-		z.kernel.Scale(dst, dr, src, sr)
+		z.kernel.Scale(dst, dr, src, sr, opts)
 		return
 	}
 	// adr is the affected destination pixels, relative to dr.Min.
@@ -798,6 +808,10 @@ func (z *kernelScaler) Scale(dst Image, dr image.Rectangle, src image.Image, sr 
 	default:
 		z.scaleY_Image(dst, dr, adr, tmp)
 	}
+}
+
+func (z *Kernel) Transform(dst Image, m *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
+	panic("unimplemented")
 }
 
 func (z *kernelScaler) scaleX_Gray(tmp [][4]float64, src *image.Gray, sr image.Rectangle) {

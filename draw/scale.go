@@ -6,12 +6,11 @@
 
 package draw
 
-// TODO: add an Options type a la
-// https://groups.google.com/forum/#!topic/golang-dev/fgn_xM0aeq4
-
 import (
 	"image"
 	"math"
+
+	"golang.org/x/image/math/f64"
 )
 
 // Scaler scales the part of the source image defined by src and sr and writes
@@ -19,7 +18,32 @@ import (
 //
 // A Scaler is safe to use concurrently.
 type Scaler interface {
-	Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle)
+	Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options)
+}
+
+// Transformer transforms the part of the source image defined by src and sr
+// and writes to the part of the destination image defined by dst and the
+// affine transform m applied to sr.
+//
+// For example, if m is the matrix
+//
+// m00 m01 m02
+// m10 m11 m12
+//
+// then the src-space point (sx, sy) maps to the dst-space point
+// (m00*sx + m01*sy + m02, m10*sx + m11*sy + m12).
+//
+// A Transformer is safe to use concurrently.
+type Transformer interface {
+	Transform(dst Image, m *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options)
+}
+
+// Options are optional parameters to Scale and Transform.
+//
+// A nil *Options means to use the default (zero) values of each field.
+type Options struct {
+	// TODO: add fields a la
+	// https://groups.google.com/forum/#!topic/golang-dev/fgn_xM0aeq4
 }
 
 // Interpolator is an interpolation algorithm, when dst and src pixels don't
@@ -35,7 +59,7 @@ type Scaler interface {
 // non-kernel interpolators, especially when scaling down.
 type Interpolator interface {
 	Scaler
-	// TODO: Transformer
+	Transformer
 }
 
 // Kernel is an interpolator that blends source pixels weighted by a symmetric
@@ -50,8 +74,8 @@ type Kernel struct {
 }
 
 // Scale implements the Scaler interface.
-func (k *Kernel) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle) {
-	k.NewScaler(dr.Dx(), dr.Dy(), sr.Dx(), sr.Dy()).Scale(dst, dr, src, sr)
+func (k *Kernel) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
+	k.NewScaler(dr.Dx(), dr.Dy(), sr.Dx(), sr.Dy()).Scale(dst, dr, src, sr, opts)
 }
 
 // NewScaler returns a Scaler that is optimized for scaling multiple times with
