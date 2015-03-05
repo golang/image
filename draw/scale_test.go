@@ -47,7 +47,7 @@ func testScale(t *testing.T, w int, h int, direction, srcFilename string) {
 		gotFilename := fmt.Sprintf("../testdata/go-turns-two-%s-%s.png", direction, name)
 
 		got := image.NewRGBA(image.Rect(0, 0, w, h))
-		q.Scale(got, got.Bounds(), src, src.Bounds())
+		q.Scale(got, got.Bounds(), src, src.Bounds(), nil)
 		if *genScaleFiles {
 			g, err := os.Create(gotFilename)
 			if err != nil {
@@ -112,12 +112,12 @@ func TestScaleClipCommute(t *testing.T) {
 		}
 
 		// Scale then clip.
-		q.Scale(dst0, outer, src, src.Bounds())
+		q.Scale(dst0, outer, src, src.Bounds(), nil)
 		dst0 = dst0.SubImage(inner).(*image.RGBA)
 
 		// Clip then scale.
 		dst1 = dst1.SubImage(inner).(*image.RGBA)
-		q.Scale(dst1, outer, src, src.Bounds())
+		q.Scale(dst1, outer, src, src.Bounds(), nil)
 
 	loop:
 		for y := inner.Min.Y; y < inner.Max.Y; y++ {
@@ -187,8 +187,8 @@ func TestFastPaths(t *testing.T) {
 					dst1 := image.NewRGBA(drs[0])
 					Draw(dst0, dst0.Bounds(), blue, image.Point{}, Src)
 					Draw(dstWrapper{dst1}, dst1.Bounds(), srcWrapper{blue}, image.Point{}, Src)
-					q.Scale(dst0, dr, src, sr)
-					q.Scale(dstWrapper{dst1}, dr, srcWrapper{src}, sr)
+					q.Scale(dst0, dr, src, sr, nil)
+					q.Scale(dstWrapper{dst1}, dr, srcWrapper{src}, sr, nil)
 					if !bytes.Equal(dst0.Pix, dst1.Pix) {
 						t.Errorf("pix differ for dr=%v, src=%T, sr=%v, q=%T", dr, src, sr, q)
 					}
@@ -269,7 +269,7 @@ func benchScale(b *testing.B, srcf func(image.Rectangle) (image.Image, error), w
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		scaler.Scale(dst, dr, src, sr)
+		scaler.Scale(dst, dr, src, sr, nil)
 	}
 }
 
