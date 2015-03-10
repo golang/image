@@ -13,6 +13,18 @@ import (
 	"golang.org/x/image/math/f64"
 )
 
+// Copy copies the part of the source image defined by src and sr and writes to
+// the part of the destination image defined by dst and the translation of sr
+// so that sr.Min translates to dp.
+func Copy(dst Image, dp image.Point, src image.Image, sr image.Rectangle, opts *Options) {
+	mask, mp, op := image.Image(nil), image.Point{}, Over
+	if opts != nil {
+		// TODO: set mask, mp and op.
+	}
+	dr := sr.Add(dp.Sub(sr.Min))
+	DrawMask(dst, dr, src, sr.Min, mask, mp, op)
+}
+
 // Scaler scales the part of the source image defined by src and sr and writes
 // to the part of the destination image defined by dst and dr.
 //
@@ -38,7 +50,7 @@ type Transformer interface {
 	Transform(dst Image, m *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options)
 }
 
-// Options are optional parameters to Scale and Transform.
+// Options are optional parameters to Copy, Scale and Transform.
 //
 // A nil *Options means to use the default (zero) values of each field.
 type Options struct {
