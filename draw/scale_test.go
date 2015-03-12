@@ -131,6 +131,64 @@ func TestScaleClipCommute(t *testing.T) {
 	}
 }
 
+// translatedImage is an image m translated by t.
+type translatedImage struct {
+	m image.Image
+	t image.Point
+}
+
+func (t *translatedImage) At(x, y int) color.Color { return t.m.At(x-t.t.X, y-t.t.Y) }
+func (t *translatedImage) Bounds() image.Rectangle { return t.m.Bounds().Add(t.t) }
+func (t *translatedImage) ColorModel() color.Model { return t.m.ColorModel() }
+
+// TestSrcTranslationInvariance tests that Scale and Transform are invariant
+// under src translations. Specifically, when some source pixels are not in the
+// bottom-right quadrant of src coordinate space, we consistently round down,
+// not round towards zero.
+func TestSrcTranslationInvariance(t *testing.T) {
+	f, err := os.Open("../testdata/testpattern.png")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer f.Close()
+	src, _, err := image.Decode(f)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	qs := []Interpolator{
+		NearestNeighbor,
+		ApproxBiLinear,
+		CatmullRom,
+	}
+	deltas := []image.Point{
+		{+0, +0},
+		{+0, +5},
+		{+0, -5},
+		{+5, +0},
+		{-5, +0},
+		{+8, +8},
+		{+8, -8},
+		{-8, +8},
+		{-8, -8},
+	}
+
+	for _, q := range qs {
+		want := image.NewRGBA(image.Rect(0, 0, 200, 200))
+		q.Scale(want, want.Bounds(), src, src.Bounds(), nil)
+		for _, delta := range deltas {
+			tsrc := &translatedImage{src, delta}
+
+			got := image.NewRGBA(image.Rect(0, 0, 200, 200))
+			q.Scale(got, got.Bounds(), tsrc, tsrc.Bounds(), nil)
+			if !bytes.Equal(got.Pix, want.Pix) {
+				t.Errorf("pix differ for delta=%v, q=%T", delta, q)
+			}
+
+			// TODO: Transform.
+		}
+	}
+}
+
 // The fooWrapper types wrap the dst or src image to avoid triggering the
 // type-specific fast path implementations.
 type (
