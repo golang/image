@@ -249,3 +249,72 @@ func ftou(f float64) uint16 {
 	}
 	return 0
 }
+
+// invert returns the inverse of m.
+//
+// TODO: move this into the f64 package, once we work out the convention for
+// matrix methods in that package: do they modify the receiver, take a dst
+// pointer argument, or return a new value?
+func invert(m *f64.Aff3) f64.Aff3 {
+	m00 := +m[3*1+1]
+	m01 := -m[3*0+1]
+	m02 := +m[3*1+2]*m[3*0+1] - m[3*1+1]*m[3*0+2]
+	m10 := -m[3*1+0]
+	m11 := +m[3*0+0]
+	m12 := +m[3*1+0]*m[3*0+2] - m[3*1+2]*m[3*0+0]
+
+	det := m00*m11 - m10*m01
+
+	return f64.Aff3{
+		m00 / det,
+		m01 / det,
+		m02 / det,
+		m10 / det,
+		m11 / det,
+		m12 / det,
+	}
+}
+
+// transformRect returns a rectangle dr that contains sr transformed by s2d.
+func transformRect(s2d *f64.Aff3, sr *image.Rectangle) (dr image.Rectangle) {
+	ps := [...]image.Point{
+		{sr.Min.X, sr.Min.Y},
+		{sr.Max.X, sr.Min.Y},
+		{sr.Min.X, sr.Max.Y},
+		{sr.Max.X, sr.Max.Y},
+	}
+	for i, p := range ps {
+		sxf := float64(p.X)
+		syf := float64(p.Y)
+		dx := int(math.Floor(s2d[0]*sxf + s2d[1]*syf + s2d[2]))
+		dy := int(math.Floor(s2d[3]*sxf + s2d[4]*syf + s2d[5]))
+
+		// The +1 adjustments below are because an image.Rectangle is inclusive
+		// on the low end but exclusive on the high end.
+
+		if i == 0 {
+			dr = image.Rectangle{
+				Min: image.Point{dx + 0, dy + 0},
+				Max: image.Point{dx + 1, dy + 1},
+			}
+			continue
+		}
+
+		if dr.Min.X > dx {
+			dr.Min.X = dx
+		}
+		dx++
+		if dr.Max.X < dx {
+			dr.Max.X = dx
+		}
+
+		if dr.Min.Y > dy {
+			dr.Min.Y = dy
+		}
+		dy++
+		if dr.Max.Y < dy {
+			dr.Max.Y = dy
+		}
+	}
+	return dr
+}

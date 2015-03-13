@@ -27,12 +27,13 @@ func main() {
 		"package draw\n\nimport (\n" +
 		"\"image\"\n" +
 		"\"image/color\"\n" +
+		"\"math\"\n" +
 		"\n" +
 		"\"golang.org/x/image/math/f64\"\n" +
 		")\n")
 
-	gen(w, "nnInterpolator", codeNNScaleLeaf)
-	gen(w, "ablInterpolator", codeABLScaleLeaf)
+	gen(w, "nnInterpolator", codeNNScaleLeaf, codeNNTransformLeaf)
+	gen(w, "ablInterpolator", codeABLScaleLeaf, codeABLTransformLeaf)
 	genKernel(w)
 
 	if *debug {
@@ -90,14 +91,16 @@ type data struct {
 	receiver string
 }
 
-func gen(w *bytes.Buffer, receiver string, code string) {
+func gen(w *bytes.Buffer, receiver string, codes ...string) {
 	expn(w, codeRoot, &data{receiver: receiver})
-	for _, t := range dsTypes {
-		expn(w, code, &data{
-			dType:    t.dType,
-			sType:    t.sType,
-			receiver: receiver,
-		})
+	for _, code := range codes {
+		for _, t := range dsTypes {
+			expn(w, code, &data{
+				dType:    t.dType,
+				sType:    t.sType,
+				receiver: receiver,
+			})
+		}
 	}
 }
 
@@ -227,7 +230,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				"dstColorRGBA64.G = uint16(%sg)\n"+
 				"dstColorRGBA64.B = uint16(%sb)\n"+
 				"dstColorRGBA64.A = uint16(%sa)\n"+
-				"dst.Set(dr.Min.X+int(%s), dr.Min.Y+int(%s), dstColor)",
+				"dst.Set(%s, %s, dstColor)",
 				args[2], args[2], args[2], args[2],
 				args[0], args[1],
 			)
@@ -236,8 +239,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				"dst.Pix[d+0] = uint8(uint32(%sr) >> 8)\n"+
 				"dst.Pix[d+1] = uint8(uint32(%sg) >> 8)\n"+
 				"dst.Pix[d+2] = uint8(uint32(%sb) >> 8)\n"+
-				"dst.Pix[d+3] = uint8(uint32(%sa) >> 8)\n"+
-				"d += 4",
+				"dst.Pix[d+3] = uint8(uint32(%sa) >> 8)",
 				args[2], args[2], args[2], args[2],
 			)
 		}
@@ -256,7 +258,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				"dstColorRGBA64.G = ftou(%sg * %s)\n"+
 				"dstColorRGBA64.B = ftou(%sb * %s)\n"+
 				"dstColorRGBA64.A = ftou(%sa * %s)\n"+
-				"dst.Set(dr.Min.X+int(%s), dr.Min.Y+int(%s), dstColor)",
+				"dst.Set(%s, %s, dstColor)",
 				args[2], args[3], args[2], args[3], args[2], args[3], args[2], args[3],
 				args[0], args[1],
 			)
@@ -292,14 +294,14 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			log.Fatalf("bad sType %q", d.sType)
 		case "image.Image", "*image.Gray", "*image.NRGBA", "*image.Uniform", "*image.YCbCr": // TODO: separate code for concrete types.
 			fmt.Fprintf(buf, "%sr%s, %sg%s, %sb%s, %sa%s := "+
-				"src.At(sr.Min.X + int(%s), sr.Min.Y+int(%s)).RGBA()\n",
+				"src.At(%s, %s).RGBA()\n",
 				lhs, tmp, lhs, tmp, lhs, tmp, lhs, tmp,
 				args[0], args[1],
 			)
 		case "*image.RGBA":
 			// TODO: there's no need to multiply by 0x101 if the next thing
 			// we're going to do is shift right by 8.
-			fmt.Fprintf(buf, "%si := src.PixOffset(sr.Min.X + int(%s), sr.Min.Y+int(%s))\n"+
+			fmt.Fprintf(buf, "%si := src.PixOffset(%s, %s)\n"+
 				"%sr%s := uint32(src.Pix[%si+0]) * 0x101\n"+
 				"%sg%s := uint32(src.Pix[%si+1]) * 0x101\n"+
 				"%sb%s := uint32(src.Pix[%si+2]) * 0x101\n"+
@@ -326,6 +328,12 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		}
 
 		return strings.TrimSpace(buf.String())
+
+	case "tweakDx":
+		if d.dType == "*image.RGBA" {
+			return strings.Replace(suffix, "dx++", "dx, d = dx+1, d+4", 1)
+		}
+		return suffix
 
 	case "tweakDy":
 		if d.dType == "*image.RGBA" {
@@ -428,8 +436,15 @@ const (
 			}
 		}
 
-		func (z $receiver) Transform(dst Image, m *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
-			panic("unimplemented")
+		func (z $receiver) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
+			dr := transformRect(s2d, &sr)
+			// adr is the affected destination pixels, relative to dr.Min.
+			adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
+			if adr.Empty() || sr.Empty() {
+				return
+			}
+			d2s := invert(s2d)
+			z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
 		}
 	`
 
@@ -443,10 +458,30 @@ const (
 			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 				sy := (2*uint64(dy) + 1) * sh / dh2
 				$preInner
-				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
+				$tweakDx for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 					sx := (2*uint64(dx) + 1) * sw / dw2
-					p := $srcu[sx, sy]
-					$outputu[dx, dy, p]
+					p := $srcu[sr.Min.X + int(sx), sr.Min.Y + int(sy)]
+					$outputu[dr.Min.X + int(dx), dr.Min.Y + int(dy), p]
+				}
+			}
+		}
+	`
+
+	codeNNTransformLeaf = `
+		func (nnInterpolator) transform_$dTypeRN_$sTypeRN(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle) {
+			$preOuter
+			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+				dyf := float64(dr.Min.Y + int(dy)) + 0.5
+				$preInner
+				$tweakDx for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
+					dxf := float64(dr.Min.X + int(dx)) + 0.5
+					sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
+					sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
+					if !(image.Point{sx0, sy0}).In(sr) {
+						continue
+					}
+					p := $srcu[sx0, sy0]
+					$outputu[dr.Min.X + int(dx), dr.Min.Y + int(dy), p]
 				}
 			}
 		}
@@ -458,9 +493,14 @@ const (
 			sh := int32(sr.Dy())
 			yscale := float64(sh) / float64(dr.Dy())
 			xscale := float64(sw) / float64(dr.Dx())
+			swMinus1, shMinus1 := sw - 1, sh - 1
 			$preOuter
+
 			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 				sy := (float64(dy)+0.5)*yscale - 0.5
+				// If sy < 0, we will clamp sy0 to 0 anyway, so it doesn't matter if
+				// we say int32(sy) instead of int32(math.Floor(sy)). Similarly for
+				// sx, below.
 				sy0 := int32(sy)
 				yFrac0 := sy - float64(sy0)
 				yFrac1 := 1 - yFrac0
@@ -468,12 +508,13 @@ const (
 				if sy < 0 {
 					sy0, sy1 = 0, 0
 					yFrac0, yFrac1 = 0, 1
-				} else if sy1 >= sh {
-					sy1 = sy0
+				} else if sy1 > shMinus1 {
+					sy0, sy1 = shMinus1, shMinus1
 					yFrac0, yFrac1 = 1, 0
 				}
 				$preInner
-				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
+
+				$tweakDx for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 					sx := (float64(dx)+0.5)*xscale - 0.5
 					sx0 := int32(sx)
 					xFrac0 := sx - float64(sx0)
@@ -482,10 +523,66 @@ const (
 					if sx < 0 {
 						sx0, sx1 = 0, 0
 						xFrac0, xFrac1 = 0, 1
-					} else if sx1 >= sw {
-						sx1 = sx0
+					} else if sx1 > swMinus1 {
+						sx0, sx1 = swMinus1, swMinus1
 						xFrac0, xFrac1 = 1, 0
 					}
+
+					s00 := $srcf[sr.Min.X + int(sx0), sr.Min.Y + int(sy0)]
+					s10 := $srcf[sr.Min.X + int(sx1), sr.Min.Y + int(sy0)]
+					$blend[xFrac1, s00, xFrac0, s10]
+					s01 := $srcf[sr.Min.X + int(sx0), sr.Min.Y + int(sy1)]
+					s11 := $srcf[sr.Min.X + int(sx1), sr.Min.Y + int(sy1)]
+					$blend[xFrac1, s01, xFrac0, s11]
+					$blend[yFrac1, s10, yFrac0, s11]
+					$outputu[dr.Min.X + int(dx), dr.Min.Y + int(dy), s11]
+				}
+			}
+		}
+	`
+
+	codeABLTransformLeaf = `
+		func (ablInterpolator) transform_$dTypeRN_$sTypeRN(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle) {
+			$preOuter
+			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+				dyf := float64(dr.Min.Y + int(dy)) + 0.5
+				$preInner
+				$tweakDx for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
+					dxf := float64(dr.Min.X + int(dx)) + 0.5
+					sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
+					sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
+					if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+						continue
+					}
+
+					sx -= 0.5
+					sxf := math.Floor(sx)
+					xFrac0 := sx - sxf
+					xFrac1 := 1 - xFrac0
+					sx0 := int(sxf)
+					sx1 := sx0 + 1
+					if sx0 < sr.Min.X {
+						sx0, sx1 = sr.Min.X, sr.Min.X
+						xFrac0, xFrac1 = 0, 1
+					} else if sx1 >= sr.Max.X {
+						sx0, sx1 = sr.Max.X-1, sr.Max.X-1
+						xFrac0, xFrac1 = 1, 0
+					}
+
+					sy -= 0.5
+					syf := math.Floor(sy)
+					yFrac0 := sy - syf
+					yFrac1 := 1 - yFrac0
+					sy0 := int(syf)
+					sy1 := sy0 + 1
+					if sy0 < sr.Min.Y {
+						sy0, sy1 = sr.Min.Y, sr.Min.Y
+						yFrac0, yFrac1 = 0, 1
+					} else if sy1 >= sr.Max.Y {
+						sy0, sy1 = sr.Max.Y-1, sr.Max.Y-1
+						yFrac0, yFrac1 = 1, 0
+					}
+
 					s00 := $srcf[sx0, sy0]
 					s10 := $srcf[sx1, sy0]
 					$blend[xFrac1, s00, xFrac0, s10]
@@ -493,7 +590,7 @@ const (
 					s11 := $srcf[sx1, sy1]
 					$blend[xFrac1, s01, xFrac0, s11]
 					$blend[yFrac1, s10, yFrac0, s11]
-					$outputu[dx, dy, s11]
+					$outputu[dr.Min.X + int(dx), dr.Min.Y + int(dy), s11]
 				}
 			}
 		}
@@ -540,7 +637,7 @@ const (
 				for _, s := range z.horizontal.sources {
 					var pr, pg, pb, pa float64
 					for _, c := range z.horizontal.contribs[s.i:s.j] {
-						p += $srcf[c.coord, y] * c.weight
+						p += $srcf[sr.Min.X + int(c.coord), sr.Min.Y + int(y)] * c.weight
 					}
 					tmp[t] = [4]float64{
 						pr * s.invTotalWeightFFFF,
@@ -568,7 +665,7 @@ const (
 						pb += p[2] * c.weight
 						pa += p[3] * c.weight
 					}
-					$outputf[dx, adr.Min.Y+dy, p, s.invTotalWeight]
+					$outputf[dr.Min.X + int(dx), dr.Min.Y + int(adr.Min.Y + dy), p, s.invTotalWeight]
 				}
 			}
 		}
