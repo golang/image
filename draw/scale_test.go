@@ -16,18 +16,28 @@ import (
 	"reflect"
 	"testing"
 
+	"golang.org/x/image/math/f64"
+
 	_ "image/jpeg"
 )
 
-var genScaleFiles = flag.Bool("gen_scale_files", false, "whether to generate the TestScaleXxx golden files.")
+var genGoldenFiles = flag.Bool("gen_golden_files", false, "whether to generate the TestXxx golden files.")
 
-// testScale tests that scaling the source image gives the exact destination
-// image. This is to ensure that any refactoring or optimization of the scaling
-// code doesn't change the scaling behavior. Changing the actual algorithm or
-// kernel used by any particular quality setting will obviously change the
-// resultant pixels. In such a case, use the gen_scale_files flag to regenerate
-// the golden files.
-func testScale(t *testing.T, w int, h int, direction, srcFilename string) {
+var transformMatrix = func() *f64.Aff3 {
+	const scale, cos30, sin30 = 3.75, 0.866025404, 0.5
+	return &f64.Aff3{
+		+scale * cos30, -scale * sin30, 40,
+		+scale * sin30, +scale * cos30, 10,
+	}
+}()
+
+// testInterp tests that interpolating the source image gives the exact
+// destination image. This is to ensure that any refactoring or optimization of
+// the interpolation code doesn't change the behavior. Changing the actual
+// algorithm or kernel used by any particular quality setting will obviously
+// change the resultant pixels. In such a case, use the gen_golden_files flag
+// to regenerate the golden files.
+func testInterp(t *testing.T, w int, h int, direction, srcFilename string) {
 	f, err := os.Open("../testdata/go-turns-two-" + srcFilename)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -44,12 +54,21 @@ func testScale(t *testing.T, w int, h int, direction, srcFilename string) {
 		"cr": CatmullRom,
 	}
 	for name, q := range testCases {
-		gotFilename := fmt.Sprintf("../testdata/go-turns-two-%s-%s.png", direction, name)
+		goldenFilename := fmt.Sprintf("../testdata/go-turns-two-%s-%s.png", direction, name)
 
 		got := image.NewRGBA(image.Rect(0, 0, w, h))
-		q.Scale(got, got.Bounds(), src, src.Bounds(), nil)
-		if *genScaleFiles {
-			g, err := os.Create(gotFilename)
+		if direction == "rotate" {
+			if name == "bl" || name == "cr" {
+				// TODO: implement Kernel.Transform.
+				continue
+			}
+			q.Transform(got, transformMatrix, src, src.Bounds(), nil)
+		} else {
+			q.Scale(got, got.Bounds(), src, src.Bounds(), nil)
+		}
+
+		if *genGoldenFiles {
+			g, err := os.Create(goldenFilename)
 			if err != nil {
 				t.Errorf("Create: %v", err)
 				continue
@@ -62,27 +81,35 @@ func testScale(t *testing.T, w int, h int, direction, srcFilename string) {
 			continue
 		}
 
-		g, err := os.Open(gotFilename)
+		g, err := os.Open(goldenFilename)
 		if err != nil {
 			t.Errorf("Open: %v", err)
 			continue
 		}
 		defer g.Close()
-		want, err := png.Decode(g)
+		wantRaw, err := png.Decode(g)
 		if err != nil {
 			t.Errorf("Decode: %v", err)
 			continue
 		}
+		// convert wantRaw to RGBA.
+		want, ok := wantRaw.(*image.RGBA)
+		if !ok {
+			b := wantRaw.Bounds()
+			want = image.NewRGBA(b)
+			Draw(want, b, wantRaw, b.Min, Src)
+		}
 
 		if !reflect.DeepEqual(got, want) {
-			t.Errorf("%s: actual image differs from golden image", gotFilename)
+			t.Errorf("%s: actual image differs from golden image", goldenFilename)
 			continue
 		}
 	}
 }
 
-func TestScaleDown(t *testing.T) { testScale(t, 100, 100, "down", "280x360.jpeg") }
-func TestScaleUp(t *testing.T)   { testScale(t, 75, 100, "up", "14x18.png") }
+func TestScaleDown(t *testing.T) { testInterp(t, 100, 100, "down", "280x360.jpeg") }
+func TestScaleUp(t *testing.T)   { testInterp(t, 75, 100, "up", "14x18.png") }
+func TestTransform(t *testing.T) { testInterp(t, 100, 100, "rotate", "14x18.png") }
 
 func fillPix(r *rand.Rand, pixs ...[]byte) {
 	for _, pix := range pixs {
@@ -92,7 +119,7 @@ func fillPix(r *rand.Rand, pixs ...[]byte) {
 	}
 }
 
-func TestScaleClipCommute(t *testing.T) {
+func TestInterpClipCommute(t *testing.T) {
 	src := image.NewNRGBA(image.Rect(0, 0, 20, 20))
 	fillPix(rand.New(rand.NewSource(0)), src.Pix)
 
@@ -103,28 +130,46 @@ func TestScaleClipCommute(t *testing.T) {
 		ApproxBiLinear,
 		CatmullRom,
 	}
-	for _, q := range qs {
-		dst0 := image.NewRGBA(image.Rect(1, 1, 10, 10))
-		dst1 := image.NewRGBA(image.Rect(1, 1, 10, 10))
-		for i := range dst0.Pix {
-			dst0.Pix[i] = uint8(i / 4)
-			dst1.Pix[i] = uint8(i / 4)
-		}
+	for _, transform := range []bool{false, true} {
+		for _, q := range qs {
+			if transform && q == CatmullRom {
+				// TODO: implement Kernel.Transform.
+				continue
+			}
 
-		// Scale then clip.
-		q.Scale(dst0, outer, src, src.Bounds(), nil)
-		dst0 = dst0.SubImage(inner).(*image.RGBA)
+			dst0 := image.NewRGBA(image.Rect(1, 1, 10, 10))
+			dst1 := image.NewRGBA(image.Rect(1, 1, 10, 10))
+			for i := range dst0.Pix {
+				dst0.Pix[i] = uint8(i / 4)
+				dst1.Pix[i] = uint8(i / 4)
+			}
 
-		// Clip then scale.
-		dst1 = dst1.SubImage(inner).(*image.RGBA)
-		q.Scale(dst1, outer, src, src.Bounds(), nil)
+			var interp func(dst *image.RGBA)
+			if transform {
+				interp = func(dst *image.RGBA) {
+					q.Transform(dst, transformMatrix, src, src.Bounds(), nil)
+				}
+			} else {
+				interp = func(dst *image.RGBA) {
+					q.Scale(dst, outer, src, src.Bounds(), nil)
+				}
+			}
 
-	loop:
-		for y := inner.Min.Y; y < inner.Max.Y; y++ {
-			for x := inner.Min.X; x < inner.Max.X; x++ {
-				if c0, c1 := dst0.RGBAAt(x, y), dst1.RGBAAt(x, y); c0 != c1 {
-					t.Errorf("q=%T: at (%d, %d): c0=%v, c1=%v", q, x, y, c0, c1)
-					break loop
+			// Interpolate then clip.
+			interp(dst0)
+			dst0 = dst0.SubImage(inner).(*image.RGBA)
+
+			// Clip then interpolate.
+			dst1 = dst1.SubImage(inner).(*image.RGBA)
+			interp(dst1)
+
+		loop:
+			for y := inner.Min.Y; y < inner.Max.Y; y++ {
+				for x := inner.Min.X; x < inner.Max.X; x++ {
+					if c0, c1 := dst0.RGBAAt(x, y), dst1.RGBAAt(x, y); c0 != c1 {
+						t.Errorf("q=%T: at (%d, %d): c0=%v, c1=%v", q, x, y, c0, c1)
+						break loop
+					}
 				}
 			}
 		}
@@ -184,7 +229,7 @@ func TestSrcTranslationInvariance(t *testing.T) {
 				t.Errorf("pix differ for delta=%v, q=%T", delta, q)
 			}
 
-			// TODO: Transform.
+			// TODO: Transform, once Kernel.Transform is implemented.
 		}
 	}
 }
@@ -250,6 +295,8 @@ func TestFastPaths(t *testing.T) {
 					if !bytes.Equal(dst0.Pix, dst1.Pix) {
 						t.Errorf("pix differ for dr=%v, src=%T, sr=%v, q=%T", dr, src, sr, q)
 					}
+
+					// TODO: Transform, once Kernel.Transform is implemented.
 				}
 			}
 		}
@@ -331,6 +378,20 @@ func benchScale(b *testing.B, srcf func(image.Rectangle) (image.Image, error), w
 	}
 }
 
+func benchTform(b *testing.B, srcf func(image.Rectangle) (image.Image, error), w int, h int, q Interpolator) {
+	dst := image.NewRGBA(image.Rect(0, 0, w, h))
+	src, err := srcf(image.Rect(0, 0, 1024, 768))
+	if err != nil {
+		b.Fatal(err)
+	}
+	sr := src.Bounds()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		q.Transform(dst, transformMatrix, src, sr, nil)
+	}
+}
+
 func BenchmarkScaleLargeDownNN(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, NearestNeighbor) }
 func BenchmarkScaleLargeDownAB(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, ApproxBiLinear) }
 func BenchmarkScaleLargeDownBL(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, BiLinear) }
@@ -351,3 +412,9 @@ func BenchmarkScaleSrcNRGBA(b *testing.B)   { benchScale(b, srcNRGBA, 200, 150, 
 func BenchmarkScaleSrcRGBA(b *testing.B)    { benchScale(b, srcRGBA, 200, 150, ApproxBiLinear) }
 func BenchmarkScaleSrcUniform(b *testing.B) { benchScale(b, srcUniform, 200, 150, ApproxBiLinear) }
 func BenchmarkScaleSrcYCbCr(b *testing.B)   { benchScale(b, srcYCbCr, 200, 150, ApproxBiLinear) }
+
+func BenchmarkTformSrcGray(b *testing.B)    { benchTform(b, srcGray, 200, 150, ApproxBiLinear) }
+func BenchmarkTformSrcNRGBA(b *testing.B)   { benchTform(b, srcNRGBA, 200, 150, ApproxBiLinear) }
+func BenchmarkTformSrcRGBA(b *testing.B)    { benchTform(b, srcRGBA, 200, 150, ApproxBiLinear) }
+func BenchmarkTformSrcUniform(b *testing.B) { benchTform(b, srcUniform, 200, 150, ApproxBiLinear) }
+func BenchmarkTformSrcYCbCr(b *testing.B)   { benchTform(b, srcYCbCr, 200, 150, ApproxBiLinear) }
