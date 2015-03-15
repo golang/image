@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package draw
+package draw_test
 
 import (
 	"fmt"
@@ -12,6 +12,7 @@ import (
 	"math"
 	"os"
 
+	"golang.org/x/image/draw"
 	"golang.org/x/image/math/f64"
 )
 
@@ -28,10 +29,10 @@ func ExampleDraw() {
 
 	sr := src.Bounds()
 	dst := image.NewRGBA(image.Rect(0, 0, 400, 300))
-	qs := []Interpolator{
-		NearestNeighbor,
-		ApproxBiLinear,
-		CatmullRom,
+	qs := []draw.Interpolator{
+		draw.NearestNeighbor,
+		draw.ApproxBiLinear,
+		draw.CatmullRom,
 	}
 	c, s := math.Cos(math.Pi/3), math.Sin(math.Pi/3)
 	t := &f64.Aff3{
@@ -39,12 +40,12 @@ func ExampleDraw() {
 		+2 * s, +2 * c, 100,
 	}
 
-	Copy(dst, image.Point{20, 30}, src, sr, nil)
+	draw.Copy(dst, image.Point{20, 30}, src, sr, nil)
 	for i, q := range qs {
 		q.Scale(dst, image.Rect(200+10*i, 100*i, 600+10*i, 150+100*i), src, sr, nil)
 	}
 	// TODO: delete the "_ = t" and uncomment this when Transform is implemented.
-	// NearestNeighbor.Transform(dst, t, src, sr, nil)
+	// draw.NearestNeighbor.Transform(dst, t, src, sr, nil)
 	_ = t
 
 	// Change false to true to write the resultant image to disk.
