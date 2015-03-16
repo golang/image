@@ -55,7 +55,28 @@ func (z nnInterpolator) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr 
 		return
 	}
 	d2s := invert(s2d)
-	z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+	switch dst := dst.(type) {
+	case *image.RGBA:
+		switch src := src.(type) {
+		case *image.Gray:
+			z.transform_RGBA_Gray(dst, dr, adr, &d2s, src, sr)
+		case *image.NRGBA:
+			z.transform_RGBA_NRGBA(dst, dr, adr, &d2s, src, sr)
+		case *image.RGBA:
+			z.transform_RGBA_RGBA(dst, dr, adr, &d2s, src, sr)
+		case *image.Uniform:
+			z.transform_RGBA_Uniform(dst, dr, adr, &d2s, src, sr)
+		case *image.YCbCr:
+			z.transform_RGBA_YCbCr(dst, dr, adr, &d2s, src, sr)
+		default:
+			z.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr)
+		}
+	default:
+		switch src := src.(type) {
+		default:
+			z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+		}
+	}
 }
 
 func (nnInterpolator) scale_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, src *image.Gray, sr image.Rectangle) {
@@ -388,7 +409,28 @@ func (z ablInterpolator) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr
 		return
 	}
 	d2s := invert(s2d)
-	z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+	switch dst := dst.(type) {
+	case *image.RGBA:
+		switch src := src.(type) {
+		case *image.Gray:
+			z.transform_RGBA_Gray(dst, dr, adr, &d2s, src, sr)
+		case *image.NRGBA:
+			z.transform_RGBA_NRGBA(dst, dr, adr, &d2s, src, sr)
+		case *image.RGBA:
+			z.transform_RGBA_RGBA(dst, dr, adr, &d2s, src, sr)
+		case *image.Uniform:
+			z.transform_RGBA_Uniform(dst, dr, adr, &d2s, src, sr)
+		case *image.YCbCr:
+			z.transform_RGBA_YCbCr(dst, dr, adr, &d2s, src, sr)
+		default:
+			z.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr)
+		}
+	default:
+		switch src := src.(type) {
+		default:
+			z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+		}
+	}
 }
 
 func (ablInterpolator) scale_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, src *image.Gray, sr image.Rectangle) {
