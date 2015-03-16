@@ -444,7 +444,7 @@ const (
 				return
 			}
 			d2s := invert(s2d)
-			z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+			$switch z.transform_$dTypeRN_$sTypeRN(dst, dr, adr, &d2s, src, sr)
 		}
 	`
 
