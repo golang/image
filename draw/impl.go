@@ -55,26 +55,33 @@ func (z nnInterpolator) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr 
 		return
 	}
 	d2s := invert(s2d)
-	switch dst := dst.(type) {
-	case *image.RGBA:
-		switch src := src.(type) {
-		case *image.Gray:
-			z.transform_RGBA_Gray(dst, dr, adr, &d2s, src, sr)
-		case *image.NRGBA:
-			z.transform_RGBA_NRGBA(dst, dr, adr, &d2s, src, sr)
+	// sr is the source pixels. If it extends beyond the src bounds,
+	// we cannot use the type-specific fast paths, as they access
+	// the Pix fields directly without bounds checking.
+	if !sr.In(src.Bounds()) {
+		z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+	} else {
+		switch dst := dst.(type) {
 		case *image.RGBA:
-			z.transform_RGBA_RGBA(dst, dr, adr, &d2s, src, sr)
-		case *image.Uniform:
-			z.transform_RGBA_Uniform(dst, dr, adr, &d2s, src, sr)
-		case *image.YCbCr:
-			z.transform_RGBA_YCbCr(dst, dr, adr, &d2s, src, sr)
+			switch src := src.(type) {
+			case *image.Gray:
+				z.transform_RGBA_Gray(dst, dr, adr, &d2s, src, sr)
+			case *image.NRGBA:
+				z.transform_RGBA_NRGBA(dst, dr, adr, &d2s, src, sr)
+			case *image.RGBA:
+				z.transform_RGBA_RGBA(dst, dr, adr, &d2s, src, sr)
+			case *image.Uniform:
+				z.transform_RGBA_Uniform(dst, dr, adr, &d2s, src, sr)
+			case *image.YCbCr:
+				z.transform_RGBA_YCbCr(dst, dr, adr, &d2s, src, sr)
+			default:
+				z.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr)
+			}
 		default:
-			z.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr)
-		}
-	default:
-		switch src := src.(type) {
-		default:
-			z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+			switch src := src.(type) {
+			default:
+				z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+			}
 		}
 	}
 }
@@ -224,6 +231,7 @@ func (nnInterpolator) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectang
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
 			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
 			if !(image.Point{sx0, sy0}).In(sr) {
@@ -244,6 +252,7 @@ func (nnInterpolator) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Rectan
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
 			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
 			if !(image.Point{sx0, sy0}).In(sr) {
@@ -264,6 +273,7 @@ func (nnInterpolator) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectang
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
 			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
 			if !(image.Point{sx0, sy0}).In(sr) {
@@ -288,6 +298,7 @@ func (nnInterpolator) transform_RGBA_Uniform(dst *image.RGBA, dr, adr image.Rect
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
 			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
 			if !(image.Point{sx0, sy0}).In(sr) {
@@ -308,6 +319,7 @@ func (nnInterpolator) transform_RGBA_YCbCr(dst *image.RGBA, dr, adr image.Rectan
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
 			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
 			if !(image.Point{sx0, sy0}).In(sr) {
@@ -328,6 +340,7 @@ func (nnInterpolator) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Rectan
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
 			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
 			if !(image.Point{sx0, sy0}).In(sr) {
@@ -349,6 +362,7 @@ func (nnInterpolator) transform_Image_Image(dst Image, dr, adr image.Rectangle, 
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
 			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
 			if !(image.Point{sx0, sy0}).In(sr) {
@@ -409,26 +423,33 @@ func (z ablInterpolator) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr
 		return
 	}
 	d2s := invert(s2d)
-	switch dst := dst.(type) {
-	case *image.RGBA:
-		switch src := src.(type) {
-		case *image.Gray:
-			z.transform_RGBA_Gray(dst, dr, adr, &d2s, src, sr)
-		case *image.NRGBA:
-			z.transform_RGBA_NRGBA(dst, dr, adr, &d2s, src, sr)
+	// sr is the source pixels. If it extends beyond the src bounds,
+	// we cannot use the type-specific fast paths, as they access
+	// the Pix fields directly without bounds checking.
+	if !sr.In(src.Bounds()) {
+		z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+	} else {
+		switch dst := dst.(type) {
 		case *image.RGBA:
-			z.transform_RGBA_RGBA(dst, dr, adr, &d2s, src, sr)
-		case *image.Uniform:
-			z.transform_RGBA_Uniform(dst, dr, adr, &d2s, src, sr)
-		case *image.YCbCr:
-			z.transform_RGBA_YCbCr(dst, dr, adr, &d2s, src, sr)
+			switch src := src.(type) {
+			case *image.Gray:
+				z.transform_RGBA_Gray(dst, dr, adr, &d2s, src, sr)
+			case *image.NRGBA:
+				z.transform_RGBA_NRGBA(dst, dr, adr, &d2s, src, sr)
+			case *image.RGBA:
+				z.transform_RGBA_RGBA(dst, dr, adr, &d2s, src, sr)
+			case *image.Uniform:
+				z.transform_RGBA_Uniform(dst, dr, adr, &d2s, src, sr)
+			case *image.YCbCr:
+				z.transform_RGBA_YCbCr(dst, dr, adr, &d2s, src, sr)
+			default:
+				z.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr)
+			}
 		default:
-			z.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr)
-		}
-	default:
-		switch src := src.(type) {
-		default:
-			z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+			switch src := src.(type) {
+			default:
+				z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+			}
 		}
 	}
 }
@@ -1010,6 +1031,7 @@ func (ablInterpolator) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectan
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
 			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
@@ -1090,6 +1112,7 @@ func (ablInterpolator) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Recta
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
 			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
@@ -1170,6 +1193,7 @@ func (ablInterpolator) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectan
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
 			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
@@ -1266,6 +1290,7 @@ func (ablInterpolator) transform_RGBA_Uniform(dst *image.RGBA, dr, adr image.Rec
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
 			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
@@ -1346,6 +1371,7 @@ func (ablInterpolator) transform_RGBA_YCbCr(dst *image.RGBA, dr, adr image.Recta
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
 			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
@@ -1426,6 +1452,7 @@ func (ablInterpolator) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Recta
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
 			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
@@ -1507,6 +1534,7 @@ func (ablInterpolator) transform_Image_Image(dst Image, dr, adr image.Rectangle,
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
 			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
@@ -1628,8 +1656,53 @@ func (z *kernelScaler) Scale(dst Image, dr image.Rectangle, src image.Image, sr 
 	}
 }
 
-func (z *Kernel) Transform(dst Image, m *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
-	panic("unimplemented")
+func (q *Kernel) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
+	dr := transformRect(s2d, &sr)
+	// adr is the affected destination pixels, relative to dr.Min.
+	adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
+	if adr.Empty() || sr.Empty() {
+		return
+	}
+	d2s := invert(s2d)
+
+	xscale := abs(d2s[0])
+	if s := abs(d2s[1]); xscale < s {
+		xscale = s
+	}
+	yscale := abs(d2s[3])
+	if s := abs(d2s[4]); yscale < s {
+		yscale = s
+	}
+
+	// sr is the source pixels. If it extends beyond the src bounds,
+	// we cannot use the type-specific fast paths, as they access
+	// the Pix fields directly without bounds checking.
+	if !sr.In(src.Bounds()) {
+		q.transform_Image_Image(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+	} else {
+		switch dst := dst.(type) {
+		case *image.RGBA:
+			switch src := src.(type) {
+			case *image.Gray:
+				q.transform_RGBA_Gray(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+			case *image.NRGBA:
+				q.transform_RGBA_NRGBA(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+			case *image.RGBA:
+				q.transform_RGBA_RGBA(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+			case *image.Uniform:
+				q.transform_RGBA_Uniform(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+			case *image.YCbCr:
+				q.transform_RGBA_YCbCr(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+			default:
+				q.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+			}
+		default:
+			switch src := src.(type) {
+			default:
+				q.transform_Image_Image(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+			}
+		}
+	}
 }
 
 func (z *kernelScaler) scaleX_Gray(tmp [][4]float64, src *image.Gray, sr image.Rectangle) {
@@ -1813,6 +1886,670 @@ func (z *kernelScaler) scaleY_Image(dst Image, dr, adr image.Rectangle, tmp [][4
 			dstColorRGBA64.B = ftou(pb * s.invTotalWeight)
 			dstColorRGBA64.A = ftou(pa * s.invTotalWeight)
 			dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(adr.Min.Y+dy), dstColor)
+		}
+	}
+}
+
+func (q *Kernel) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Gray, sr image.Rectangle, xscale, yscale float64) {
+	// When shrinking, broaden the effective kernel support so that we still
+	// visit every source pixel.
+	xHalfWidth, xKernelArgScale := q.Support, 1.0
+	if xscale > 1 {
+		xHalfWidth *= xscale
+		xKernelArgScale = 1 / xscale
+	}
+	yHalfWidth, yKernelArgScale := q.Support, 1.0
+	if yscale > 1 {
+		yHalfWidth *= yscale
+		yKernelArgScale = 1 / yscale
+	}
+
+	xWeights := make([]float64, 1+2*int(math.Ceil(xHalfWidth)))
+	yWeights := make([]float64, 1+2*int(math.Ceil(yHalfWidth)))
+
+	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+		dyf := float64(dr.Min.Y+int(dy)) + 0.5
+		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
+		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
+			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
+			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
+			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
+			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+				continue
+			}
+
+			sx -= 0.5
+			ix := int(math.Floor(sx - xHalfWidth))
+			if ix < sr.Min.X {
+				ix = sr.Min.X
+			}
+			jx := int(math.Ceil(sx + xHalfWidth))
+			if jx > sr.Max.X {
+				jx = sr.Max.X
+			}
+
+			totalXWeight := 0.0
+			for kx := ix; kx < jx; kx++ {
+				xWeight := 0.0
+				if t := abs((sx - float64(kx)) * xKernelArgScale); t < q.Support {
+					xWeight = q.At(t)
+				}
+				xWeights[kx-ix] = xWeight
+				totalXWeight += xWeight
+			}
+			for x := range xWeights[:jx-ix] {
+				xWeights[x] /= totalXWeight
+			}
+
+			sy -= 0.5
+			iy := int(math.Floor(sy - yHalfWidth))
+			if iy < sr.Min.Y {
+				iy = sr.Min.Y
+			}
+			jy := int(math.Ceil(sy + yHalfWidth))
+			if jy > sr.Max.Y {
+				jy = sr.Max.Y
+			}
+
+			totalYWeight := 0.0
+			for ky := iy; ky < jy; ky++ {
+				yWeight := 0.0
+				if t := abs((sy - float64(ky)) * yKernelArgScale); t < q.Support {
+					yWeight = q.At(t)
+				}
+				yWeights[ky-iy] = yWeight
+				totalYWeight += yWeight
+			}
+			for y := range yWeights[:jy-iy] {
+				yWeights[y] /= totalYWeight
+			}
+
+			var pr, pg, pb, pa float64
+			for ky := iy; ky < jy; ky++ {
+				yWeight := yWeights[ky-iy]
+				for kx := ix; kx < jx; kx++ {
+					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+					pr += float64(pru) * xWeights[kx-ix] * yWeight
+					pg += float64(pgu) * xWeights[kx-ix] * yWeight
+					pb += float64(pbu) * xWeights[kx-ix] * yWeight
+					pa += float64(pau) * xWeights[kx-ix] * yWeight
+				}
+			}
+			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
+			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
+			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
+			dst.Pix[d+3] = uint8(fffftou(pa) >> 8)
+		}
+	}
+}
+
+func (q *Kernel) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, xscale, yscale float64) {
+	// When shrinking, broaden the effective kernel support so that we still
+	// visit every source pixel.
+	xHalfWidth, xKernelArgScale := q.Support, 1.0
+	if xscale > 1 {
+		xHalfWidth *= xscale
+		xKernelArgScale = 1 / xscale
+	}
+	yHalfWidth, yKernelArgScale := q.Support, 1.0
+	if yscale > 1 {
+		yHalfWidth *= yscale
+		yKernelArgScale = 1 / yscale
+	}
+
+	xWeights := make([]float64, 1+2*int(math.Ceil(xHalfWidth)))
+	yWeights := make([]float64, 1+2*int(math.Ceil(yHalfWidth)))
+
+	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+		dyf := float64(dr.Min.Y+int(dy)) + 0.5
+		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
+		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
+			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
+			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
+			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
+			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+				continue
+			}
+
+			sx -= 0.5
+			ix := int(math.Floor(sx - xHalfWidth))
+			if ix < sr.Min.X {
+				ix = sr.Min.X
+			}
+			jx := int(math.Ceil(sx + xHalfWidth))
+			if jx > sr.Max.X {
+				jx = sr.Max.X
+			}
+
+			totalXWeight := 0.0
+			for kx := ix; kx < jx; kx++ {
+				xWeight := 0.0
+				if t := abs((sx - float64(kx)) * xKernelArgScale); t < q.Support {
+					xWeight = q.At(t)
+				}
+				xWeights[kx-ix] = xWeight
+				totalXWeight += xWeight
+			}
+			for x := range xWeights[:jx-ix] {
+				xWeights[x] /= totalXWeight
+			}
+
+			sy -= 0.5
+			iy := int(math.Floor(sy - yHalfWidth))
+			if iy < sr.Min.Y {
+				iy = sr.Min.Y
+			}
+			jy := int(math.Ceil(sy + yHalfWidth))
+			if jy > sr.Max.Y {
+				jy = sr.Max.Y
+			}
+
+			totalYWeight := 0.0
+			for ky := iy; ky < jy; ky++ {
+				yWeight := 0.0
+				if t := abs((sy - float64(ky)) * yKernelArgScale); t < q.Support {
+					yWeight = q.At(t)
+				}
+				yWeights[ky-iy] = yWeight
+				totalYWeight += yWeight
+			}
+			for y := range yWeights[:jy-iy] {
+				yWeights[y] /= totalYWeight
+			}
+
+			var pr, pg, pb, pa float64
+			for ky := iy; ky < jy; ky++ {
+				yWeight := yWeights[ky-iy]
+				for kx := ix; kx < jx; kx++ {
+					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+					pr += float64(pru) * xWeights[kx-ix] * yWeight
+					pg += float64(pgu) * xWeights[kx-ix] * yWeight
+					pb += float64(pbu) * xWeights[kx-ix] * yWeight
+					pa += float64(pau) * xWeights[kx-ix] * yWeight
+				}
+			}
+			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
+			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
+			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
+			dst.Pix[d+3] = uint8(fffftou(pa) >> 8)
+		}
+	}
+}
+
+func (q *Kernel) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, xscale, yscale float64) {
+	// When shrinking, broaden the effective kernel support so that we still
+	// visit every source pixel.
+	xHalfWidth, xKernelArgScale := q.Support, 1.0
+	if xscale > 1 {
+		xHalfWidth *= xscale
+		xKernelArgScale = 1 / xscale
+	}
+	yHalfWidth, yKernelArgScale := q.Support, 1.0
+	if yscale > 1 {
+		yHalfWidth *= yscale
+		yKernelArgScale = 1 / yscale
+	}
+
+	xWeights := make([]float64, 1+2*int(math.Ceil(xHalfWidth)))
+	yWeights := make([]float64, 1+2*int(math.Ceil(yHalfWidth)))
+
+	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+		dyf := float64(dr.Min.Y+int(dy)) + 0.5
+		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
+		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
+			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
+			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
+			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
+			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+				continue
+			}
+
+			sx -= 0.5
+			ix := int(math.Floor(sx - xHalfWidth))
+			if ix < sr.Min.X {
+				ix = sr.Min.X
+			}
+			jx := int(math.Ceil(sx + xHalfWidth))
+			if jx > sr.Max.X {
+				jx = sr.Max.X
+			}
+
+			totalXWeight := 0.0
+			for kx := ix; kx < jx; kx++ {
+				xWeight := 0.0
+				if t := abs((sx - float64(kx)) * xKernelArgScale); t < q.Support {
+					xWeight = q.At(t)
+				}
+				xWeights[kx-ix] = xWeight
+				totalXWeight += xWeight
+			}
+			for x := range xWeights[:jx-ix] {
+				xWeights[x] /= totalXWeight
+			}
+
+			sy -= 0.5
+			iy := int(math.Floor(sy - yHalfWidth))
+			if iy < sr.Min.Y {
+				iy = sr.Min.Y
+			}
+			jy := int(math.Ceil(sy + yHalfWidth))
+			if jy > sr.Max.Y {
+				jy = sr.Max.Y
+			}
+
+			totalYWeight := 0.0
+			for ky := iy; ky < jy; ky++ {
+				yWeight := 0.0
+				if t := abs((sy - float64(ky)) * yKernelArgScale); t < q.Support {
+					yWeight = q.At(t)
+				}
+				yWeights[ky-iy] = yWeight
+				totalYWeight += yWeight
+			}
+			for y := range yWeights[:jy-iy] {
+				yWeights[y] /= totalYWeight
+			}
+
+			var pr, pg, pb, pa float64
+			for ky := iy; ky < jy; ky++ {
+				yWeight := yWeights[ky-iy]
+				for kx := ix; kx < jx; kx++ {
+					pi := src.PixOffset(kx, ky)
+					pru := uint32(src.Pix[pi+0]) * 0x101
+					pgu := uint32(src.Pix[pi+1]) * 0x101
+					pbu := uint32(src.Pix[pi+2]) * 0x101
+					pau := uint32(src.Pix[pi+3]) * 0x101
+					pr += float64(pru) * xWeights[kx-ix] * yWeight
+					pg += float64(pgu) * xWeights[kx-ix] * yWeight
+					pb += float64(pbu) * xWeights[kx-ix] * yWeight
+					pa += float64(pau) * xWeights[kx-ix] * yWeight
+				}
+			}
+			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
+			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
+			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
+			dst.Pix[d+3] = uint8(fffftou(pa) >> 8)
+		}
+	}
+}
+
+func (q *Kernel) transform_RGBA_Uniform(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Uniform, sr image.Rectangle, xscale, yscale float64) {
+	// When shrinking, broaden the effective kernel support so that we still
+	// visit every source pixel.
+	xHalfWidth, xKernelArgScale := q.Support, 1.0
+	if xscale > 1 {
+		xHalfWidth *= xscale
+		xKernelArgScale = 1 / xscale
+	}
+	yHalfWidth, yKernelArgScale := q.Support, 1.0
+	if yscale > 1 {
+		yHalfWidth *= yscale
+		yKernelArgScale = 1 / yscale
+	}
+
+	xWeights := make([]float64, 1+2*int(math.Ceil(xHalfWidth)))
+	yWeights := make([]float64, 1+2*int(math.Ceil(yHalfWidth)))
+
+	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+		dyf := float64(dr.Min.Y+int(dy)) + 0.5
+		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
+		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
+			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
+			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
+			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
+			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+				continue
+			}
+
+			sx -= 0.5
+			ix := int(math.Floor(sx - xHalfWidth))
+			if ix < sr.Min.X {
+				ix = sr.Min.X
+			}
+			jx := int(math.Ceil(sx + xHalfWidth))
+			if jx > sr.Max.X {
+				jx = sr.Max.X
+			}
+
+			totalXWeight := 0.0
+			for kx := ix; kx < jx; kx++ {
+				xWeight := 0.0
+				if t := abs((sx - float64(kx)) * xKernelArgScale); t < q.Support {
+					xWeight = q.At(t)
+				}
+				xWeights[kx-ix] = xWeight
+				totalXWeight += xWeight
+			}
+			for x := range xWeights[:jx-ix] {
+				xWeights[x] /= totalXWeight
+			}
+
+			sy -= 0.5
+			iy := int(math.Floor(sy - yHalfWidth))
+			if iy < sr.Min.Y {
+				iy = sr.Min.Y
+			}
+			jy := int(math.Ceil(sy + yHalfWidth))
+			if jy > sr.Max.Y {
+				jy = sr.Max.Y
+			}
+
+			totalYWeight := 0.0
+			for ky := iy; ky < jy; ky++ {
+				yWeight := 0.0
+				if t := abs((sy - float64(ky)) * yKernelArgScale); t < q.Support {
+					yWeight = q.At(t)
+				}
+				yWeights[ky-iy] = yWeight
+				totalYWeight += yWeight
+			}
+			for y := range yWeights[:jy-iy] {
+				yWeights[y] /= totalYWeight
+			}
+
+			var pr, pg, pb, pa float64
+			for ky := iy; ky < jy; ky++ {
+				yWeight := yWeights[ky-iy]
+				for kx := ix; kx < jx; kx++ {
+					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+					pr += float64(pru) * xWeights[kx-ix] * yWeight
+					pg += float64(pgu) * xWeights[kx-ix] * yWeight
+					pb += float64(pbu) * xWeights[kx-ix] * yWeight
+					pa += float64(pau) * xWeights[kx-ix] * yWeight
+				}
+			}
+			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
+			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
+			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
+			dst.Pix[d+3] = uint8(fffftou(pa) >> 8)
+		}
+	}
+}
+
+func (q *Kernel) transform_RGBA_YCbCr(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, xscale, yscale float64) {
+	// When shrinking, broaden the effective kernel support so that we still
+	// visit every source pixel.
+	xHalfWidth, xKernelArgScale := q.Support, 1.0
+	if xscale > 1 {
+		xHalfWidth *= xscale
+		xKernelArgScale = 1 / xscale
+	}
+	yHalfWidth, yKernelArgScale := q.Support, 1.0
+	if yscale > 1 {
+		yHalfWidth *= yscale
+		yKernelArgScale = 1 / yscale
+	}
+
+	xWeights := make([]float64, 1+2*int(math.Ceil(xHalfWidth)))
+	yWeights := make([]float64, 1+2*int(math.Ceil(yHalfWidth)))
+
+	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+		dyf := float64(dr.Min.Y+int(dy)) + 0.5
+		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
+		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
+			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
+			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
+			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
+			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+				continue
+			}
+
+			sx -= 0.5
+			ix := int(math.Floor(sx - xHalfWidth))
+			if ix < sr.Min.X {
+				ix = sr.Min.X
+			}
+			jx := int(math.Ceil(sx + xHalfWidth))
+			if jx > sr.Max.X {
+				jx = sr.Max.X
+			}
+
+			totalXWeight := 0.0
+			for kx := ix; kx < jx; kx++ {
+				xWeight := 0.0
+				if t := abs((sx - float64(kx)) * xKernelArgScale); t < q.Support {
+					xWeight = q.At(t)
+				}
+				xWeights[kx-ix] = xWeight
+				totalXWeight += xWeight
+			}
+			for x := range xWeights[:jx-ix] {
+				xWeights[x] /= totalXWeight
+			}
+
+			sy -= 0.5
+			iy := int(math.Floor(sy - yHalfWidth))
+			if iy < sr.Min.Y {
+				iy = sr.Min.Y
+			}
+			jy := int(math.Ceil(sy + yHalfWidth))
+			if jy > sr.Max.Y {
+				jy = sr.Max.Y
+			}
+
+			totalYWeight := 0.0
+			for ky := iy; ky < jy; ky++ {
+				yWeight := 0.0
+				if t := abs((sy - float64(ky)) * yKernelArgScale); t < q.Support {
+					yWeight = q.At(t)
+				}
+				yWeights[ky-iy] = yWeight
+				totalYWeight += yWeight
+			}
+			for y := range yWeights[:jy-iy] {
+				yWeights[y] /= totalYWeight
+			}
+
+			var pr, pg, pb, pa float64
+			for ky := iy; ky < jy; ky++ {
+				yWeight := yWeights[ky-iy]
+				for kx := ix; kx < jx; kx++ {
+					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+					pr += float64(pru) * xWeights[kx-ix] * yWeight
+					pg += float64(pgu) * xWeights[kx-ix] * yWeight
+					pb += float64(pbu) * xWeights[kx-ix] * yWeight
+					pa += float64(pau) * xWeights[kx-ix] * yWeight
+				}
+			}
+			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
+			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
+			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
+			dst.Pix[d+3] = uint8(fffftou(pa) >> 8)
+		}
+	}
+}
+
+func (q *Kernel) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, xscale, yscale float64) {
+	// When shrinking, broaden the effective kernel support so that we still
+	// visit every source pixel.
+	xHalfWidth, xKernelArgScale := q.Support, 1.0
+	if xscale > 1 {
+		xHalfWidth *= xscale
+		xKernelArgScale = 1 / xscale
+	}
+	yHalfWidth, yKernelArgScale := q.Support, 1.0
+	if yscale > 1 {
+		yHalfWidth *= yscale
+		yKernelArgScale = 1 / yscale
+	}
+
+	xWeights := make([]float64, 1+2*int(math.Ceil(xHalfWidth)))
+	yWeights := make([]float64, 1+2*int(math.Ceil(yHalfWidth)))
+
+	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+		dyf := float64(dr.Min.Y+int(dy)) + 0.5
+		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
+		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
+			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
+			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
+			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
+			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+				continue
+			}
+
+			sx -= 0.5
+			ix := int(math.Floor(sx - xHalfWidth))
+			if ix < sr.Min.X {
+				ix = sr.Min.X
+			}
+			jx := int(math.Ceil(sx + xHalfWidth))
+			if jx > sr.Max.X {
+				jx = sr.Max.X
+			}
+
+			totalXWeight := 0.0
+			for kx := ix; kx < jx; kx++ {
+				xWeight := 0.0
+				if t := abs((sx - float64(kx)) * xKernelArgScale); t < q.Support {
+					xWeight = q.At(t)
+				}
+				xWeights[kx-ix] = xWeight
+				totalXWeight += xWeight
+			}
+			for x := range xWeights[:jx-ix] {
+				xWeights[x] /= totalXWeight
+			}
+
+			sy -= 0.5
+			iy := int(math.Floor(sy - yHalfWidth))
+			if iy < sr.Min.Y {
+				iy = sr.Min.Y
+			}
+			jy := int(math.Ceil(sy + yHalfWidth))
+			if jy > sr.Max.Y {
+				jy = sr.Max.Y
+			}
+
+			totalYWeight := 0.0
+			for ky := iy; ky < jy; ky++ {
+				yWeight := 0.0
+				if t := abs((sy - float64(ky)) * yKernelArgScale); t < q.Support {
+					yWeight = q.At(t)
+				}
+				yWeights[ky-iy] = yWeight
+				totalYWeight += yWeight
+			}
+			for y := range yWeights[:jy-iy] {
+				yWeights[y] /= totalYWeight
+			}
+
+			var pr, pg, pb, pa float64
+			for ky := iy; ky < jy; ky++ {
+				yWeight := yWeights[ky-iy]
+				for kx := ix; kx < jx; kx++ {
+					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+					pr += float64(pru) * xWeights[kx-ix] * yWeight
+					pg += float64(pgu) * xWeights[kx-ix] * yWeight
+					pb += float64(pbu) * xWeights[kx-ix] * yWeight
+					pa += float64(pau) * xWeights[kx-ix] * yWeight
+				}
+			}
+			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
+			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
+			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
+			dst.Pix[d+3] = uint8(fffftou(pa) >> 8)
+		}
+	}
+}
+
+func (q *Kernel) transform_Image_Image(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, xscale, yscale float64) {
+	// When shrinking, broaden the effective kernel support so that we still
+	// visit every source pixel.
+	xHalfWidth, xKernelArgScale := q.Support, 1.0
+	if xscale > 1 {
+		xHalfWidth *= xscale
+		xKernelArgScale = 1 / xscale
+	}
+	yHalfWidth, yKernelArgScale := q.Support, 1.0
+	if yscale > 1 {
+		yHalfWidth *= yscale
+		yKernelArgScale = 1 / yscale
+	}
+
+	xWeights := make([]float64, 1+2*int(math.Ceil(xHalfWidth)))
+	yWeights := make([]float64, 1+2*int(math.Ceil(yHalfWidth)))
+
+	dstColorRGBA64 := &color.RGBA64{}
+	dstColor := color.Color(dstColorRGBA64)
+	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+		dyf := float64(dr.Min.Y+int(dy)) + 0.5
+		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
+			dxf := float64(dr.Min.X+int(dx)) + 0.5
+			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
+			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
+			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
+			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+				continue
+			}
+
+			sx -= 0.5
+			ix := int(math.Floor(sx - xHalfWidth))
+			if ix < sr.Min.X {
+				ix = sr.Min.X
+			}
+			jx := int(math.Ceil(sx + xHalfWidth))
+			if jx > sr.Max.X {
+				jx = sr.Max.X
+			}
+
+			totalXWeight := 0.0
+			for kx := ix; kx < jx; kx++ {
+				xWeight := 0.0
+				if t := abs((sx - float64(kx)) * xKernelArgScale); t < q.Support {
+					xWeight = q.At(t)
+				}
+				xWeights[kx-ix] = xWeight
+				totalXWeight += xWeight
+			}
+			for x := range xWeights[:jx-ix] {
+				xWeights[x] /= totalXWeight
+			}
+
+			sy -= 0.5
+			iy := int(math.Floor(sy - yHalfWidth))
+			if iy < sr.Min.Y {
+				iy = sr.Min.Y
+			}
+			jy := int(math.Ceil(sy + yHalfWidth))
+			if jy > sr.Max.Y {
+				jy = sr.Max.Y
+			}
+
+			totalYWeight := 0.0
+			for ky := iy; ky < jy; ky++ {
+				yWeight := 0.0
+				if t := abs((sy - float64(ky)) * yKernelArgScale); t < q.Support {
+					yWeight = q.At(t)
+				}
+				yWeights[ky-iy] = yWeight
+				totalYWeight += yWeight
+			}
+			for y := range yWeights[:jy-iy] {
+				yWeights[y] /= totalYWeight
+			}
+
+			var pr, pg, pb, pa float64
+			for ky := iy; ky < jy; ky++ {
+				yWeight := yWeights[ky-iy]
+				for kx := ix; kx < jx; kx++ {
+					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+					pr += float64(pru) * xWeights[kx-ix] * yWeight
+					pg += float64(pgu) * xWeights[kx-ix] * yWeight
+					pb += float64(pbu) * xWeights[kx-ix] * yWeight
+					pa += float64(pau) * xWeights[kx-ix] * yWeight
+				}
+			}
+			dstColorRGBA64.R = fffftou(pr)
+			dstColorRGBA64.G = fffftou(pg)
+			dstColorRGBA64.B = fffftou(pb)
+			dstColorRGBA64.A = fffftou(pa)
+			dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
 		}
 	}
 }

@@ -116,6 +116,12 @@ func genKernel(w *bytes.Buffer) {
 			dType: dType,
 		})
 	}
+	for _, t := range dsTypes {
+		expn(w, codeKernelTransformLeaf, &data{
+			dType: t.dType,
+			sType: t.sType,
+		})
+	}
 }
 
 func expn(w *bytes.Buffer, code string, d *data) {
@@ -154,6 +160,9 @@ func expnLine(line string, d *data) string {
 	return line
 }
 
+// expnDollar expands a "$foo" fragment in a line of generated code. It returns
+// the empty string if there was a problem. It returns ";" if the generated
+// code is a no-op.
 func expnDollar(prefix, dollar, suffix string, d *data) string {
 	switch dollar {
 	case "dType":
@@ -246,32 +255,39 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 
 	case "outputf":
 		args, _ := splitArgs(suffix)
-		if len(args) != 4 {
+		if len(args) != 5 {
 			return ""
 		}
+		ret := ""
 		switch d.dType {
 		default:
 			log.Fatalf("bad dType %q", d.dType)
 		case "Image":
-			return fmt.Sprintf(""+
-				"dstColorRGBA64.R = ftou(%sr * %s)\n"+
-				"dstColorRGBA64.G = ftou(%sg * %s)\n"+
-				"dstColorRGBA64.B = ftou(%sb * %s)\n"+
-				"dstColorRGBA64.A = ftou(%sa * %s)\n"+
+			ret = fmt.Sprintf(""+
+				"dstColorRGBA64.R = %s(%sr * %s)\n"+
+				"dstColorRGBA64.G = %s(%sg * %s)\n"+
+				"dstColorRGBA64.B = %s(%sb * %s)\n"+
+				"dstColorRGBA64.A = %s(%sa * %s)\n"+
 				"dst.Set(%s, %s, dstColor)",
-				args[2], args[3], args[2], args[3], args[2], args[3], args[2], args[3],
+				args[2], args[3], args[4],
+				args[2], args[3], args[4],
+				args[2], args[3], args[4],
+				args[2], args[3], args[4],
 				args[0], args[1],
 			)
 		case "*image.RGBA":
-			return fmt.Sprintf(""+
-				"dst.Pix[d+0] = uint8(ftou(%sr * %s) >> 8)\n"+
-				"dst.Pix[d+1] = uint8(ftou(%sg * %s) >> 8)\n"+
-				"dst.Pix[d+2] = uint8(ftou(%sb * %s) >> 8)\n"+
-				"dst.Pix[d+3] = uint8(ftou(%sa * %s) >> 8)\n"+
-				"d += dst.Stride",
-				args[2], args[3], args[2], args[3], args[2], args[3], args[2], args[3],
+			ret = fmt.Sprintf(""+
+				"dst.Pix[d+0] = uint8(%s(%sr * %s) >> 8)\n"+
+				"dst.Pix[d+1] = uint8(%s(%sg * %s) >> 8)\n"+
+				"dst.Pix[d+2] = uint8(%s(%sb * %s) >> 8)\n"+
+				"dst.Pix[d+3] = uint8(%s(%sa * %s) >> 8)",
+				args[2], args[3], args[4],
+				args[2], args[3], args[4],
+				args[2], args[3], args[4],
+				args[2], args[3], args[4],
 			)
 		}
+		return strings.Replace(ret, " * 1)", ")", -1)
 
 	case "srcf", "srcu":
 		lhs, eqOp := splitEq(prefix)
@@ -328,6 +344,12 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		}
 
 		return strings.TrimSpace(buf.String())
+
+	case "tweakD":
+		if d.dType == "*image.RGBA" {
+			return "d += dst.Stride"
+		}
+		return ";"
 
 	case "tweakDx":
 		if d.dType == "*image.RGBA" {
@@ -444,7 +466,14 @@ const (
 				return
 			}
 			d2s := invert(s2d)
-			$switch z.transform_$dTypeRN_$sTypeRN(dst, dr, adr, &d2s, src, sr)
+			// sr is the source pixels. If it extends beyond the src bounds,
+			// we cannot use the type-specific fast paths, as they access
+			// the Pix fields directly without bounds checking.
+			if !sr.In(src.Bounds()) {
+				z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+			} else {
+				$switch z.transform_$dTypeRN_$sTypeRN(dst, dr, adr, &d2s, src, sr)
+			}
 		}
 	`
 
@@ -475,6 +504,7 @@ const (
 				$preInner
 				$tweakDx for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 					dxf := float64(dr.Min.X + int(dx)) + 0.5
+					// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 					sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
 					sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
 					if !(image.Point{sx0, sy0}).In(sr) {
@@ -549,6 +579,7 @@ const (
 				$preInner
 				$tweakDx for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 					dxf := float64(dr.Min.X + int(dx)) + 0.5
+					// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 					sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 					sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
 					if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
@@ -625,8 +656,32 @@ const (
 			$switchD z.scaleY_$dTypeRN(dst, dr, adr, tmp)
 		}
 
-		func (z *Kernel) Transform(dst Image, m *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
-			panic("unimplemented")
+		func (q *Kernel) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
+			dr := transformRect(s2d, &sr)
+			// adr is the affected destination pixels, relative to dr.Min.
+			adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
+			if adr.Empty() || sr.Empty() {
+				return
+			}
+			d2s := invert(s2d)
+
+			xscale := abs(d2s[0])
+			if s := abs(d2s[1]); xscale < s {
+				xscale = s
+			}
+			yscale := abs(d2s[3])
+			if s := abs(d2s[4]); yscale < s {
+				yscale = s
+			}
+
+			// sr is the source pixels. If it extends beyond the src bounds,
+			// we cannot use the type-specific fast paths, as they access
+			// the Pix fields directly without bounds checking.
+			if !sr.In(src.Bounds()) {
+				q.transform_Image_Image(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+			} else {
+				$switch q.transform_$dTypeRN_$sTypeRN(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+			}
 		}
 	`
 
@@ -665,7 +720,98 @@ const (
 						pb += p[2] * c.weight
 						pa += p[3] * c.weight
 					}
-					$outputf[dr.Min.X + int(dx), dr.Min.Y + int(adr.Min.Y + dy), p, s.invTotalWeight]
+					$outputf[dr.Min.X + int(dx), dr.Min.Y + int(adr.Min.Y + dy), ftou, p, s.invTotalWeight]
+					$tweakD
+				}
+			}
+		}
+	`
+
+	codeKernelTransformLeaf = `
+		func (q *Kernel) transform_$dTypeRN_$sTypeRN(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, xscale, yscale float64) {
+			// When shrinking, broaden the effective kernel support so that we still
+			// visit every source pixel.
+			xHalfWidth, xKernelArgScale := q.Support, 1.0
+			if xscale > 1 {
+				xHalfWidth *= xscale
+				xKernelArgScale = 1 / xscale
+			}
+			yHalfWidth, yKernelArgScale := q.Support, 1.0
+			if yscale > 1 {
+				yHalfWidth *= yscale
+				yKernelArgScale = 1 / yscale
+			}
+
+			xWeights := make([]float64, 1 + 2*int(math.Ceil(xHalfWidth)))
+			yWeights := make([]float64, 1 + 2*int(math.Ceil(yHalfWidth)))
+
+			$preOuter
+			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+				dyf := float64(dr.Min.Y + int(dy)) + 0.5
+				$preInner
+				$tweakDx for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
+					dxf := float64(dr.Min.X + int(dx)) + 0.5
+					// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
+					sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
+					sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
+					if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+						continue
+					}
+
+					sx -= 0.5
+					ix := int(math.Floor(sx - xHalfWidth))
+					if ix < sr.Min.X {
+						ix = sr.Min.X
+					}
+					jx := int(math.Ceil(sx + xHalfWidth))
+					if jx > sr.Max.X {
+						jx = sr.Max.X
+					}
+
+					totalXWeight := 0.0
+					for kx := ix; kx < jx; kx++ {
+						xWeight := 0.0
+						if t := abs((sx - float64(kx)) * xKernelArgScale); t < q.Support {
+							xWeight = q.At(t)
+						}
+						xWeights[kx - ix] = xWeight
+						totalXWeight += xWeight
+					}
+					for x := range xWeights[:jx-ix] {
+						xWeights[x] /= totalXWeight
+					}
+
+					sy -= 0.5
+					iy := int(math.Floor(sy - yHalfWidth))
+					if iy < sr.Min.Y {
+						iy = sr.Min.Y
+					}
+					jy := int(math.Ceil(sy + yHalfWidth))
+					if jy > sr.Max.Y {
+						jy = sr.Max.Y
+					}
+
+					totalYWeight := 0.0
+					for ky := iy; ky < jy; ky++ {
+						yWeight := 0.0
+						if t := abs((sy - float64(ky)) * yKernelArgScale); t < q.Support {
+							yWeight = q.At(t)
+						}
+						yWeights[ky - iy] = yWeight
+						totalYWeight += yWeight
+					}
+					for y := range yWeights[:jy-iy] {
+						yWeights[y] /= totalYWeight
+					}
+
+					var pr, pg, pb, pa float64
+					for ky := iy; ky < jy; ky++ {
+						yWeight := yWeights[ky - iy]
+						for kx := ix; kx < jx; kx++ {
+							p += $srcf[kx, ky] * xWeights[kx - ix] * yWeight
+						}
+					}
+					$outputf[dr.Min.X + int(dx), dr.Min.Y + int(dy), fffftou, p, 1]
 				}
 			}
 		}
