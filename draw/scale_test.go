@@ -23,13 +23,25 @@ import (
 
 var genGoldenFiles = flag.Bool("gen_golden_files", false, "whether to generate the TestXxx golden files.")
 
-var transformMatrix = func() *f64.Aff3 {
+var transformMatrix = func(tx, ty float64) *f64.Aff3 {
 	const scale, cos30, sin30 = 3.75, 0.866025404, 0.5
 	return &f64.Aff3{
-		+scale * cos30, -scale * sin30, 40,
-		+scale * sin30, +scale * cos30, 10,
+		+scale * cos30, -scale * sin30, tx,
+		+scale * sin30, +scale * cos30, ty,
 	}
-}()
+}
+
+func encode(filename string, m image.Image) error {
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("Create: %v", err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, m); err != nil {
+		return fmt.Errorf("Encode: %v", err)
+	}
+	return nil
+}
 
 // testInterp tests that interpolating the source image gives the exact
 // destination image. This is to ensure that any refactoring or optimization of
@@ -58,25 +70,14 @@ func testInterp(t *testing.T, w int, h int, direction, srcFilename string) {
 
 		got := image.NewRGBA(image.Rect(0, 0, w, h))
 		if direction == "rotate" {
-			if name == "bl" || name == "cr" {
-				// TODO: implement Kernel.Transform.
-				continue
-			}
-			q.Transform(got, transformMatrix, src, src.Bounds(), nil)
+			q.Transform(got, transformMatrix(40, 10), src, src.Bounds(), nil)
 		} else {
 			q.Scale(got, got.Bounds(), src, src.Bounds(), nil)
 		}
 
 		if *genGoldenFiles {
-			g, err := os.Create(goldenFilename)
-			if err != nil {
-				t.Errorf("Create: %v", err)
-				continue
-			}
-			defer g.Close()
-			if err := png.Encode(g, got); err != nil {
-				t.Errorf("Encode: %v", err)
-				continue
+			if err := encode(goldenFilename, got); err != nil {
+				t.Error(err)
 			}
 			continue
 		}
@@ -132,11 +133,6 @@ func TestInterpClipCommute(t *testing.T) {
 	}
 	for _, transform := range []bool{false, true} {
 		for _, q := range qs {
-			if transform && q == CatmullRom {
-				// TODO: implement Kernel.Transform.
-				continue
-			}
-
 			dst0 := image.NewRGBA(image.Rect(1, 1, 10, 10))
 			dst1 := image.NewRGBA(image.Rect(1, 1, 10, 10))
 			for i := range dst0.Pix {
@@ -147,7 +143,7 @@ func TestInterpClipCommute(t *testing.T) {
 			var interp func(dst *image.RGBA)
 			if transform {
 				interp = func(dst *image.RGBA) {
-					q.Transform(dst, transformMatrix, src, src.Bounds(), nil)
+					q.Transform(dst, transformMatrix(2, 1), src, src.Bounds(), nil)
 				}
 			} else {
 				interp = func(dst *image.RGBA) {
@@ -216,20 +212,32 @@ func TestSrcTranslationInvariance(t *testing.T) {
 		{-8, +8},
 		{-8, -8},
 	}
+	m00 := transformMatrix(0, 0)
 
-	for _, q := range qs {
-		want := image.NewRGBA(image.Rect(0, 0, 200, 200))
-		q.Scale(want, want.Bounds(), src, src.Bounds(), nil)
-		for _, delta := range deltas {
-			tsrc := &translatedImage{src, delta}
-
-			got := image.NewRGBA(image.Rect(0, 0, 200, 200))
-			q.Scale(got, got.Bounds(), tsrc, tsrc.Bounds(), nil)
-			if !bytes.Equal(got.Pix, want.Pix) {
-				t.Errorf("pix differ for delta=%v, q=%T", delta, q)
+	for _, transform := range []bool{false, true} {
+		for _, q := range qs {
+			want := image.NewRGBA(image.Rect(0, 0, 200, 200))
+			if transform {
+				q.Transform(want, m00, src, src.Bounds(), nil)
+			} else {
+				q.Scale(want, want.Bounds(), src, src.Bounds(), nil)
 			}
-
-			// TODO: Transform, once Kernel.Transform is implemented.
+			for _, delta := range deltas {
+				tsrc := &translatedImage{src, delta}
+				got := image.NewRGBA(image.Rect(0, 0, 200, 200))
+				if transform {
+					m := matMul(m00, &f64.Aff3{
+						1, 0, -float64(delta.X),
+						0, 1, -float64(delta.Y),
+					})
+					q.Transform(got, &m, tsrc, tsrc.Bounds(), nil)
+				} else {
+					q.Scale(got, got.Bounds(), tsrc, tsrc.Bounds(), nil)
+				}
+				if !bytes.Equal(got.Pix, want.Pix) {
+					t.Errorf("pix differ for delta=%v, transform=%t, q=%T", delta, transform, q)
+				}
+			}
 		}
 	}
 }
@@ -285,18 +293,27 @@ func TestFastPaths(t *testing.T) {
 	for _, dr := range drs {
 		for _, src := range srcs {
 			for _, sr := range srs {
-				for _, q := range qs {
-					dst0 := image.NewRGBA(drs[0])
-					dst1 := image.NewRGBA(drs[0])
-					Draw(dst0, dst0.Bounds(), blue, image.Point{}, Src)
-					Draw(dstWrapper{dst1}, dst1.Bounds(), srcWrapper{blue}, image.Point{}, Src)
-					q.Scale(dst0, dr, src, sr, nil)
-					q.Scale(dstWrapper{dst1}, dr, srcWrapper{src}, sr, nil)
-					if !bytes.Equal(dst0.Pix, dst1.Pix) {
-						t.Errorf("pix differ for dr=%v, src=%T, sr=%v, q=%T", dr, src, sr, q)
-					}
+				for _, transform := range []bool{false, true} {
+					for _, q := range qs {
+						dst0 := image.NewRGBA(drs[0])
+						dst1 := image.NewRGBA(drs[0])
+						Draw(dst0, dst0.Bounds(), blue, image.Point{}, Src)
+						Draw(dstWrapper{dst1}, dst1.Bounds(), srcWrapper{blue}, image.Point{}, Src)
 
-					// TODO: Transform, once Kernel.Transform is implemented.
+						if transform {
+							m := transformMatrix(2, 1)
+							q.Transform(dst0, m, src, sr, nil)
+							q.Transform(dstWrapper{dst1}, m, srcWrapper{src}, sr, nil)
+						} else {
+							q.Scale(dst0, dr, src, sr, nil)
+							q.Scale(dstWrapper{dst1}, dr, srcWrapper{src}, sr, nil)
+						}
+
+						if !bytes.Equal(dst0.Pix, dst1.Pix) {
+							t.Errorf("pix differ for dr=%v, src=%T, sr=%v, transform=%t, q=%T",
+								dr, src, sr, transform, q)
+						}
+					}
 				}
 			}
 		}
@@ -385,10 +402,11 @@ func benchTform(b *testing.B, srcf func(image.Rectangle) (image.Image, error), w
 		b.Fatal(err)
 	}
 	sr := src.Bounds()
+	m := transformMatrix(40, 10)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		q.Transform(dst, transformMatrix, src, sr, nil)
+		q.Transform(dst, m, src, sr, nil)
 	}
 }
 
@@ -413,8 +431,14 @@ func BenchmarkScaleSrcRGBA(b *testing.B)    { benchScale(b, srcRGBA, 200, 150, A
 func BenchmarkScaleSrcUniform(b *testing.B) { benchScale(b, srcUniform, 200, 150, ApproxBiLinear) }
 func BenchmarkScaleSrcYCbCr(b *testing.B)   { benchScale(b, srcYCbCr, 200, 150, ApproxBiLinear) }
 
-func BenchmarkTformSrcGray(b *testing.B)    { benchTform(b, srcGray, 200, 150, ApproxBiLinear) }
-func BenchmarkTformSrcNRGBA(b *testing.B)   { benchTform(b, srcNRGBA, 200, 150, ApproxBiLinear) }
-func BenchmarkTformSrcRGBA(b *testing.B)    { benchTform(b, srcRGBA, 200, 150, ApproxBiLinear) }
-func BenchmarkTformSrcUniform(b *testing.B) { benchTform(b, srcUniform, 200, 150, ApproxBiLinear) }
-func BenchmarkTformSrcYCbCr(b *testing.B)   { benchTform(b, srcYCbCr, 200, 150, ApproxBiLinear) }
+func BenchmarkTformABSrcGray(b *testing.B)    { benchTform(b, srcGray, 200, 150, ApproxBiLinear) }
+func BenchmarkTformABSrcNRGBA(b *testing.B)   { benchTform(b, srcNRGBA, 200, 150, ApproxBiLinear) }
+func BenchmarkTformABSrcRGBA(b *testing.B)    { benchTform(b, srcRGBA, 200, 150, ApproxBiLinear) }
+func BenchmarkTformABSrcUniform(b *testing.B) { benchTform(b, srcUniform, 200, 150, ApproxBiLinear) }
+func BenchmarkTformABSrcYCbCr(b *testing.B)   { benchTform(b, srcYCbCr, 200, 150, ApproxBiLinear) }
+
+func BenchmarkTformCRSrcGray(b *testing.B)    { benchTform(b, srcGray, 200, 150, CatmullRom) }
+func BenchmarkTformCRSrcNRGBA(b *testing.B)   { benchTform(b, srcNRGBA, 200, 150, CatmullRom) }
+func BenchmarkTformCRSrcRGBA(b *testing.B)    { benchTform(b, srcRGBA, 200, 150, CatmullRom) }
+func BenchmarkTformCRSrcUniform(b *testing.B) { benchTform(b, srcUniform, 200, 150, CatmullRom) }
+func BenchmarkTformCRSrcYCbCr(b *testing.B)   { benchTform(b, srcYCbCr, 200, 150, CatmullRom) }

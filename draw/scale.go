@@ -86,21 +86,21 @@ type Kernel struct {
 }
 
 // Scale implements the Scaler interface.
-func (k *Kernel) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
-	k.NewScaler(dr.Dx(), dr.Dy(), sr.Dx(), sr.Dy()).Scale(dst, dr, src, sr, opts)
+func (q *Kernel) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
+	q.NewScaler(dr.Dx(), dr.Dy(), sr.Dx(), sr.Dy()).Scale(dst, dr, src, sr, opts)
 }
 
 // NewScaler returns a Scaler that is optimized for scaling multiple times with
 // the same fixed destination and source width and height.
-func (k *Kernel) NewScaler(dw, dh, sw, sh int) Scaler {
+func (q *Kernel) NewScaler(dw, dh, sw, sh int) Scaler {
 	return &kernelScaler{
-		kernel:     k,
+		kernel:     q,
 		dw:         int32(dw),
 		dh:         int32(dh),
 		sw:         int32(sw),
 		sh:         int32(sh),
-		horizontal: newDistrib(k, int32(dw), int32(sw)),
-		vertical:   newDistrib(k, int32(dh), int32(sh)),
+		horizontal: newDistrib(q, int32(dw), int32(sw)),
+		vertical:   newDistrib(q, int32(dh), int32(sh)),
 	}
 }
 
@@ -181,6 +181,8 @@ type distrib struct {
 func newDistrib(q *Kernel, dw, sw int32) distrib {
 	scale := float64(sw) / float64(dw)
 	halfWidth, kernelArgScale := q.Support, 1.0
+	// When shrinking, broaden the effective kernel support so that we still
+	// visit every source pixel.
 	if scale > 1 {
 		halfWidth *= scale
 		kernelArgScale = 1 / scale
@@ -199,25 +201,22 @@ func newDistrib(q *Kernel, dw, sw int32) distrib {
 			i = 0
 		}
 		j := int32(math.Ceil(center + halfWidth))
-		if j >= sw {
-			j = sw - 1
+		if j > sw {
+			j = sw
 			if j < i {
 				j = i
 			}
 		}
 		sources[x] = source{i: i, j: j, invTotalWeight: center}
-		n += j - i + 1
+		n += j - i
 	}
 
 	contribs := make([]contrib, 0, n)
 	for k, b := range sources {
 		totalWeight := 0.0
 		l := int32(len(contribs))
-		for coord := b.i; coord <= b.j; coord++ {
-			t := (b.invTotalWeight - float64(coord)) * kernelArgScale
-			if t < 0 {
-				t = -t
-			}
+		for coord := b.i; coord < b.j; coord++ {
+			t := abs((b.invTotalWeight - float64(coord)) * kernelArgScale)
 			if t >= q.Support {
 				continue
 			}
@@ -240,11 +239,34 @@ func newDistrib(q *Kernel, dw, sw int32) distrib {
 	return distrib{sources, contribs}
 }
 
+// abs is like math.Abs, but it doesn't care about negative zero, infinities or
+// NaNs.
+func abs(f float64) float64 {
+	if f < 0 {
+		f = -f
+	}
+	return f
+}
+
+// ftou converts the range [0.0, 1.0] to [0, 0xffff].
 func ftou(f float64) uint16 {
 	i := int32(0xffff*f + 0.5)
 	if i > 0xffff {
 		return 0xffff
-	} else if i > 0 {
+	}
+	if i > 0 {
+		return uint16(i)
+	}
+	return 0
+}
+
+// fffftou converts the range [0.0, 65535.0] to [0, 0xffff].
+func fffftou(f float64) uint16 {
+	i := int32(f + 0.5)
+	if i > 0xffff {
+		return 0xffff
+	}
+	if i > 0 {
 		return uint16(i)
 	}
 	return 0
@@ -272,6 +294,17 @@ func invert(m *f64.Aff3) f64.Aff3 {
 		m10 / det,
 		m11 / det,
 		m12 / det,
+	}
+}
+
+func matMul(p, q *f64.Aff3) f64.Aff3 {
+	return f64.Aff3{
+		p[3*0+0]*q[3*0+0] + p[3*0+1]*q[3*1+0],
+		p[3*0+0]*q[3*0+1] + p[3*0+1]*q[3*1+1],
+		p[3*0+0]*q[3*0+2] + p[3*0+1]*q[3*1+2] + p[3*0+2],
+		p[3*1+0]*q[3*0+0] + p[3*1+1]*q[3*1+0],
+		p[3*1+0]*q[3*0+1] + p[3*1+1]*q[3*1+1],
+		p[3*1+0]*q[3*0+2] + p[3*1+1]*q[3*1+2] + p[3*1+2],
 	}
 }
 
