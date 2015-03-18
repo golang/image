@@ -197,7 +197,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		switch d.dType {
 		default:
 			return ";"
-		case "*image.RGBA":
+		case "*image.Gray", "*image.RGBA":
 			return "d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))"
 		}
 
@@ -205,7 +205,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		switch d.dType {
 		default:
 			return ";"
-		case "*image.RGBA":
+		case "*image.Gray", "*image.RGBA":
 			return "d := dst.PixOffset(dr.Min.X+int(dx), dr.Min.Y+adr.Min.Y)"
 		}
 
@@ -214,16 +214,24 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		if len(args) != 4 {
 			return ""
 		}
-		return fmt.Sprintf(""+
-			"%sr = %s*%sr + %s*%sr\n"+
-			"%sg = %s*%sg + %s*%sg\n"+
-			"%sb = %s*%sb + %s*%sb\n"+
-			"%sa = %s*%sa + %s*%sa",
-			args[3], args[0], args[1], args[2], args[3],
-			args[3], args[0], args[1], args[2], args[3],
-			args[3], args[0], args[1], args[2], args[3],
-			args[3], args[0], args[1], args[2], args[3],
-		)
+		switch d.sType {
+		default:
+			return fmt.Sprintf(""+
+				"%sr = %s*%sr + %s*%sr\n"+
+				"%sg = %s*%sg + %s*%sg\n"+
+				"%sb = %s*%sb + %s*%sb\n"+
+				"%sa = %s*%sa + %s*%sa",
+				args[3], args[0], args[1], args[2], args[3],
+				args[3], args[0], args[1], args[2], args[3],
+				args[3], args[0], args[1], args[2], args[3],
+				args[3], args[0], args[1], args[2], args[3],
+			)
+		case "*image.Gray":
+			return fmt.Sprintf(""+
+				"%sr = %s*%sr + %s*%sr",
+				args[3], args[0], args[1], args[2], args[3],
+			)
+		}
 
 	case "outputu":
 		args, _ := splitArgs(suffix)
@@ -234,23 +242,49 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		default:
 			log.Fatalf("bad dType %q", d.dType)
 		case "Image":
-			return fmt.Sprintf(""+
-				"dstColorRGBA64.R = uint16(%sr)\n"+
-				"dstColorRGBA64.G = uint16(%sg)\n"+
-				"dstColorRGBA64.B = uint16(%sb)\n"+
-				"dstColorRGBA64.A = uint16(%sa)\n"+
-				"dst.Set(%s, %s, dstColor)",
-				args[2], args[2], args[2], args[2],
-				args[0], args[1],
-			)
+			switch d.sType {
+			default:
+				return fmt.Sprintf(""+
+					"dstColorRGBA64.R = uint16(%sr)\n"+
+					"dstColorRGBA64.G = uint16(%sg)\n"+
+					"dstColorRGBA64.B = uint16(%sb)\n"+
+					"dstColorRGBA64.A = uint16(%sa)\n"+
+					"dst.Set(%s, %s, dstColor)",
+					args[2], args[2], args[2], args[2],
+					args[0], args[1],
+				)
+			case "*image.Gray":
+				return fmt.Sprintf(""+
+					"out := uint16(%sr)\n"+
+					"dstColorRGBA64.R = out\n"+
+					"dstColorRGBA64.G = out\n"+
+					"dstColorRGBA64.B = out\n"+
+					"dstColorRGBA64.A = 0xffff\n"+
+					"dst.Set(%s, %s, dstColor)",
+					args[2],
+					args[0], args[1],
+				)
+			}
 		case "*image.RGBA":
-			return fmt.Sprintf(""+
-				"dst.Pix[d+0] = uint8(uint32(%sr) >> 8)\n"+
-				"dst.Pix[d+1] = uint8(uint32(%sg) >> 8)\n"+
-				"dst.Pix[d+2] = uint8(uint32(%sb) >> 8)\n"+
-				"dst.Pix[d+3] = uint8(uint32(%sa) >> 8)",
-				args[2], args[2], args[2], args[2],
-			)
+			switch d.sType {
+			default:
+				return fmt.Sprintf(""+
+					"dst.Pix[d+0] = uint8(uint32(%sr) >> 8)\n"+
+					"dst.Pix[d+1] = uint8(uint32(%sg) >> 8)\n"+
+					"dst.Pix[d+2] = uint8(uint32(%sb) >> 8)\n"+
+					"dst.Pix[d+3] = uint8(uint32(%sa) >> 8)",
+					args[2], args[2], args[2], args[2],
+				)
+			case "*image.Gray":
+				return fmt.Sprintf(""+
+					"out := uint8(uint32(%sr) >> 8)\n"+
+					"dst.Pix[d+0] = out\n"+
+					"dst.Pix[d+1] = out\n"+
+					"dst.Pix[d+2] = out\n"+
+					"dst.Pix[d+3] = 0xff",
+					args[2],
+				)
+			}
 		}
 
 	case "outputf":
@@ -263,29 +297,55 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		default:
 			log.Fatalf("bad dType %q", d.dType)
 		case "Image":
-			ret = fmt.Sprintf(""+
-				"dstColorRGBA64.R = %s(%sr * %s)\n"+
-				"dstColorRGBA64.G = %s(%sg * %s)\n"+
-				"dstColorRGBA64.B = %s(%sb * %s)\n"+
-				"dstColorRGBA64.A = %s(%sa * %s)\n"+
-				"dst.Set(%s, %s, dstColor)",
-				args[2], args[3], args[4],
-				args[2], args[3], args[4],
-				args[2], args[3], args[4],
-				args[2], args[3], args[4],
-				args[0], args[1],
-			)
+			switch d.sType {
+			default:
+				ret = fmt.Sprintf(""+
+					"dstColorRGBA64.R = %s(%sr * %s)\n"+
+					"dstColorRGBA64.G = %s(%sg * %s)\n"+
+					"dstColorRGBA64.B = %s(%sb * %s)\n"+
+					"dstColorRGBA64.A = %s(%sa * %s)\n"+
+					"dst.Set(%s, %s, dstColor)",
+					args[2], args[3], args[4],
+					args[2], args[3], args[4],
+					args[2], args[3], args[4],
+					args[2], args[3], args[4],
+					args[0], args[1],
+				)
+			case "*image.Gray":
+				ret = fmt.Sprintf(""+
+					"out := %s(%sr * %s)\n"+
+					"dstColorRGBA64.R = out\n"+
+					"dstColorRGBA64.G = out\n"+
+					"dstColorRGBA64.B = out\n"+
+					"dstColorRGBA64.A = 0xffff\n"+
+					"dst.Set(%s, %s, dstColor)",
+					args[2], args[3], args[4],
+					args[0], args[1],
+				)
+			}
 		case "*image.RGBA":
-			ret = fmt.Sprintf(""+
-				"dst.Pix[d+0] = uint8(%s(%sr * %s) >> 8)\n"+
-				"dst.Pix[d+1] = uint8(%s(%sg * %s) >> 8)\n"+
-				"dst.Pix[d+2] = uint8(%s(%sb * %s) >> 8)\n"+
-				"dst.Pix[d+3] = uint8(%s(%sa * %s) >> 8)",
-				args[2], args[3], args[4],
-				args[2], args[3], args[4],
-				args[2], args[3], args[4],
-				args[2], args[3], args[4],
-			)
+			switch d.sType {
+			default:
+				ret = fmt.Sprintf(""+
+					"dst.Pix[d+0] = uint8(%s(%sr * %s) >> 8)\n"+
+					"dst.Pix[d+1] = uint8(%s(%sg * %s) >> 8)\n"+
+					"dst.Pix[d+2] = uint8(%s(%sb * %s) >> 8)\n"+
+					"dst.Pix[d+3] = uint8(%s(%sa * %s) >> 8)",
+					args[2], args[3], args[4],
+					args[2], args[3], args[4],
+					args[2], args[3], args[4],
+					args[2], args[3], args[4],
+				)
+			case "*image.Gray":
+				ret = fmt.Sprintf(""+
+					"out := uint8(%s(%sr * %s) >> 8)\n"+
+					"dst.Pix[d+0] = out\n"+
+					"dst.Pix[d+1] = out\n"+
+					"dst.Pix[d+2] = out\n"+
+					"dst.Pix[d+3] = 0xff",
+					args[2], args[3], args[4],
+				)
+			}
 		}
 		return strings.Replace(ret, " * 1)", ")", -1)
 
@@ -308,11 +368,19 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		switch d.sType {
 		default:
 			log.Fatalf("bad sType %q", d.sType)
-		case "image.Image", "*image.Gray", "*image.NRGBA", "*image.Uniform", "*image.YCbCr": // TODO: separate code for concrete types.
+		case "image.Image", "*image.NRGBA", "*image.Uniform", "*image.YCbCr": // TODO: separate code for concrete types.
 			fmt.Fprintf(buf, "%sr%s, %sg%s, %sb%s, %sa%s := "+
 				"src.At(%s, %s).RGBA()\n",
 				lhs, tmp, lhs, tmp, lhs, tmp, lhs, tmp,
 				args[0], args[1],
+			)
+		case "*image.Gray":
+			// TODO: there's no need to multiply by 0x101 if the next thing
+			// we're going to do is shift right by 8.
+			fmt.Fprintf(buf, "%si := src.PixOffset(%s, %s)\n"+
+				"%sr%s := uint32(src.Pix[%si]) * 0x101\n",
+				lhs, args[0], args[1],
+				lhs, tmp, lhs,
 			)
 		case "*image.RGBA":
 			// TODO: there's no need to multiply by 0x101 if the next thing
@@ -331,16 +399,24 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		}
 
 		if dollar == "srcf" {
-			fmt.Fprintf(buf, ""+
-				"%sr %s float64(%sru)%s\n"+
-				"%sg %s float64(%sgu)%s\n"+
-				"%sb %s float64(%sbu)%s\n"+
-				"%sa %s float64(%sau)%s\n",
-				lhs, eqOp, lhs, extra,
-				lhs, eqOp, lhs, extra,
-				lhs, eqOp, lhs, extra,
-				lhs, eqOp, lhs, extra,
-			)
+			switch d.sType {
+			default:
+				fmt.Fprintf(buf, ""+
+					"%sr %s float64(%sru)%s\n"+
+					"%sg %s float64(%sgu)%s\n"+
+					"%sb %s float64(%sbu)%s\n"+
+					"%sa %s float64(%sau)%s\n",
+					lhs, eqOp, lhs, extra,
+					lhs, eqOp, lhs, extra,
+					lhs, eqOp, lhs, extra,
+					lhs, eqOp, lhs, extra,
+				)
+			case "*image.Gray":
+				fmt.Fprintf(buf, ""+
+					"%sr %s float64(%sru)%s\n",
+					lhs, eqOp, lhs, extra,
+				)
+			}
 		}
 
 		return strings.TrimSpace(buf.String())
@@ -360,6 +436,27 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 	case "tweakDy":
 		if d.dType == "*image.RGBA" {
 			return strings.Replace(suffix, "for dy, s", "for _, s", 1)
+		}
+		return suffix
+
+	case "tweakP":
+		if d.sType == "*image.Gray" {
+			if strings.HasPrefix(strings.TrimSpace(suffix), "pa * ") {
+				return "1,"
+			}
+			return "pr,"
+		}
+		return suffix
+
+	case "tweakPr":
+		if d.sType == "*image.Gray" {
+			return "pr *= s.invTotalWeightFFFF"
+		}
+		return ";"
+
+	case "tweakVarP":
+		if d.sType == "*image.Gray" {
+			return strings.Replace(suffix, "var pr, pg, pb, pa", "var pr", 1)
 		}
 		return suffix
 	}
@@ -690,15 +787,16 @@ const (
 			t := 0
 			for y := int32(0); y < z.sh; y++ {
 				for _, s := range z.horizontal.sources {
-					var pr, pg, pb, pa float64
+					$tweakVarP var pr, pg, pb, pa float64
 					for _, c := range z.horizontal.contribs[s.i:s.j] {
 						p += $srcf[sr.Min.X + int(c.coord), sr.Min.Y + int(y)] * c.weight
 					}
+					$tweakPr
 					tmp[t] = [4]float64{
-						pr * s.invTotalWeightFFFF,
-						pg * s.invTotalWeightFFFF,
-						pb * s.invTotalWeightFFFF,
-						pa * s.invTotalWeightFFFF,
+						$tweakP pr * s.invTotalWeightFFFF,
+						$tweakP pg * s.invTotalWeightFFFF,
+						$tweakP pb * s.invTotalWeightFFFF,
+						$tweakP pa * s.invTotalWeightFFFF,
 					}
 					t++
 				}
@@ -804,7 +902,7 @@ const (
 						yWeights[y] /= totalYWeight
 					}
 
-					var pr, pg, pb, pa float64
+					$tweakVarP var pr, pg, pb, pa float64
 					for ky := iy; ky < jy; ky++ {
 						yWeight := yWeights[ky - iy]
 						for kx := ix; kx < jx; kx++ {
