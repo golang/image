@@ -96,11 +96,13 @@ func (nnInterpolator) scale_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, 
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			sx := (2*uint64(dx) + 1) * sw / dw2
-			pr, pg, pb, pa := src.At(sr.Min.X+int(sx), sr.Min.Y+int(sy)).RGBA()
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			pi := src.PixOffset(sr.Min.X+int(sx), sr.Min.Y+int(sy))
+			pr := uint32(src.Pix[pi]) * 0x101
+			out := uint8(uint32(pr) >> 8)
+			dst.Pix[d+0] = out
+			dst.Pix[d+1] = out
+			dst.Pix[d+2] = out
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -237,11 +239,13 @@ func (nnInterpolator) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectang
 			if !(image.Point{sx0, sy0}).In(sr) {
 				continue
 			}
-			pr, pg, pb, pa := src.At(sx0, sy0).RGBA()
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			pi := src.PixOffset(sx0, sy0)
+			pr := uint32(src.Pix[pi]) * 0x101
+			out := uint8(uint32(pr) >> 8)
+			dst.Pix[d+0] = out
+			dst.Pix[d+1] = out
+			dst.Pix[d+2] = out
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -493,42 +497,26 @@ func (ablInterpolator) scale_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle,
 				xFrac0, xFrac1 = 1, 0
 			}
 
-			s00ru, s00gu, s00bu, s00au := src.At(sr.Min.X+int(sx0), sr.Min.Y+int(sy0)).RGBA()
+			s00i := src.PixOffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy0))
+			s00ru := uint32(src.Pix[s00i]) * 0x101
 			s00r := float64(s00ru)
-			s00g := float64(s00gu)
-			s00b := float64(s00bu)
-			s00a := float64(s00au)
-			s10ru, s10gu, s10bu, s10au := src.At(sr.Min.X+int(sx1), sr.Min.Y+int(sy0)).RGBA()
+			s10i := src.PixOffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy0))
+			s10ru := uint32(src.Pix[s10i]) * 0x101
 			s10r := float64(s10ru)
-			s10g := float64(s10gu)
-			s10b := float64(s10bu)
-			s10a := float64(s10au)
 			s10r = xFrac1*s00r + xFrac0*s10r
-			s10g = xFrac1*s00g + xFrac0*s10g
-			s10b = xFrac1*s00b + xFrac0*s10b
-			s10a = xFrac1*s00a + xFrac0*s10a
-			s01ru, s01gu, s01bu, s01au := src.At(sr.Min.X+int(sx0), sr.Min.Y+int(sy1)).RGBA()
+			s01i := src.PixOffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy1))
+			s01ru := uint32(src.Pix[s01i]) * 0x101
 			s01r := float64(s01ru)
-			s01g := float64(s01gu)
-			s01b := float64(s01bu)
-			s01a := float64(s01au)
-			s11ru, s11gu, s11bu, s11au := src.At(sr.Min.X+int(sx1), sr.Min.Y+int(sy1)).RGBA()
+			s11i := src.PixOffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy1))
+			s11ru := uint32(src.Pix[s11i]) * 0x101
 			s11r := float64(s11ru)
-			s11g := float64(s11gu)
-			s11b := float64(s11bu)
-			s11a := float64(s11au)
 			s11r = xFrac1*s01r + xFrac0*s11r
-			s11g = xFrac1*s01g + xFrac0*s11g
-			s11b = xFrac1*s01b + xFrac0*s11b
-			s11a = xFrac1*s01a + xFrac0*s11a
 			s11r = yFrac1*s10r + yFrac0*s11r
-			s11g = yFrac1*s10g + yFrac0*s11g
-			s11b = yFrac1*s10b + yFrac0*s11b
-			s11a = yFrac1*s10a + yFrac0*s11a
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			out := uint8(uint32(s11r) >> 8)
+			dst.Pix[d+0] = out
+			dst.Pix[d+1] = out
+			dst.Pix[d+2] = out
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -1066,42 +1054,26 @@ func (ablInterpolator) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectan
 				yFrac0, yFrac1 = 1, 0
 			}
 
-			s00ru, s00gu, s00bu, s00au := src.At(sx0, sy0).RGBA()
+			s00i := src.PixOffset(sx0, sy0)
+			s00ru := uint32(src.Pix[s00i]) * 0x101
 			s00r := float64(s00ru)
-			s00g := float64(s00gu)
-			s00b := float64(s00bu)
-			s00a := float64(s00au)
-			s10ru, s10gu, s10bu, s10au := src.At(sx1, sy0).RGBA()
+			s10i := src.PixOffset(sx1, sy0)
+			s10ru := uint32(src.Pix[s10i]) * 0x101
 			s10r := float64(s10ru)
-			s10g := float64(s10gu)
-			s10b := float64(s10bu)
-			s10a := float64(s10au)
 			s10r = xFrac1*s00r + xFrac0*s10r
-			s10g = xFrac1*s00g + xFrac0*s10g
-			s10b = xFrac1*s00b + xFrac0*s10b
-			s10a = xFrac1*s00a + xFrac0*s10a
-			s01ru, s01gu, s01bu, s01au := src.At(sx0, sy1).RGBA()
+			s01i := src.PixOffset(sx0, sy1)
+			s01ru := uint32(src.Pix[s01i]) * 0x101
 			s01r := float64(s01ru)
-			s01g := float64(s01gu)
-			s01b := float64(s01bu)
-			s01a := float64(s01au)
-			s11ru, s11gu, s11bu, s11au := src.At(sx1, sy1).RGBA()
+			s11i := src.PixOffset(sx1, sy1)
+			s11ru := uint32(src.Pix[s11i]) * 0x101
 			s11r := float64(s11ru)
-			s11g := float64(s11gu)
-			s11b := float64(s11bu)
-			s11a := float64(s11au)
 			s11r = xFrac1*s01r + xFrac0*s11r
-			s11g = xFrac1*s01g + xFrac0*s11g
-			s11b = xFrac1*s01b + xFrac0*s11b
-			s11a = xFrac1*s01a + xFrac0*s11a
 			s11r = yFrac1*s10r + yFrac0*s11r
-			s11g = yFrac1*s10g + yFrac0*s11g
-			s11b = yFrac1*s10b + yFrac0*s11b
-			s11a = yFrac1*s10a + yFrac0*s11a
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			out := uint8(uint32(s11r) >> 8)
+			dst.Pix[d+0] = out
+			dst.Pix[d+1] = out
+			dst.Pix[d+2] = out
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -1709,19 +1681,18 @@ func (z *kernelScaler) scaleX_Gray(tmp [][4]float64, src *image.Gray, sr image.R
 	t := 0
 	for y := int32(0); y < z.sh; y++ {
 		for _, s := range z.horizontal.sources {
-			var pr, pg, pb, pa float64
+			var pr float64
 			for _, c := range z.horizontal.contribs[s.i:s.j] {
-				pru, pgu, pbu, pau := src.At(sr.Min.X+int(c.coord), sr.Min.Y+int(y)).RGBA()
+				pi := src.PixOffset(sr.Min.X+int(c.coord), sr.Min.Y+int(y))
+				pru := uint32(src.Pix[pi]) * 0x101
 				pr += float64(pru) * c.weight
-				pg += float64(pgu) * c.weight
-				pb += float64(pbu) * c.weight
-				pa += float64(pau) * c.weight
 			}
+			pr *= s.invTotalWeightFFFF
 			tmp[t] = [4]float64{
-				pr * s.invTotalWeightFFFF,
-				pg * s.invTotalWeightFFFF,
-				pb * s.invTotalWeightFFFF,
-				pa * s.invTotalWeightFFFF,
+				pr,
+				pr,
+				pr,
+				1,
 			}
 			t++
 		}
@@ -1965,21 +1936,20 @@ func (q *Kernel) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, d
 				yWeights[y] /= totalYWeight
 			}
 
-			var pr, pg, pb, pa float64
+			var pr float64
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
-					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+					pi := src.PixOffset(kx, ky)
+					pru := uint32(src.Pix[pi]) * 0x101
 					pr += float64(pru) * xWeights[kx-ix] * yWeight
-					pg += float64(pgu) * xWeights[kx-ix] * yWeight
-					pb += float64(pbu) * xWeights[kx-ix] * yWeight
-					pa += float64(pau) * xWeights[kx-ix] * yWeight
 				}
 			}
-			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
-			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
-			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
-			dst.Pix[d+3] = uint8(fffftou(pa) >> 8)
+			out := uint8(fffftou(pr) >> 8)
+			dst.Pix[d+0] = out
+			dst.Pix[d+1] = out
+			dst.Pix[d+2] = out
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
