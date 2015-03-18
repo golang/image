@@ -447,24 +447,24 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 
 	case "tweakDx":
 		if d.dType == "*image.RGBA" {
-			return strings.Replace(suffix, "dx++", "dx, d = dx+1, d+4", 1)
+			return strings.Replace(prefix, "dx++", "dx, d = dx+1, d+4", 1)
 		}
-		return suffix
+		return prefix
 
 	case "tweakDy":
 		if d.dType == "*image.RGBA" {
-			return strings.Replace(suffix, "for dy, s", "for _, s", 1)
+			return strings.Replace(prefix, "for dy, s", "for _, s", 1)
 		}
-		return suffix
+		return prefix
 
 	case "tweakP":
 		if d.sType == "*image.Gray" {
-			if strings.HasPrefix(strings.TrimSpace(suffix), "pa * ") {
+			if strings.HasPrefix(strings.TrimSpace(prefix), "pa * ") {
 				return "1,"
 			}
 			return "pr,"
 		}
-		return suffix
+		return prefix
 
 	case "tweakPr":
 		if d.sType == "*image.Gray" {
@@ -474,9 +474,9 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 
 	case "tweakVarP":
 		if d.sType == "*image.Gray" {
-			return strings.Replace(suffix, "var pr, pg, pb, pa", "var pr", 1)
+			return strings.Replace(prefix, "var pr, pg, pb, pa", "var pr", 1)
 		}
-		return suffix
+		return prefix
 	}
 	return ""
 }
@@ -622,7 +622,7 @@ const (
 			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 				sy := (2*uint64(dy) + 1) * sh / dh2
 				$preInner
-				$tweakDx for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
+				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ { $tweakDx
 					sx := (2*uint64(dx) + 1) * sw / dw2
 					p := $srcu[sr.Min.X + int(sx), sr.Min.Y + int(sy)]
 					$outputu[dr.Min.X + int(dx), dr.Min.Y + int(dy), p]
@@ -637,7 +637,7 @@ const (
 			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 				dyf := float64(dr.Min.Y + int(dy)) + 0.5
 				$preInner
-				$tweakDx for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
+				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ { $tweakDx
 					dxf := float64(dr.Min.X + int(dx)) + 0.5
 					// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 					sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
@@ -679,7 +679,7 @@ const (
 				}
 				$preInner
 
-				$tweakDx for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
+				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ { $tweakDx
 					sx := (float64(dx)+0.5)*xscale - 0.5
 					sx0 := int32(sx)
 					xFrac0 := sx - float64(sx0)
@@ -712,7 +712,7 @@ const (
 			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 				dyf := float64(dr.Min.Y + int(dy)) + 0.5
 				$preInner
-				$tweakDx for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
+				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ { $tweakDx
 					dxf := float64(dr.Min.X + int(dx)) + 0.5
 					// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 					sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
@@ -825,16 +825,16 @@ const (
 			t := 0
 			for y := int32(0); y < z.sh; y++ {
 				for _, s := range z.horizontal.sources {
-					$tweakVarP var pr, pg, pb, pa float64
+					var pr, pg, pb, pa float64 $tweakVarP
 					for _, c := range z.horizontal.contribs[s.i:s.j] {
 						p += $srcf[sr.Min.X + int(c.coord), sr.Min.Y + int(y)] * c.weight
 					}
 					$tweakPr
 					tmp[t] = [4]float64{
-						$tweakP pr * s.invTotalWeightFFFF,
-						$tweakP pg * s.invTotalWeightFFFF,
-						$tweakP pb * s.invTotalWeightFFFF,
-						$tweakP pa * s.invTotalWeightFFFF,
+						pr * s.invTotalWeightFFFF, $tweakP
+						pg * s.invTotalWeightFFFF, $tweakP
+						pb * s.invTotalWeightFFFF, $tweakP
+						pa * s.invTotalWeightFFFF, $tweakP
 					}
 					t++
 				}
@@ -847,7 +847,7 @@ const (
 			$preOuter
 			for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 				$preKernelInner
-				$tweakDy for dy, s := range z.vertical.sources[adr.Min.Y:adr.Max.Y] {
+				for dy, s := range z.vertical.sources[adr.Min.Y:adr.Max.Y] { $tweakDy
 					var pr, pg, pb, pa float64
 					for _, c := range z.vertical.contribs[s.i:s.j] {
 						p := &tmp[c.coord*z.dw+dx]
@@ -885,7 +885,7 @@ const (
 			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 				dyf := float64(dr.Min.Y + int(dy)) + 0.5
 				$preInner
-				$tweakDx for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
+				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ { $tweakDx
 					dxf := float64(dr.Min.X + int(dx)) + 0.5
 					// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 					sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
@@ -940,7 +940,7 @@ const (
 						yWeights[y] /= totalYWeight
 					}
 
-					$tweakVarP var pr, pg, pb, pa float64
+					var pr, pg, pb, pa float64 $tweakVarP
 					for ky := iy; ky < jy; ky++ {
 						yWeight := yWeights[ky - iy]
 						for kx := ix; kx < jx; kx++ {
