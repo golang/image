@@ -196,6 +196,10 @@ func TestSrcTranslationInvariance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
+	sr := image.Rect(2, 3, 16, 12)
+	if !sr.In(src.Bounds()) {
+		t.Fatalf("src bounds too small: got %v", src.Bounds())
+	}
 	qs := []Interpolator{
 		NearestNeighbor,
 		ApproxBiLinear,
@@ -216,23 +220,23 @@ func TestSrcTranslationInvariance(t *testing.T) {
 
 	for _, transform := range []bool{false, true} {
 		for _, q := range qs {
-			want := image.NewRGBA(image.Rect(0, 0, 200, 200))
+			want := image.NewRGBA(image.Rect(0, 0, 20, 20))
 			if transform {
-				q.Transform(want, m00, src, src.Bounds(), nil)
+				q.Transform(want, m00, src, sr, nil)
 			} else {
-				q.Scale(want, want.Bounds(), src, src.Bounds(), nil)
+				q.Scale(want, want.Bounds(), src, sr, nil)
 			}
 			for _, delta := range deltas {
 				tsrc := &translatedImage{src, delta}
-				got := image.NewRGBA(image.Rect(0, 0, 200, 200))
+				got := image.NewRGBA(image.Rect(0, 0, 20, 20))
 				if transform {
 					m := matMul(m00, &f64.Aff3{
 						1, 0, -float64(delta.X),
 						0, 1, -float64(delta.Y),
 					})
-					q.Transform(got, &m, tsrc, tsrc.Bounds(), nil)
+					q.Transform(got, &m, tsrc, sr.Add(delta), nil)
 				} else {
-					q.Scale(got, got.Bounds(), tsrc, tsrc.Bounds(), nil)
+					q.Scale(got, got.Bounds(), tsrc, sr.Add(delta), nil)
 				}
 				if !bytes.Equal(got.Pix, want.Pix) {
 					t.Errorf("pix differ for delta=%v, transform=%t, q=%T", delta, transform, q)
