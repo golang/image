@@ -204,11 +204,16 @@ func (nnInterpolator) scale_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectang
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			sx := (2*uint64(dx) + 1) * sw / dw2
-			pr, pg, pb, pa := src.At(sr.Min.X+int(sx), sr.Min.Y+int(sy)).RGBA()
+			pi := src.YOffset(sr.Min.X+int(sx), sr.Min.Y+int(sy))
+			pj := src.COffset(sr.Min.X+int(sx), sr.Min.Y+int(sy))
+			pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+			pr := uint32(pr8) * 0x101
+			pg := uint32(pg8) * 0x101
+			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -223,11 +228,16 @@ func (nnInterpolator) scale_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectang
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			sx := (2*uint64(dx) + 1) * sw / dw2
-			pr, pg, pb, pa := src.At(sr.Min.X+int(sx), sr.Min.Y+int(sy)).RGBA()
+			pi := src.YOffset(sr.Min.X+int(sx), sr.Min.Y+int(sy))
+			pj := src.COffset(sr.Min.X+int(sx), sr.Min.Y+int(sy))
+			pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+			pr := uint32(pr8) * 0x101
+			pg := uint32(pg8) * 0x101
+			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -242,11 +252,16 @@ func (nnInterpolator) scale_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectang
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			sx := (2*uint64(dx) + 1) * sw / dw2
-			pr, pg, pb, pa := src.At(sr.Min.X+int(sx), sr.Min.Y+int(sy)).RGBA()
+			pi := src.YOffset(sr.Min.X+int(sx), sr.Min.Y+int(sy))
+			pj := src.COffset(sr.Min.X+int(sx), sr.Min.Y+int(sy))
+			pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+			pr := uint32(pr8) * 0x101
+			pg := uint32(pg8) * 0x101
+			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -261,11 +276,16 @@ func (nnInterpolator) scale_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectang
 		d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			sx := (2*uint64(dx) + 1) * sw / dw2
-			pr, pg, pb, pa := src.At(sr.Min.X+int(sx), sr.Min.Y+int(sy)).RGBA()
+			pi := src.YOffset(sr.Min.X+int(sx), sr.Min.Y+int(sy))
+			pj := src.COffset(sr.Min.X+int(sx), sr.Min.Y+int(sy))
+			pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+			pr := uint32(pr8) * 0x101
+			pg := uint32(pg8) * 0x101
+			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -416,11 +436,16 @@ func (nnInterpolator) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rec
 			if !(image.Point{sx0, sy0}).In(sr) {
 				continue
 			}
-			pr, pg, pb, pa := src.At(sx0, sy0).RGBA()
+			pi := src.YOffset(sx0, sy0)
+			pj := src.COffset(sx0, sy0)
+			pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+			pr := uint32(pr8) * 0x101
+			pg := uint32(pg8) * 0x101
+			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -437,11 +462,16 @@ func (nnInterpolator) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rec
 			if !(image.Point{sx0, sy0}).In(sr) {
 				continue
 			}
-			pr, pg, pb, pa := src.At(sx0, sy0).RGBA()
+			pi := src.YOffset(sx0, sy0)
+			pj := src.COffset(sx0, sy0)
+			pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+			pr := uint32(pr8) * 0x101
+			pg := uint32(pg8) * 0x101
+			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -458,11 +488,16 @@ func (nnInterpolator) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rec
 			if !(image.Point{sx0, sy0}).In(sr) {
 				continue
 			}
-			pr, pg, pb, pa := src.At(sx0, sy0).RGBA()
+			pi := src.YOffset(sx0, sy0)
+			pj := src.COffset(sx0, sy0)
+			pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+			pr := uint32(pr8) * 0x101
+			pg := uint32(pg8) * 0x101
+			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -479,11 +514,16 @@ func (nnInterpolator) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rec
 			if !(image.Point{sx0, sy0}).In(sr) {
 				continue
 			}
-			pr, pg, pb, pa := src.At(sx0, sy0).RGBA()
+			pi := src.YOffset(sx0, sy0)
+			pj := src.COffset(sx0, sy0)
+			pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+			pr := uint32(pr8) * 0x101
+			pg := uint32(pg8) * 0x101
+			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -1001,42 +1041,55 @@ func (ablInterpolator) scale_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectan
 				xFrac0, xFrac1 = 1, 0
 			}
 
-			s00ru, s00gu, s00bu, s00au := src.At(sr.Min.X+int(sx0), sr.Min.Y+int(sy0)).RGBA()
+			s00i := src.YOffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy0))
+			s00j := src.COffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy0))
+			s00r8, s00g8, s00b8 := color.YCbCrToRGB(src.Y[s00i], src.Cb[s00j], src.Cr[s00j])
+			s00ru := uint32(s00r8) * 0x101
+			s00gu := uint32(s00g8) * 0x101
+			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
-			s00a := float64(s00au)
-			s10ru, s10gu, s10bu, s10au := src.At(sr.Min.X+int(sx1), sr.Min.Y+int(sy0)).RGBA()
+			s10i := src.YOffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy0))
+			s10j := src.COffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy0))
+			s10r8, s10g8, s10b8 := color.YCbCrToRGB(src.Y[s10i], src.Cb[s10j], src.Cr[s10j])
+			s10ru := uint32(s10r8) * 0x101
+			s10gu := uint32(s10g8) * 0x101
+			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
-			s10a := float64(s10au)
 			s10r = xFrac1*s00r + xFrac0*s10r
 			s10g = xFrac1*s00g + xFrac0*s10g
 			s10b = xFrac1*s00b + xFrac0*s10b
-			s10a = xFrac1*s00a + xFrac0*s10a
-			s01ru, s01gu, s01bu, s01au := src.At(sr.Min.X+int(sx0), sr.Min.Y+int(sy1)).RGBA()
+			s01i := src.YOffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy1))
+			s01j := src.COffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy1))
+			s01r8, s01g8, s01b8 := color.YCbCrToRGB(src.Y[s01i], src.Cb[s01j], src.Cr[s01j])
+			s01ru := uint32(s01r8) * 0x101
+			s01gu := uint32(s01g8) * 0x101
+			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
-			s01a := float64(s01au)
-			s11ru, s11gu, s11bu, s11au := src.At(sr.Min.X+int(sx1), sr.Min.Y+int(sy1)).RGBA()
+			s11i := src.YOffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy1))
+			s11j := src.COffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy1))
+			s11r8, s11g8, s11b8 := color.YCbCrToRGB(src.Y[s11i], src.Cb[s11j], src.Cr[s11j])
+			s11ru := uint32(s11r8) * 0x101
+			s11gu := uint32(s11g8) * 0x101
+			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
-			s11a := float64(s11au)
 			s11r = xFrac1*s01r + xFrac0*s11r
 			s11g = xFrac1*s01g + xFrac0*s11g
 			s11b = xFrac1*s01b + xFrac0*s11b
-			s11a = xFrac1*s01a + xFrac0*s11a
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			s11a = yFrac1*s10a + yFrac0*s11a
 			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
 			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
 			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -1080,42 +1133,55 @@ func (ablInterpolator) scale_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectan
 				xFrac0, xFrac1 = 1, 0
 			}
 
-			s00ru, s00gu, s00bu, s00au := src.At(sr.Min.X+int(sx0), sr.Min.Y+int(sy0)).RGBA()
+			s00i := src.YOffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy0))
+			s00j := src.COffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy0))
+			s00r8, s00g8, s00b8 := color.YCbCrToRGB(src.Y[s00i], src.Cb[s00j], src.Cr[s00j])
+			s00ru := uint32(s00r8) * 0x101
+			s00gu := uint32(s00g8) * 0x101
+			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
-			s00a := float64(s00au)
-			s10ru, s10gu, s10bu, s10au := src.At(sr.Min.X+int(sx1), sr.Min.Y+int(sy0)).RGBA()
+			s10i := src.YOffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy0))
+			s10j := src.COffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy0))
+			s10r8, s10g8, s10b8 := color.YCbCrToRGB(src.Y[s10i], src.Cb[s10j], src.Cr[s10j])
+			s10ru := uint32(s10r8) * 0x101
+			s10gu := uint32(s10g8) * 0x101
+			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
-			s10a := float64(s10au)
 			s10r = xFrac1*s00r + xFrac0*s10r
 			s10g = xFrac1*s00g + xFrac0*s10g
 			s10b = xFrac1*s00b + xFrac0*s10b
-			s10a = xFrac1*s00a + xFrac0*s10a
-			s01ru, s01gu, s01bu, s01au := src.At(sr.Min.X+int(sx0), sr.Min.Y+int(sy1)).RGBA()
+			s01i := src.YOffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy1))
+			s01j := src.COffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy1))
+			s01r8, s01g8, s01b8 := color.YCbCrToRGB(src.Y[s01i], src.Cb[s01j], src.Cr[s01j])
+			s01ru := uint32(s01r8) * 0x101
+			s01gu := uint32(s01g8) * 0x101
+			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
-			s01a := float64(s01au)
-			s11ru, s11gu, s11bu, s11au := src.At(sr.Min.X+int(sx1), sr.Min.Y+int(sy1)).RGBA()
+			s11i := src.YOffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy1))
+			s11j := src.COffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy1))
+			s11r8, s11g8, s11b8 := color.YCbCrToRGB(src.Y[s11i], src.Cb[s11j], src.Cr[s11j])
+			s11ru := uint32(s11r8) * 0x101
+			s11gu := uint32(s11g8) * 0x101
+			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
-			s11a := float64(s11au)
 			s11r = xFrac1*s01r + xFrac0*s11r
 			s11g = xFrac1*s01g + xFrac0*s11g
 			s11b = xFrac1*s01b + xFrac0*s11b
-			s11a = xFrac1*s01a + xFrac0*s11a
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			s11a = yFrac1*s10a + yFrac0*s11a
 			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
 			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
 			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -1159,42 +1225,55 @@ func (ablInterpolator) scale_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectan
 				xFrac0, xFrac1 = 1, 0
 			}
 
-			s00ru, s00gu, s00bu, s00au := src.At(sr.Min.X+int(sx0), sr.Min.Y+int(sy0)).RGBA()
+			s00i := src.YOffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy0))
+			s00j := src.COffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy0))
+			s00r8, s00g8, s00b8 := color.YCbCrToRGB(src.Y[s00i], src.Cb[s00j], src.Cr[s00j])
+			s00ru := uint32(s00r8) * 0x101
+			s00gu := uint32(s00g8) * 0x101
+			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
-			s00a := float64(s00au)
-			s10ru, s10gu, s10bu, s10au := src.At(sr.Min.X+int(sx1), sr.Min.Y+int(sy0)).RGBA()
+			s10i := src.YOffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy0))
+			s10j := src.COffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy0))
+			s10r8, s10g8, s10b8 := color.YCbCrToRGB(src.Y[s10i], src.Cb[s10j], src.Cr[s10j])
+			s10ru := uint32(s10r8) * 0x101
+			s10gu := uint32(s10g8) * 0x101
+			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
-			s10a := float64(s10au)
 			s10r = xFrac1*s00r + xFrac0*s10r
 			s10g = xFrac1*s00g + xFrac0*s10g
 			s10b = xFrac1*s00b + xFrac0*s10b
-			s10a = xFrac1*s00a + xFrac0*s10a
-			s01ru, s01gu, s01bu, s01au := src.At(sr.Min.X+int(sx0), sr.Min.Y+int(sy1)).RGBA()
+			s01i := src.YOffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy1))
+			s01j := src.COffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy1))
+			s01r8, s01g8, s01b8 := color.YCbCrToRGB(src.Y[s01i], src.Cb[s01j], src.Cr[s01j])
+			s01ru := uint32(s01r8) * 0x101
+			s01gu := uint32(s01g8) * 0x101
+			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
-			s01a := float64(s01au)
-			s11ru, s11gu, s11bu, s11au := src.At(sr.Min.X+int(sx1), sr.Min.Y+int(sy1)).RGBA()
+			s11i := src.YOffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy1))
+			s11j := src.COffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy1))
+			s11r8, s11g8, s11b8 := color.YCbCrToRGB(src.Y[s11i], src.Cb[s11j], src.Cr[s11j])
+			s11ru := uint32(s11r8) * 0x101
+			s11gu := uint32(s11g8) * 0x101
+			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
-			s11a := float64(s11au)
 			s11r = xFrac1*s01r + xFrac0*s11r
 			s11g = xFrac1*s01g + xFrac0*s11g
 			s11b = xFrac1*s01b + xFrac0*s11b
-			s11a = xFrac1*s01a + xFrac0*s11a
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			s11a = yFrac1*s10a + yFrac0*s11a
 			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
 			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
 			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -1238,42 +1317,55 @@ func (ablInterpolator) scale_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectan
 				xFrac0, xFrac1 = 1, 0
 			}
 
-			s00ru, s00gu, s00bu, s00au := src.At(sr.Min.X+int(sx0), sr.Min.Y+int(sy0)).RGBA()
+			s00i := src.YOffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy0))
+			s00j := src.COffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy0))
+			s00r8, s00g8, s00b8 := color.YCbCrToRGB(src.Y[s00i], src.Cb[s00j], src.Cr[s00j])
+			s00ru := uint32(s00r8) * 0x101
+			s00gu := uint32(s00g8) * 0x101
+			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
-			s00a := float64(s00au)
-			s10ru, s10gu, s10bu, s10au := src.At(sr.Min.X+int(sx1), sr.Min.Y+int(sy0)).RGBA()
+			s10i := src.YOffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy0))
+			s10j := src.COffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy0))
+			s10r8, s10g8, s10b8 := color.YCbCrToRGB(src.Y[s10i], src.Cb[s10j], src.Cr[s10j])
+			s10ru := uint32(s10r8) * 0x101
+			s10gu := uint32(s10g8) * 0x101
+			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
-			s10a := float64(s10au)
 			s10r = xFrac1*s00r + xFrac0*s10r
 			s10g = xFrac1*s00g + xFrac0*s10g
 			s10b = xFrac1*s00b + xFrac0*s10b
-			s10a = xFrac1*s00a + xFrac0*s10a
-			s01ru, s01gu, s01bu, s01au := src.At(sr.Min.X+int(sx0), sr.Min.Y+int(sy1)).RGBA()
+			s01i := src.YOffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy1))
+			s01j := src.COffset(sr.Min.X+int(sx0), sr.Min.Y+int(sy1))
+			s01r8, s01g8, s01b8 := color.YCbCrToRGB(src.Y[s01i], src.Cb[s01j], src.Cr[s01j])
+			s01ru := uint32(s01r8) * 0x101
+			s01gu := uint32(s01g8) * 0x101
+			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
-			s01a := float64(s01au)
-			s11ru, s11gu, s11bu, s11au := src.At(sr.Min.X+int(sx1), sr.Min.Y+int(sy1)).RGBA()
+			s11i := src.YOffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy1))
+			s11j := src.COffset(sr.Min.X+int(sx1), sr.Min.Y+int(sy1))
+			s11r8, s11g8, s11b8 := color.YCbCrToRGB(src.Y[s11i], src.Cb[s11j], src.Cr[s11j])
+			s11ru := uint32(s11r8) * 0x101
+			s11gu := uint32(s11g8) * 0x101
+			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
-			s11a := float64(s11au)
 			s11r = xFrac1*s01r + xFrac0*s11r
 			s11g = xFrac1*s01g + xFrac0*s11g
 			s11b = xFrac1*s01b + xFrac0*s11b
-			s11a = xFrac1*s01a + xFrac0*s11a
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			s11a = yFrac1*s10a + yFrac0*s11a
 			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
 			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
 			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -1819,42 +1911,55 @@ func (ablInterpolator) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Re
 				yFrac0, yFrac1 = 1, 0
 			}
 
-			s00ru, s00gu, s00bu, s00au := src.At(sx0, sy0).RGBA()
+			s00i := src.YOffset(sx0, sy0)
+			s00j := src.COffset(sx0, sy0)
+			s00r8, s00g8, s00b8 := color.YCbCrToRGB(src.Y[s00i], src.Cb[s00j], src.Cr[s00j])
+			s00ru := uint32(s00r8) * 0x101
+			s00gu := uint32(s00g8) * 0x101
+			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
-			s00a := float64(s00au)
-			s10ru, s10gu, s10bu, s10au := src.At(sx1, sy0).RGBA()
+			s10i := src.YOffset(sx1, sy0)
+			s10j := src.COffset(sx1, sy0)
+			s10r8, s10g8, s10b8 := color.YCbCrToRGB(src.Y[s10i], src.Cb[s10j], src.Cr[s10j])
+			s10ru := uint32(s10r8) * 0x101
+			s10gu := uint32(s10g8) * 0x101
+			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
-			s10a := float64(s10au)
 			s10r = xFrac1*s00r + xFrac0*s10r
 			s10g = xFrac1*s00g + xFrac0*s10g
 			s10b = xFrac1*s00b + xFrac0*s10b
-			s10a = xFrac1*s00a + xFrac0*s10a
-			s01ru, s01gu, s01bu, s01au := src.At(sx0, sy1).RGBA()
+			s01i := src.YOffset(sx0, sy1)
+			s01j := src.COffset(sx0, sy1)
+			s01r8, s01g8, s01b8 := color.YCbCrToRGB(src.Y[s01i], src.Cb[s01j], src.Cr[s01j])
+			s01ru := uint32(s01r8) * 0x101
+			s01gu := uint32(s01g8) * 0x101
+			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
-			s01a := float64(s01au)
-			s11ru, s11gu, s11bu, s11au := src.At(sx1, sy1).RGBA()
+			s11i := src.YOffset(sx1, sy1)
+			s11j := src.COffset(sx1, sy1)
+			s11r8, s11g8, s11b8 := color.YCbCrToRGB(src.Y[s11i], src.Cb[s11j], src.Cr[s11j])
+			s11ru := uint32(s11r8) * 0x101
+			s11gu := uint32(s11g8) * 0x101
+			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
-			s11a := float64(s11au)
 			s11r = xFrac1*s01r + xFrac0*s11r
 			s11g = xFrac1*s01g + xFrac0*s11g
 			s11b = xFrac1*s01b + xFrac0*s11b
-			s11a = xFrac1*s01a + xFrac0*s11a
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			s11a = yFrac1*s10a + yFrac0*s11a
 			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
 			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
 			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -1900,42 +2005,55 @@ func (ablInterpolator) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Re
 				yFrac0, yFrac1 = 1, 0
 			}
 
-			s00ru, s00gu, s00bu, s00au := src.At(sx0, sy0).RGBA()
+			s00i := src.YOffset(sx0, sy0)
+			s00j := src.COffset(sx0, sy0)
+			s00r8, s00g8, s00b8 := color.YCbCrToRGB(src.Y[s00i], src.Cb[s00j], src.Cr[s00j])
+			s00ru := uint32(s00r8) * 0x101
+			s00gu := uint32(s00g8) * 0x101
+			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
-			s00a := float64(s00au)
-			s10ru, s10gu, s10bu, s10au := src.At(sx1, sy0).RGBA()
+			s10i := src.YOffset(sx1, sy0)
+			s10j := src.COffset(sx1, sy0)
+			s10r8, s10g8, s10b8 := color.YCbCrToRGB(src.Y[s10i], src.Cb[s10j], src.Cr[s10j])
+			s10ru := uint32(s10r8) * 0x101
+			s10gu := uint32(s10g8) * 0x101
+			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
-			s10a := float64(s10au)
 			s10r = xFrac1*s00r + xFrac0*s10r
 			s10g = xFrac1*s00g + xFrac0*s10g
 			s10b = xFrac1*s00b + xFrac0*s10b
-			s10a = xFrac1*s00a + xFrac0*s10a
-			s01ru, s01gu, s01bu, s01au := src.At(sx0, sy1).RGBA()
+			s01i := src.YOffset(sx0, sy1)
+			s01j := src.COffset(sx0, sy1)
+			s01r8, s01g8, s01b8 := color.YCbCrToRGB(src.Y[s01i], src.Cb[s01j], src.Cr[s01j])
+			s01ru := uint32(s01r8) * 0x101
+			s01gu := uint32(s01g8) * 0x101
+			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
-			s01a := float64(s01au)
-			s11ru, s11gu, s11bu, s11au := src.At(sx1, sy1).RGBA()
+			s11i := src.YOffset(sx1, sy1)
+			s11j := src.COffset(sx1, sy1)
+			s11r8, s11g8, s11b8 := color.YCbCrToRGB(src.Y[s11i], src.Cb[s11j], src.Cr[s11j])
+			s11ru := uint32(s11r8) * 0x101
+			s11gu := uint32(s11g8) * 0x101
+			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
-			s11a := float64(s11au)
 			s11r = xFrac1*s01r + xFrac0*s11r
 			s11g = xFrac1*s01g + xFrac0*s11g
 			s11b = xFrac1*s01b + xFrac0*s11b
-			s11a = xFrac1*s01a + xFrac0*s11a
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			s11a = yFrac1*s10a + yFrac0*s11a
 			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
 			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
 			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -1981,42 +2099,55 @@ func (ablInterpolator) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Re
 				yFrac0, yFrac1 = 1, 0
 			}
 
-			s00ru, s00gu, s00bu, s00au := src.At(sx0, sy0).RGBA()
+			s00i := src.YOffset(sx0, sy0)
+			s00j := src.COffset(sx0, sy0)
+			s00r8, s00g8, s00b8 := color.YCbCrToRGB(src.Y[s00i], src.Cb[s00j], src.Cr[s00j])
+			s00ru := uint32(s00r8) * 0x101
+			s00gu := uint32(s00g8) * 0x101
+			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
-			s00a := float64(s00au)
-			s10ru, s10gu, s10bu, s10au := src.At(sx1, sy0).RGBA()
+			s10i := src.YOffset(sx1, sy0)
+			s10j := src.COffset(sx1, sy0)
+			s10r8, s10g8, s10b8 := color.YCbCrToRGB(src.Y[s10i], src.Cb[s10j], src.Cr[s10j])
+			s10ru := uint32(s10r8) * 0x101
+			s10gu := uint32(s10g8) * 0x101
+			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
-			s10a := float64(s10au)
 			s10r = xFrac1*s00r + xFrac0*s10r
 			s10g = xFrac1*s00g + xFrac0*s10g
 			s10b = xFrac1*s00b + xFrac0*s10b
-			s10a = xFrac1*s00a + xFrac0*s10a
-			s01ru, s01gu, s01bu, s01au := src.At(sx0, sy1).RGBA()
+			s01i := src.YOffset(sx0, sy1)
+			s01j := src.COffset(sx0, sy1)
+			s01r8, s01g8, s01b8 := color.YCbCrToRGB(src.Y[s01i], src.Cb[s01j], src.Cr[s01j])
+			s01ru := uint32(s01r8) * 0x101
+			s01gu := uint32(s01g8) * 0x101
+			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
-			s01a := float64(s01au)
-			s11ru, s11gu, s11bu, s11au := src.At(sx1, sy1).RGBA()
+			s11i := src.YOffset(sx1, sy1)
+			s11j := src.COffset(sx1, sy1)
+			s11r8, s11g8, s11b8 := color.YCbCrToRGB(src.Y[s11i], src.Cb[s11j], src.Cr[s11j])
+			s11ru := uint32(s11r8) * 0x101
+			s11gu := uint32(s11g8) * 0x101
+			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
-			s11a := float64(s11au)
 			s11r = xFrac1*s01r + xFrac0*s11r
 			s11g = xFrac1*s01g + xFrac0*s11g
 			s11b = xFrac1*s01b + xFrac0*s11b
-			s11a = xFrac1*s01a + xFrac0*s11a
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			s11a = yFrac1*s10a + yFrac0*s11a
 			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
 			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
 			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -2062,42 +2193,55 @@ func (ablInterpolator) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Re
 				yFrac0, yFrac1 = 1, 0
 			}
 
-			s00ru, s00gu, s00bu, s00au := src.At(sx0, sy0).RGBA()
+			s00i := src.YOffset(sx0, sy0)
+			s00j := src.COffset(sx0, sy0)
+			s00r8, s00g8, s00b8 := color.YCbCrToRGB(src.Y[s00i], src.Cb[s00j], src.Cr[s00j])
+			s00ru := uint32(s00r8) * 0x101
+			s00gu := uint32(s00g8) * 0x101
+			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
-			s00a := float64(s00au)
-			s10ru, s10gu, s10bu, s10au := src.At(sx1, sy0).RGBA()
+			s10i := src.YOffset(sx1, sy0)
+			s10j := src.COffset(sx1, sy0)
+			s10r8, s10g8, s10b8 := color.YCbCrToRGB(src.Y[s10i], src.Cb[s10j], src.Cr[s10j])
+			s10ru := uint32(s10r8) * 0x101
+			s10gu := uint32(s10g8) * 0x101
+			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
-			s10a := float64(s10au)
 			s10r = xFrac1*s00r + xFrac0*s10r
 			s10g = xFrac1*s00g + xFrac0*s10g
 			s10b = xFrac1*s00b + xFrac0*s10b
-			s10a = xFrac1*s00a + xFrac0*s10a
-			s01ru, s01gu, s01bu, s01au := src.At(sx0, sy1).RGBA()
+			s01i := src.YOffset(sx0, sy1)
+			s01j := src.COffset(sx0, sy1)
+			s01r8, s01g8, s01b8 := color.YCbCrToRGB(src.Y[s01i], src.Cb[s01j], src.Cr[s01j])
+			s01ru := uint32(s01r8) * 0x101
+			s01gu := uint32(s01g8) * 0x101
+			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
-			s01a := float64(s01au)
-			s11ru, s11gu, s11bu, s11au := src.At(sx1, sy1).RGBA()
+			s11i := src.YOffset(sx1, sy1)
+			s11j := src.COffset(sx1, sy1)
+			s11r8, s11g8, s11b8 := color.YCbCrToRGB(src.Y[s11i], src.Cb[s11j], src.Cr[s11j])
+			s11ru := uint32(s11r8) * 0x101
+			s11gu := uint32(s11g8) * 0x101
+			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
-			s11a := float64(s11au)
 			s11r = xFrac1*s01r + xFrac0*s11r
 			s11g = xFrac1*s01g + xFrac0*s11g
 			s11b = xFrac1*s01b + xFrac0*s11b
-			s11a = xFrac1*s01a + xFrac0*s11a
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			s11a = yFrac1*s10a + yFrac0*s11a
 			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
 			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
 			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -2486,19 +2630,23 @@ func (z *kernelScaler) scaleX_YCbCr444(tmp [][4]float64, src *image.YCbCr, sr im
 	t := 0
 	for y := int32(0); y < z.sh; y++ {
 		for _, s := range z.horizontal.sources {
-			var pr, pg, pb, pa float64
+			var pr, pg, pb float64
 			for _, c := range z.horizontal.contribs[s.i:s.j] {
-				pru, pgu, pbu, pau := src.At(sr.Min.X+int(c.coord), sr.Min.Y+int(y)).RGBA()
+				pi := src.YOffset(sr.Min.X+int(c.coord), sr.Min.Y+int(y))
+				pj := src.COffset(sr.Min.X+int(c.coord), sr.Min.Y+int(y))
+				pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+				pru := uint32(pr8) * 0x101
+				pgu := uint32(pg8) * 0x101
+				pbu := uint32(pb8) * 0x101
 				pr += float64(pru) * c.weight
 				pg += float64(pgu) * c.weight
 				pb += float64(pbu) * c.weight
-				pa += float64(pau) * c.weight
 			}
 			tmp[t] = [4]float64{
 				pr * s.invTotalWeightFFFF,
 				pg * s.invTotalWeightFFFF,
 				pb * s.invTotalWeightFFFF,
-				pa * s.invTotalWeightFFFF,
+				1,
 			}
 			t++
 		}
@@ -2509,19 +2657,23 @@ func (z *kernelScaler) scaleX_YCbCr422(tmp [][4]float64, src *image.YCbCr, sr im
 	t := 0
 	for y := int32(0); y < z.sh; y++ {
 		for _, s := range z.horizontal.sources {
-			var pr, pg, pb, pa float64
+			var pr, pg, pb float64
 			for _, c := range z.horizontal.contribs[s.i:s.j] {
-				pru, pgu, pbu, pau := src.At(sr.Min.X+int(c.coord), sr.Min.Y+int(y)).RGBA()
+				pi := src.YOffset(sr.Min.X+int(c.coord), sr.Min.Y+int(y))
+				pj := src.COffset(sr.Min.X+int(c.coord), sr.Min.Y+int(y))
+				pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+				pru := uint32(pr8) * 0x101
+				pgu := uint32(pg8) * 0x101
+				pbu := uint32(pb8) * 0x101
 				pr += float64(pru) * c.weight
 				pg += float64(pgu) * c.weight
 				pb += float64(pbu) * c.weight
-				pa += float64(pau) * c.weight
 			}
 			tmp[t] = [4]float64{
 				pr * s.invTotalWeightFFFF,
 				pg * s.invTotalWeightFFFF,
 				pb * s.invTotalWeightFFFF,
-				pa * s.invTotalWeightFFFF,
+				1,
 			}
 			t++
 		}
@@ -2532,19 +2684,23 @@ func (z *kernelScaler) scaleX_YCbCr420(tmp [][4]float64, src *image.YCbCr, sr im
 	t := 0
 	for y := int32(0); y < z.sh; y++ {
 		for _, s := range z.horizontal.sources {
-			var pr, pg, pb, pa float64
+			var pr, pg, pb float64
 			for _, c := range z.horizontal.contribs[s.i:s.j] {
-				pru, pgu, pbu, pau := src.At(sr.Min.X+int(c.coord), sr.Min.Y+int(y)).RGBA()
+				pi := src.YOffset(sr.Min.X+int(c.coord), sr.Min.Y+int(y))
+				pj := src.COffset(sr.Min.X+int(c.coord), sr.Min.Y+int(y))
+				pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+				pru := uint32(pr8) * 0x101
+				pgu := uint32(pg8) * 0x101
+				pbu := uint32(pb8) * 0x101
 				pr += float64(pru) * c.weight
 				pg += float64(pgu) * c.weight
 				pb += float64(pbu) * c.weight
-				pa += float64(pau) * c.weight
 			}
 			tmp[t] = [4]float64{
 				pr * s.invTotalWeightFFFF,
 				pg * s.invTotalWeightFFFF,
 				pb * s.invTotalWeightFFFF,
-				pa * s.invTotalWeightFFFF,
+				1,
 			}
 			t++
 		}
@@ -2555,19 +2711,23 @@ func (z *kernelScaler) scaleX_YCbCr440(tmp [][4]float64, src *image.YCbCr, sr im
 	t := 0
 	for y := int32(0); y < z.sh; y++ {
 		for _, s := range z.horizontal.sources {
-			var pr, pg, pb, pa float64
+			var pr, pg, pb float64
 			for _, c := range z.horizontal.contribs[s.i:s.j] {
-				pru, pgu, pbu, pau := src.At(sr.Min.X+int(c.coord), sr.Min.Y+int(y)).RGBA()
+				pi := src.YOffset(sr.Min.X+int(c.coord), sr.Min.Y+int(y))
+				pj := src.COffset(sr.Min.X+int(c.coord), sr.Min.Y+int(y))
+				pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+				pru := uint32(pr8) * 0x101
+				pgu := uint32(pg8) * 0x101
+				pbu := uint32(pb8) * 0x101
 				pr += float64(pru) * c.weight
 				pg += float64(pgu) * c.weight
 				pb += float64(pbu) * c.weight
-				pa += float64(pau) * c.weight
 			}
 			tmp[t] = [4]float64{
 				pr * s.invTotalWeightFFFF,
 				pg * s.invTotalWeightFFFF,
 				pb * s.invTotalWeightFFFF,
-				pa * s.invTotalWeightFFFF,
+				1,
 			}
 			t++
 		}
@@ -3102,22 +3262,26 @@ func (q *Kernel) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectangl
 				yWeights[y] /= totalYWeight
 			}
 
-			var pr, pg, pb, pa float64
+			var pr, pg, pb float64
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
 					w := xWeights[kx-ix] * yWeight
-					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+					pi := src.YOffset(kx, ky)
+					pj := src.COffset(kx, ky)
+					pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+					pru := uint32(pr8) * 0x101
+					pgu := uint32(pg8) * 0x101
+					pbu := uint32(pb8) * 0x101
 					pr += float64(pru) * w
 					pg += float64(pgu) * w
 					pb += float64(pbu) * w
-					pa += float64(pau) * w
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
 			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
 			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
-			dst.Pix[d+3] = uint8(fffftou(pa) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -3197,22 +3361,26 @@ func (q *Kernel) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectangl
 				yWeights[y] /= totalYWeight
 			}
 
-			var pr, pg, pb, pa float64
+			var pr, pg, pb float64
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
 					w := xWeights[kx-ix] * yWeight
-					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+					pi := src.YOffset(kx, ky)
+					pj := src.COffset(kx, ky)
+					pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+					pru := uint32(pr8) * 0x101
+					pgu := uint32(pg8) * 0x101
+					pbu := uint32(pb8) * 0x101
 					pr += float64(pru) * w
 					pg += float64(pgu) * w
 					pb += float64(pbu) * w
-					pa += float64(pau) * w
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
 			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
 			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
-			dst.Pix[d+3] = uint8(fffftou(pa) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -3292,22 +3460,26 @@ func (q *Kernel) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectangl
 				yWeights[y] /= totalYWeight
 			}
 
-			var pr, pg, pb, pa float64
+			var pr, pg, pb float64
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
 					w := xWeights[kx-ix] * yWeight
-					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+					pi := src.YOffset(kx, ky)
+					pj := src.COffset(kx, ky)
+					pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+					pru := uint32(pr8) * 0x101
+					pgu := uint32(pg8) * 0x101
+					pbu := uint32(pb8) * 0x101
 					pr += float64(pru) * w
 					pg += float64(pgu) * w
 					pb += float64(pbu) * w
-					pa += float64(pau) * w
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
 			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
 			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
-			dst.Pix[d+3] = uint8(fffftou(pa) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }
@@ -3387,22 +3559,26 @@ func (q *Kernel) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectangl
 				yWeights[y] /= totalYWeight
 			}
 
-			var pr, pg, pb, pa float64
+			var pr, pg, pb float64
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
 					w := xWeights[kx-ix] * yWeight
-					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+					pi := src.YOffset(kx, ky)
+					pj := src.COffset(kx, ky)
+					pr8, pg8, pb8 := color.YCbCrToRGB(src.Y[pi], src.Cb[pj], src.Cr[pj])
+					pru := uint32(pr8) * 0x101
+					pgu := uint32(pg8) * 0x101
+					pbu := uint32(pb8) * 0x101
 					pr += float64(pru) * w
 					pg += float64(pgu) * w
 					pb += float64(pbu) * w
-					pa += float64(pau) * w
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
 			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
 			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
-			dst.Pix[d+3] = uint8(fffftou(pa) >> 8)
+			dst.Pix[d+3] = 0xff
 		}
 	}
 }

@@ -249,6 +249,15 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				"%sr = %s*%sr + %s*%sr",
 				args[3], args[0], args[1], args[2], args[3],
 			)
+		case "*image.YCbCr":
+			return fmt.Sprintf(""+
+				"%sr = %s*%sr + %s*%sr\n"+
+				"%sg = %s*%sg + %s*%sg\n"+
+				"%sb = %s*%sb + %s*%sb",
+				args[3], args[0], args[1], args[2], args[3],
+				args[3], args[0], args[1], args[2], args[3],
+				args[3], args[0], args[1], args[2], args[3],
+			)
 		}
 
 	case "outputu":
@@ -282,6 +291,16 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 					args[2],
 					args[0], args[1],
 				)
+			case "*image.YCbCr":
+				return fmt.Sprintf(""+
+					"dstColorRGBA64.R = uint16(%sr)\n"+
+					"dstColorRGBA64.G = uint16(%sg)\n"+
+					"dstColorRGBA64.B = uint16(%sb)\n"+
+					"dstColorRGBA64.A = 0xffff\n"+
+					"dst.Set(%s, %s, dstColor)",
+					args[2], args[2], args[2],
+					args[0], args[1],
+				)
 			}
 		case "*image.RGBA":
 			switch d.sType {
@@ -301,6 +320,14 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 					"dst.Pix[d+2] = out\n"+
 					"dst.Pix[d+3] = 0xff",
 					args[2],
+				)
+			case "*image.YCbCr":
+				return fmt.Sprintf(""+
+					"dst.Pix[d+0] = uint8(uint32(%sr) >> 8)\n"+
+					"dst.Pix[d+1] = uint8(uint32(%sg) >> 8)\n"+
+					"dst.Pix[d+2] = uint8(uint32(%sb) >> 8)\n"+
+					"dst.Pix[d+3] = 0xff",
+					args[2], args[2], args[2],
 				)
 			}
 		}
@@ -340,6 +367,18 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 					args[2], args[3], args[4],
 					args[0], args[1],
 				)
+			case "*image.YCbCr":
+				ret = fmt.Sprintf(""+
+					"dstColorRGBA64.R = %s(%sr * %s)\n"+
+					"dstColorRGBA64.G = %s(%sg * %s)\n"+
+					"dstColorRGBA64.B = %s(%sb * %s)\n"+
+					"dstColorRGBA64.A = 0xffff\n"+
+					"dst.Set(%s, %s, dstColor)",
+					args[2], args[3], args[4],
+					args[2], args[3], args[4],
+					args[2], args[3], args[4],
+					args[0], args[1],
+				)
 			}
 		case "*image.RGBA":
 			switch d.sType {
@@ -363,6 +402,16 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 					"dst.Pix[d+3] = 0xff",
 					args[2], args[3], args[4],
 				)
+			case "*image.YCbCr":
+				ret = fmt.Sprintf(""+
+					"dst.Pix[d+0] = uint8(%s(%sr * %s) >> 8)\n"+
+					"dst.Pix[d+1] = uint8(%s(%sg * %s) >> 8)\n"+
+					"dst.Pix[d+2] = uint8(%s(%sb * %s) >> 8)\n"+
+					"dst.Pix[d+3] = 0xff",
+					args[2], args[3], args[4],
+					args[2], args[3], args[4],
+					args[2], args[3], args[4],
+				)
 			}
 		}
 		return strings.Replace(ret, " * 1)", ")", -1)
@@ -382,28 +431,28 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			tmp = "u"
 		}
 
+		// TODO: there's no need to multiply by 0x101 in the switch below if
+		// the next thing we're going to do is shift right by 8.
+
 		buf := new(bytes.Buffer)
 		switch d.sType {
 		default:
 			log.Fatalf("bad sType %q", d.sType)
-		case "image.Image", "*image.Uniform", "*image.YCbCr": // TODO: separate code for concrete types.
-			fmt.Fprintf(buf, "%sr%s, %sg%s, %sb%s, %sa%s := "+
-				"src.At(%s, %s).RGBA()\n",
-				lhs, tmp, lhs, tmp, lhs, tmp, lhs, tmp,
-				args[0], args[1],
+		case "image.Image", "*image.Uniform": // TODO: separate code for concrete types.
+			fmt.Fprintf(buf, ""+
+				"%sr%s, %sg%s, %sb%s, %sa%s := src.At(%s, %s).RGBA()\n",
+				lhs, tmp, lhs, tmp, lhs, tmp, lhs, tmp, args[0], args[1],
 			)
 		case "*image.Gray":
-			// TODO: there's no need to multiply by 0x101 if the next thing
-			// we're going to do is shift right by 8.
-			fmt.Fprintf(buf, "%si := src.PixOffset(%s, %s)\n"+
+			fmt.Fprintf(buf, ""+
+				"%si := src.PixOffset(%s, %s)\n"+
 				"%sr%s := uint32(src.Pix[%si]) * 0x101\n",
 				lhs, args[0], args[1],
 				lhs, tmp, lhs,
 			)
 		case "*image.NRGBA":
-			// TODO: there's no need to multiply by 0x101 if the next thing
-			// we're going to do is shift right by 8.
-			fmt.Fprintf(buf, "%si := src.PixOffset(%s, %s)\n"+
+			fmt.Fprintf(buf, ""+
+				"%si := src.PixOffset(%s, %s)\n"+
 				"%sa%s := uint32(src.Pix[%si+3]) * 0x101\n"+
 				"%sr%s := uint32(src.Pix[%si+0]) * %sa%s / 0xff\n"+
 				"%sg%s := uint32(src.Pix[%si+1]) * %sa%s / 0xff\n"+
@@ -415,15 +464,33 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				lhs, tmp, lhs, lhs, tmp,
 			)
 		case "*image.RGBA":
-			// TODO: there's no need to multiply by 0x101 if the next thing
-			// we're going to do is shift right by 8.
-			fmt.Fprintf(buf, "%si := src.PixOffset(%s, %s)\n"+
+			fmt.Fprintf(buf, ""+
+				"%si := src.PixOffset(%s, %s)\n"+
 				"%sr%s := uint32(src.Pix[%si+0]) * 0x101\n"+
 				"%sg%s := uint32(src.Pix[%si+1]) * 0x101\n"+
 				"%sb%s := uint32(src.Pix[%si+2]) * 0x101\n"+
 				"%sa%s := uint32(src.Pix[%si+3]) * 0x101\n",
 				lhs, args[0], args[1],
 				lhs, tmp, lhs,
+				lhs, tmp, lhs,
+				lhs, tmp, lhs,
+				lhs, tmp, lhs,
+			)
+		case "*image.YCbCr":
+			// TODO: inline the COffset call, with the known d.sratio value.
+			// TODO: inline the color.YCbCrToRGB call.
+			// TODO: should we have a color.YCbCrToRGB48 function that returns
+			// 16-bit color?
+			fmt.Fprintf(buf, ""+
+				"%si := src.YOffset(%s, %s)\n"+
+				"%sj := src.COffset(%s, %s)\n"+
+				"%sr8, %sg8, %sb8 := color.YCbCrToRGB(src.Y[%si], src.Cb[%sj], src.Cr[%sj])\n"+
+				"%sr%s := uint32(%sr8) * 0x101\n"+
+				"%sg%s := uint32(%sg8) * 0x101\n"+
+				"%sb%s := uint32(%sb8) * 0x101\n",
+				lhs, args[0], args[1],
+				lhs, args[0], args[1],
+				lhs, lhs, lhs, lhs, lhs, lhs,
 				lhs, tmp, lhs,
 				lhs, tmp, lhs,
 				lhs, tmp, lhs,
@@ -446,6 +513,15 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			case "*image.Gray":
 				fmt.Fprintf(buf, ""+
 					"%sr %s float64(%sru)%s\n",
+					lhs, eqOp, lhs, extra,
+				)
+			case "*image.YCbCr":
+				fmt.Fprintf(buf, ""+
+					"%sr %s float64(%sru)%s\n"+
+					"%sg %s float64(%sgu)%s\n"+
+					"%sb %s float64(%sbu)%s\n",
+					lhs, eqOp, lhs, extra,
+					lhs, eqOp, lhs, extra,
 					lhs, eqOp, lhs, extra,
 				)
 			}
@@ -472,11 +548,16 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		return prefix
 
 	case "tweakP":
-		if d.sType == "*image.Gray" {
+		switch d.sType {
+		case "*image.Gray":
 			if strings.HasPrefix(strings.TrimSpace(prefix), "pa * ") {
 				return "1,"
 			}
 			return "pr,"
+		case "*image.YCbCr":
+			if strings.HasPrefix(strings.TrimSpace(prefix), "pa * ") {
+				return "1,"
+			}
 		}
 		return prefix
 
@@ -487,8 +568,11 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		return ";"
 
 	case "tweakVarP":
-		if d.sType == "*image.Gray" {
+		switch d.sType {
+		case "*image.Gray":
 			return strings.Replace(prefix, "var pr, pg, pb, pa", "var pr", 1)
+		case "*image.YCbCr":
+			return strings.Replace(prefix, "var pr, pg, pb, pa", "var pr, pg, pb", 1)
 		}
 		return prefix
 	}
