@@ -958,7 +958,8 @@ const (
 					for ky := iy; ky < jy; ky++ {
 						yWeight := yWeights[ky - iy]
 						for kx := ix; kx < jx; kx++ {
-							p += $srcf[kx, ky] * xWeights[kx - ix] * yWeight
+							w := xWeights[kx - ix] * yWeight
+							p += $srcf[kx, ky] * w
 						}
 					}
 					$outputf[dr.Min.X + int(dx), dr.Min.Y + int(dy), fffftou, p, 1]

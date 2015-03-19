@@ -2719,9 +2719,10 @@ func (q *Kernel) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, d
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
+					w := xWeights[kx-ix] * yWeight
 					pi := src.PixOffset(kx, ky)
 					pru := uint32(src.Pix[pi]) * 0x101
-					pr += float64(pru) * xWeights[kx-ix] * yWeight
+					pr += float64(pru) * w
 				}
 			}
 			out := uint8(fffftou(pr) >> 8)
@@ -2812,15 +2813,16 @@ func (q *Kernel) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Rectangle, 
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
+					w := xWeights[kx-ix] * yWeight
 					pi := src.PixOffset(kx, ky)
 					pau := uint32(src.Pix[pi+3]) * 0x101
 					pru := uint32(src.Pix[pi+0]) * pau / 0xff
 					pgu := uint32(src.Pix[pi+1]) * pau / 0xff
 					pbu := uint32(src.Pix[pi+2]) * pau / 0xff
-					pr += float64(pru) * xWeights[kx-ix] * yWeight
-					pg += float64(pgu) * xWeights[kx-ix] * yWeight
-					pb += float64(pbu) * xWeights[kx-ix] * yWeight
-					pa += float64(pau) * xWeights[kx-ix] * yWeight
+					pr += float64(pru) * w
+					pg += float64(pgu) * w
+					pb += float64(pbu) * w
+					pa += float64(pau) * w
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -2910,15 +2912,16 @@ func (q *Kernel) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectangle, d
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
+					w := xWeights[kx-ix] * yWeight
 					pi := src.PixOffset(kx, ky)
 					pru := uint32(src.Pix[pi+0]) * 0x101
 					pgu := uint32(src.Pix[pi+1]) * 0x101
 					pbu := uint32(src.Pix[pi+2]) * 0x101
 					pau := uint32(src.Pix[pi+3]) * 0x101
-					pr += float64(pru) * xWeights[kx-ix] * yWeight
-					pg += float64(pgu) * xWeights[kx-ix] * yWeight
-					pb += float64(pbu) * xWeights[kx-ix] * yWeight
-					pa += float64(pau) * xWeights[kx-ix] * yWeight
+					pr += float64(pru) * w
+					pg += float64(pgu) * w
+					pb += float64(pbu) * w
+					pa += float64(pau) * w
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -3008,11 +3011,12 @@ func (q *Kernel) transform_RGBA_Uniform(dst *image.RGBA, dr, adr image.Rectangle
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
+					w := xWeights[kx-ix] * yWeight
 					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
-					pr += float64(pru) * xWeights[kx-ix] * yWeight
-					pg += float64(pgu) * xWeights[kx-ix] * yWeight
-					pb += float64(pbu) * xWeights[kx-ix] * yWeight
-					pa += float64(pau) * xWeights[kx-ix] * yWeight
+					pr += float64(pru) * w
+					pg += float64(pgu) * w
+					pb += float64(pbu) * w
+					pa += float64(pau) * w
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -3102,11 +3106,12 @@ func (q *Kernel) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectangl
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
+					w := xWeights[kx-ix] * yWeight
 					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
-					pr += float64(pru) * xWeights[kx-ix] * yWeight
-					pg += float64(pgu) * xWeights[kx-ix] * yWeight
-					pb += float64(pbu) * xWeights[kx-ix] * yWeight
-					pa += float64(pau) * xWeights[kx-ix] * yWeight
+					pr += float64(pru) * w
+					pg += float64(pgu) * w
+					pb += float64(pbu) * w
+					pa += float64(pau) * w
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -3196,11 +3201,12 @@ func (q *Kernel) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectangl
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
+					w := xWeights[kx-ix] * yWeight
 					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
-					pr += float64(pru) * xWeights[kx-ix] * yWeight
-					pg += float64(pgu) * xWeights[kx-ix] * yWeight
-					pb += float64(pbu) * xWeights[kx-ix] * yWeight
-					pa += float64(pau) * xWeights[kx-ix] * yWeight
+					pr += float64(pru) * w
+					pg += float64(pgu) * w
+					pb += float64(pbu) * w
+					pa += float64(pau) * w
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -3290,11 +3296,12 @@ func (q *Kernel) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectangl
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
+					w := xWeights[kx-ix] * yWeight
 					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
-					pr += float64(pru) * xWeights[kx-ix] * yWeight
-					pg += float64(pgu) * xWeights[kx-ix] * yWeight
-					pb += float64(pbu) * xWeights[kx-ix] * yWeight
-					pa += float64(pau) * xWeights[kx-ix] * yWeight
+					pr += float64(pru) * w
+					pg += float64(pgu) * w
+					pb += float64(pbu) * w
+					pa += float64(pau) * w
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -3384,11 +3391,12 @@ func (q *Kernel) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectangl
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
+					w := xWeights[kx-ix] * yWeight
 					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
-					pr += float64(pru) * xWeights[kx-ix] * yWeight
-					pg += float64(pgu) * xWeights[kx-ix] * yWeight
-					pb += float64(pbu) * xWeights[kx-ix] * yWeight
-					pa += float64(pau) * xWeights[kx-ix] * yWeight
+					pr += float64(pru) * w
+					pg += float64(pgu) * w
+					pb += float64(pbu) * w
+					pa += float64(pau) * w
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -3478,11 +3486,12 @@ func (q *Kernel) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Rectangle, 
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
+					w := xWeights[kx-ix] * yWeight
 					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
-					pr += float64(pru) * xWeights[kx-ix] * yWeight
-					pg += float64(pgu) * xWeights[kx-ix] * yWeight
-					pb += float64(pbu) * xWeights[kx-ix] * yWeight
-					pa += float64(pau) * xWeights[kx-ix] * yWeight
+					pr += float64(pru) * w
+					pg += float64(pgu) * w
+					pb += float64(pbu) * w
+					pa += float64(pau) * w
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -3573,11 +3582,12 @@ func (q *Kernel) transform_Image_Image(dst Image, dr, adr image.Rectangle, d2s *
 			for ky := iy; ky < jy; ky++ {
 				yWeight := yWeights[ky-iy]
 				for kx := ix; kx < jx; kx++ {
+					w := xWeights[kx-ix] * yWeight
 					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
-					pr += float64(pru) * xWeights[kx-ix] * yWeight
-					pg += float64(pgu) * xWeights[kx-ix] * yWeight
-					pb += float64(pbu) * xWeights[kx-ix] * yWeight
-					pa += float64(pau) * xWeights[kx-ix] * yWeight
+					pr += float64(pru) * w
+					pg += float64(pgu) * w
+					pb += float64(pbu) * w
+					pa += float64(pau) * w
 				}
 			}
 			dstColorRGBA64.R = fffftou(pr)
