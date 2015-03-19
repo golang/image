@@ -64,8 +64,14 @@ var (
 		{"*image.RGBA", "image.Image"},
 		{"Image", "image.Image"},
 	}
-	dTypes, sTypes []string
-	sTypesForDType = map[string][]string{}
+	dTypes, sTypes  []string
+	sTypesForDType  = map[string][]string{}
+	subsampleRatios = []string{
+		"444",
+		"422",
+		"420",
+		"440",
+	}
 )
 
 func init() {
@@ -88,6 +94,7 @@ func init() {
 type data struct {
 	dType    string
 	sType    string
+	sratio   string
 	receiver string
 }
 
@@ -125,6 +132,15 @@ func genKernel(w *bytes.Buffer) {
 }
 
 func expn(w *bytes.Buffer, code string, d *data) {
+	if d.sType == "*image.YCbCr" && d.sratio == "" {
+		for _, sratio := range subsampleRatios {
+			e := *d
+			e.sratio = sratio
+			expn(w, code, &e)
+		}
+		return
+	}
+
 	for _, line := range strings.Split(code, "\n") {
 		line = expnLine(line, d)
 		if line == ";" {
@@ -169,6 +185,8 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		return prefix + d.dType + suffix
 	case "dTypeRN":
 		return prefix + relName(d.dType) + suffix
+	case "sratio":
+		return prefix + d.sratio + suffix
 	case "sType":
 		return prefix + d.sType + suffix
 	case "sTypeRN":
@@ -482,7 +500,11 @@ func expnSwitch(dType string, expandBoth bool, template string) string {
 		}
 
 		if dType != "" {
-			lines = append(lines, expnLine(template, &data{dType: dType, sType: v}))
+			if v == "*image.YCbCr" {
+				lines = append(lines, expnSwitchYCbCr(dType, template))
+			} else {
+				lines = append(lines, expnLine(template, &data{dType: dType, sType: v}))
+			}
 		} else if !expandBoth {
 			lines = append(lines, expnLine(template, &data{dType: v}))
 		} else {
@@ -490,6 +512,22 @@ func expnSwitch(dType string, expandBoth bool, template string) string {
 		}
 	}
 
+	lines = append(lines, "}")
+	return strings.Join(lines, "\n")
+}
+
+func expnSwitchYCbCr(dType, template string) string {
+	lines := []string{
+		"switch src.SubsampleRatio {",
+		"default:",
+		expnLine(template, &data{dType: dType, sType: "image.Image"}),
+	}
+	for _, sratio := range subsampleRatios {
+		lines = append(lines,
+			fmt.Sprintf("case image.YCbCrSubsampleRatio%s:", sratio),
+			expnLine(template, &data{dType: dType, sType: "*image.YCbCr", sratio: sratio}),
+		)
+	}
 	lines = append(lines, "}")
 	return strings.Join(lines, "\n")
 }
@@ -551,7 +589,7 @@ const (
 			if !sr.In(src.Bounds()) {
 				z.scale_Image_Image(dst, dr, adr, src, sr)
 			} else {
-				$switch z.scale_$dTypeRN_$sTypeRN(dst, dr, adr, src, sr)
+				$switch z.scale_$dTypeRN_$sTypeRN$sratio(dst, dr, adr, src, sr)
 			}
 		}
 
@@ -569,13 +607,13 @@ const (
 			if !sr.In(src.Bounds()) {
 				z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
 			} else {
-				$switch z.transform_$dTypeRN_$sTypeRN(dst, dr, adr, &d2s, src, sr)
+				$switch z.transform_$dTypeRN_$sTypeRN$sratio(dst, dr, adr, &d2s, src, sr)
 			}
 		}
 	`
 
 	codeNNScaleLeaf = `
-		func (nnInterpolator) scale_$dTypeRN_$sTypeRN(dst $dType, dr, adr image.Rectangle, src $sType, sr image.Rectangle) {
+		func (nnInterpolator) scale_$dTypeRN_$sTypeRN$sratio(dst $dType, dr, adr image.Rectangle, src $sType, sr image.Rectangle) {
 			dw2 := uint64(dr.Dx()) * 2
 			dh2 := uint64(dr.Dy()) * 2
 			sw := uint64(sr.Dx())
@@ -594,7 +632,7 @@ const (
 	`
 
 	codeNNTransformLeaf = `
-		func (nnInterpolator) transform_$dTypeRN_$sTypeRN(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle) {
+		func (nnInterpolator) transform_$dTypeRN_$sTypeRN$sratio(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle) {
 			$preOuter
 			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 				dyf := float64(dr.Min.Y + int(dy)) + 0.5
@@ -615,7 +653,7 @@ const (
 	`
 
 	codeABLScaleLeaf = `
-		func (ablInterpolator) scale_$dTypeRN_$sTypeRN(dst $dType, dr, adr image.Rectangle, src $sType, sr image.Rectangle) {
+		func (ablInterpolator) scale_$dTypeRN_$sTypeRN$sratio(dst $dType, dr, adr image.Rectangle, src $sType, sr image.Rectangle) {
 			sw := int32(sr.Dx())
 			sh := int32(sr.Dy())
 			yscale := float64(sh) / float64(dr.Dy())
@@ -669,7 +707,7 @@ const (
 	`
 
 	codeABLTransformLeaf = `
-		func (ablInterpolator) transform_$dTypeRN_$sTypeRN(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle) {
+		func (ablInterpolator) transform_$dTypeRN_$sTypeRN$sratio(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle) {
 			$preOuter
 			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 				dyf := float64(dr.Min.Y + int(dy)) + 0.5
@@ -747,7 +785,7 @@ const (
 			if !sr.In(src.Bounds()) {
 				z.scaleX_Image(tmp, src, sr)
 			} else {
-				$switchS z.scaleX_$sTypeRN(tmp, src, sr)
+				$switchS z.scaleX_$sTypeRN$sratio(tmp, src, sr)
 			}
 
 			$switchD z.scaleY_$dTypeRN(dst, dr, adr, tmp)
@@ -777,13 +815,13 @@ const (
 			if !sr.In(src.Bounds()) {
 				q.transform_Image_Image(dst, dr, adr, &d2s, src, sr, xscale, yscale)
 			} else {
-				$switch q.transform_$dTypeRN_$sTypeRN(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+				$switch q.transform_$dTypeRN_$sTypeRN$sratio(dst, dr, adr, &d2s, src, sr, xscale, yscale)
 			}
 		}
 	`
 
 	codeKernelScaleLeafX = `
-		func (z *kernelScaler) scaleX_$sTypeRN(tmp [][4]float64, src $sType, sr image.Rectangle) {
+		func (z *kernelScaler) scaleX_$sTypeRN$sratio(tmp [][4]float64, src $sType, sr image.Rectangle) {
 			t := 0
 			for y := int32(0); y < z.sh; y++ {
 				for _, s := range z.horizontal.sources {
@@ -826,7 +864,7 @@ const (
 	`
 
 	codeKernelTransformLeaf = `
-		func (q *Kernel) transform_$dTypeRN_$sTypeRN(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, xscale, yscale float64) {
+		func (q *Kernel) transform_$dTypeRN_$sTypeRN$sratio(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, xscale, yscale float64) {
 			// When shrinking, broaden the effective kernel support so that we still
 			// visit every source pixel.
 			xHalfWidth, xKernelArgScale := q.Support, 1.0
