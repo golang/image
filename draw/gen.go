@@ -215,7 +215,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		switch d.dType {
 		default:
 			return ";"
-		case "*image.Gray", "*image.RGBA":
+		case "*image.RGBA":
 			return "d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))"
 		}
 
@@ -223,7 +223,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		switch d.dType {
 		default:
 			return ";"
-		case "*image.Gray", "*image.RGBA":
+		case "*image.RGBA":
 			return "d := dst.PixOffset(dr.Min.X+int(dx), dr.Min.Y+adr.Min.Y)"
 		}
 
@@ -386,7 +386,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		switch d.sType {
 		default:
 			log.Fatalf("bad sType %q", d.sType)
-		case "image.Image", "*image.NRGBA", "*image.Uniform", "*image.YCbCr": // TODO: separate code for concrete types.
+		case "image.Image", "*image.Uniform", "*image.YCbCr": // TODO: separate code for concrete types.
 			fmt.Fprintf(buf, "%sr%s, %sg%s, %sb%s, %sa%s := "+
 				"src.At(%s, %s).RGBA()\n",
 				lhs, tmp, lhs, tmp, lhs, tmp, lhs, tmp,
@@ -399,6 +399,20 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				"%sr%s := uint32(src.Pix[%si]) * 0x101\n",
 				lhs, args[0], args[1],
 				lhs, tmp, lhs,
+			)
+		case "*image.NRGBA":
+			// TODO: there's no need to multiply by 0x101 if the next thing
+			// we're going to do is shift right by 8.
+			fmt.Fprintf(buf, "%si := src.PixOffset(%s, %s)\n"+
+				"%sa%s := uint32(src.Pix[%si+3]) * 0x101\n"+
+				"%sr%s := uint32(src.Pix[%si+0]) * %sa%s / 0xff\n"+
+				"%sg%s := uint32(src.Pix[%si+1]) * %sa%s / 0xff\n"+
+				"%sb%s := uint32(src.Pix[%si+2]) * %sa%s / 0xff\n",
+				lhs, args[0], args[1],
+				lhs, tmp, lhs,
+				lhs, tmp, lhs, lhs, tmp,
+				lhs, tmp, lhs, lhs, tmp,
+				lhs, tmp, lhs, lhs, tmp,
 			)
 		case "*image.RGBA":
 			// TODO: there's no need to multiply by 0x101 if the next thing
