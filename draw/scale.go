@@ -8,6 +8,7 @@ package draw
 
 import (
 	"image"
+	"image/color"
 	"math"
 
 	"golang.org/x/image/math/f64"
@@ -350,4 +351,57 @@ func transformRect(s2d *f64.Aff3, sr *image.Rectangle) (dr image.Rectangle) {
 		}
 	}
 	return dr
+}
+
+func transform_Uniform(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Uniform, sr image.Rectangle, op Op) {
+	switch dst := dst.(type) {
+	case *image.RGBA:
+		pr, pg, pb, pa := src.C.RGBA()
+		pr8 := uint8(pr >> 8)
+		pg8 := uint8(pg >> 8)
+		pb8 := uint8(pb >> 8)
+		pa8 := uint8(pa >> 8)
+
+		for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+			dyf := float64(dr.Min.Y+int(dy)) + 0.5
+			d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
+			for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
+				dxf := float64(dr.Min.X+int(dx)) + 0.5
+				// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
+				sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
+				sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
+				if !(image.Point{sx0, sy0}).In(sr) {
+					continue
+				}
+				dst.Pix[d+0] = pr8
+				dst.Pix[d+1] = pg8
+				dst.Pix[d+2] = pb8
+				dst.Pix[d+3] = pa8
+			}
+		}
+
+	default:
+		pr, pg, pb, pa := src.C.RGBA()
+		dstColorRGBA64 := &color.RGBA64{
+			uint16(pr),
+			uint16(pg),
+			uint16(pb),
+			uint16(pa),
+		}
+		dstColor := color.Color(dstColorRGBA64)
+
+		for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+			dyf := float64(dr.Min.Y+int(dy)) + 0.5
+			for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
+				dxf := float64(dr.Min.X+int(dx)) + 0.5
+				// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
+				sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
+				sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
+				if !(image.Point{sx0, sy0}).In(sr) {
+					continue
+				}
+				dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			}
+		}
+	}
 }

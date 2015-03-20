@@ -59,7 +59,6 @@ var (
 		{"*image.RGBA", "*image.Gray"},
 		{"*image.RGBA", "*image.NRGBA"},
 		{"*image.RGBA", "*image.RGBA"},
-		{"*image.RGBA", "*image.Uniform"},
 		{"*image.RGBA", "*image.YCbCr"},
 		{"*image.RGBA", "image.Image"},
 		{"Image", "image.Image"},
@@ -438,7 +437,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		switch d.sType {
 		default:
 			log.Fatalf("bad sType %q", d.sType)
-		case "image.Image", "*image.Uniform": // TODO: separate code for concrete types.
+		case "image.Image":
 			fmt.Fprintf(buf, ""+
 				"%sr%s, %sg%s, %sb%s, %sa%s := src.At(%s, %s).RGBA()\n",
 				lhs, tmp, lhs, tmp, lhs, tmp, lhs, tmp, args[0], args[1],
@@ -703,6 +702,9 @@ const (
 			// the Pix fields directly without bounds checking.
 			if !sr.In(src.Bounds()) {
 				z.scale_Image_Image(dst, dr, adr, src, sr)
+			} else if _, ok := src.(*image.Uniform); ok {
+				// TODO: get the Op from opts.
+				Draw(dst, dr, src, src.Bounds().Min, Src)
 			} else {
 				$switch z.scale_$dTypeRN_$sTypeRN$sratio(dst, dr, adr, src, sr)
 			}
@@ -721,6 +723,9 @@ const (
 			// the Pix fields directly without bounds checking.
 			if !sr.In(src.Bounds()) {
 				z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+			} else if u, ok := src.(*image.Uniform); ok {
+				// TODO: get the Op from opts.
+				transform_Uniform(dst, dr, adr, &d2s, u, sr, Src)
 			} else {
 				$switch z.transform_$dTypeRN_$sTypeRN$sratio(dst, dr, adr, &d2s, src, sr)
 			}
@@ -888,6 +893,13 @@ const (
 			if adr.Empty() || sr.Empty() {
 				return
 			}
+
+			if _, ok := src.(*image.Uniform); ok && sr.In(src.Bounds()) {
+				// TODO: get the Op from opts.
+				Draw(dst, dr, src, src.Bounds().Min, Src)
+				return
+			}
+
 			// Create a temporary buffer:
 			// scaleX distributes the source image's columns over the temporary image.
 			// scaleY distributes the temporary image's rows over the destination image.
@@ -914,6 +926,12 @@ const (
 				return
 			}
 			d2s := invert(s2d)
+
+			if u, ok := src.(*image.Uniform); ok && sr.In(src.Bounds()) {
+				// TODO: get the Op from opts.
+				transform_Uniform(dst, dr, adr, &d2s, u, sr, Src)
+				return
+			}
 
 			xscale := abs(d2s[0])
 			if s := abs(d2s[1]); xscale < s {
