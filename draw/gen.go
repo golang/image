@@ -216,7 +216,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		default:
 			return ";"
 		case "*image.RGBA":
-			return "d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))"
+			return "d := " + pixOffset("dst", "dr.Min.X+adr.Min.X", "dr.Min.Y+int(dy)", "*4", "*dst.Stride")
 		}
 
 	case "preKernelInner":
@@ -224,7 +224,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		default:
 			return ";"
 		case "*image.RGBA":
-			return "d := dst.PixOffset(dr.Min.X+int(dx), dr.Min.Y+adr.Min.Y)"
+			return "d := " + pixOffset("dst", "dr.Min.X+int(dx)", "dr.Min.Y+adr.Min.Y", "*4", "*dst.Stride")
 		}
 
 	case "blend":
@@ -445,19 +445,19 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			)
 		case "*image.Gray":
 			fmt.Fprintf(buf, ""+
-				"%si := src.PixOffset(%s, %s)\n"+
+				"%si := %s\n"+
 				"%sr%s := uint32(src.Pix[%si]) * 0x101\n",
-				lhs, args[0], args[1],
+				lhs, pixOffset("src", args[0], args[1], "", "*src.Stride"),
 				lhs, tmp, lhs,
 			)
 		case "*image.NRGBA":
 			fmt.Fprintf(buf, ""+
-				"%si := src.PixOffset(%s, %s)\n"+
+				"%si := %s\n"+
 				"%sa%s := uint32(src.Pix[%si+3]) * 0x101\n"+
 				"%sr%s := uint32(src.Pix[%si+0]) * %sa%s / 0xff\n"+
 				"%sg%s := uint32(src.Pix[%si+1]) * %sa%s / 0xff\n"+
 				"%sb%s := uint32(src.Pix[%si+2]) * %sa%s / 0xff\n",
-				lhs, args[0], args[1],
+				lhs, pixOffset("src", args[0], args[1], "*4", "*src.Stride"),
 				lhs, tmp, lhs,
 				lhs, tmp, lhs, lhs, tmp,
 				lhs, tmp, lhs, lhs, tmp,
@@ -465,31 +465,30 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			)
 		case "*image.RGBA":
 			fmt.Fprintf(buf, ""+
-				"%si := src.PixOffset(%s, %s)\n"+
+				"%si := %s\n"+
 				"%sr%s := uint32(src.Pix[%si+0]) * 0x101\n"+
 				"%sg%s := uint32(src.Pix[%si+1]) * 0x101\n"+
 				"%sb%s := uint32(src.Pix[%si+2]) * 0x101\n"+
 				"%sa%s := uint32(src.Pix[%si+3]) * 0x101\n",
-				lhs, args[0], args[1],
+				lhs, pixOffset("src", args[0], args[1], "*4", "*src.Stride"),
 				lhs, tmp, lhs,
 				lhs, tmp, lhs,
 				lhs, tmp, lhs,
 				lhs, tmp, lhs,
 			)
 		case "*image.YCbCr":
-			// TODO: inline the COffset call, with the known d.sratio value.
 			// TODO: inline the color.YCbCrToRGB call.
 			// TODO: should we have a color.YCbCrToRGB48 function that returns
 			// 16-bit color?
 			fmt.Fprintf(buf, ""+
-				"%si := src.YOffset(%s, %s)\n"+
-				"%sj := src.COffset(%s, %s)\n"+
+				"%si := %s\n"+
+				"%sj := %s\n"+
 				"%sr8, %sg8, %sb8 := color.YCbCrToRGB(src.Y[%si], src.Cb[%sj], src.Cr[%sj])\n"+
 				"%sr%s := uint32(%sr8) * 0x101\n"+
 				"%sg%s := uint32(%sg8) * 0x101\n"+
 				"%sb%s := uint32(%sb8) * 0x101\n",
-				lhs, args[0], args[1],
-				lhs, args[0], args[1],
+				lhs, pixOffset("src", args[0], args[1], "", "*src.YStride"),
+				lhs, cOffset(args[0], args[1], d.sratio),
 				lhs, lhs, lhs, lhs, lhs, lhs,
 				lhs, tmp, lhs,
 				lhs, tmp, lhs,
@@ -628,6 +627,24 @@ func expnSwitchYCbCr(dType, template string) string {
 	}
 	lines = append(lines, "}")
 	return strings.Join(lines, "\n")
+}
+
+func pixOffset(m, x, y, xstride, ystride string) string {
+	return fmt.Sprintf("(%s-%s.Rect.Min.Y)%s + (%s-%s.Rect.Min.X)%s", y, m, ystride, x, m, xstride)
+}
+
+func cOffset(x, y, sratio string) string {
+	switch sratio {
+	case "444":
+		return fmt.Sprintf("( %s    - src.Rect.Min.Y  )*src.CStride + ( %s    - src.Rect.Min.X  )", y, x)
+	case "422":
+		return fmt.Sprintf("( %s    - src.Rect.Min.Y  )*src.CStride + ((%s)/2 - src.Rect.Min.X/2)", y, x)
+	case "420":
+		return fmt.Sprintf("((%s)/2 - src.Rect.Min.Y/2)*src.CStride + ((%s)/2 - src.Rect.Min.X/2)", y, x)
+	case "440":
+		return fmt.Sprintf("((%s)/2 - src.Rect.Min.Y/2)*src.CStride + ( %s    - src.Rect.Min.X  )", y, x)
+	}
+	return fmt.Sprintf("unsupported sratio %q", sratio)
 }
 
 func split(s, sep string) (string, string) {
