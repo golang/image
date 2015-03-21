@@ -476,19 +476,16 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				lhs, tmp, lhs,
 			)
 		case "*image.YCbCr":
-			// TODO: inline the color.YCbCrToRGB call.
-			// TODO: should we have a color.YCbCrToRGB48 function that returns
-			// 16-bit color?
 			fmt.Fprintf(buf, ""+
 				"%si := %s\n"+
 				"%sj := %s\n"+
-				"%sr8, %sg8, %sb8 := color.YCbCrToRGB(src.Y[%si], src.Cb[%sj], src.Cr[%sj])\n"+
+				"%s\n"+
 				"%sr%s := uint32(%sr8) * 0x101\n"+
 				"%sg%s := uint32(%sg8) * 0x101\n"+
 				"%sb%s := uint32(%sb8) * 0x101\n",
 				lhs, pixOffset("src", args[0], args[1], "", "*src.YStride"),
 				lhs, cOffset(args[0], args[1], d.sratio),
-				lhs, lhs, lhs, lhs, lhs, lhs,
+				ycbcrToRGB(lhs),
 				lhs, tmp, lhs,
 				lhs, tmp, lhs,
 				lhs, tmp, lhs,
@@ -644,6 +641,36 @@ func cOffset(x, y, sratio string) string {
 		return fmt.Sprintf("((%s)/2 - src.Rect.Min.Y/2)*src.CStride + ( %s    - src.Rect.Min.X  )", y, x)
 	}
 	return fmt.Sprintf("unsupported sratio %q", sratio)
+}
+
+// TODO: should we have a color.YCbCrToRGB48 function that returns 16-bit
+// color?
+
+func ycbcrToRGB(lhs string) string {
+	return strings.Replace(`
+		// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+		$yy1 := int(src.Y[$i])<<16 + 1<<15
+		$cb1 := int(src.Cb[$j]) - 128
+		$cr1 := int(src.Cr[$j]) - 128
+		$r8 := ($yy1 + 91881*$cr1) >> 16
+		$g8 := ($yy1 - 22554*$cb1 - 46802*$cr1) >> 16
+		$b8 := ($yy1 + 116130*$cb1) >> 16
+		if $r8 < 0 {
+			$r8 = 0
+		} else if $r8 > 0xff {
+			$r8 = 0xff
+		}
+		if $g8 < 0 {
+			$g8 = 0
+		} else if $g8 > 0xff {
+			$g8 = 0xff
+		}
+		if $b8 < 0 {
+			$b8 = 0
+		} else if $b8 > 0xff {
+			$b8 = 0xff
+		}
+	`, "$", lhs, -1)
 }
 
 func split(s, sep string) (string, string) {
