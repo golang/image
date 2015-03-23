@@ -414,35 +414,43 @@ func benchTform(b *testing.B, srcf func(image.Rectangle) (image.Image, error), w
 	}
 }
 
-func BenchmarkScaleLargeDownNN(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, NearestNeighbor) }
-func BenchmarkScaleLargeDownAB(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, ApproxBiLinear) }
-func BenchmarkScaleLargeDownBL(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, BiLinear) }
-func BenchmarkScaleLargeDownCR(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, CatmullRom) }
+func BenchmarkScaleNNLargeDown(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, NearestNeighbor) }
+func BenchmarkScaleABLargeDown(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, ApproxBiLinear) }
+func BenchmarkScaleBLLargeDown(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, BiLinear) }
+func BenchmarkScaleCRLargeDown(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, CatmullRom) }
 
-func BenchmarkScaleDownNN(b *testing.B) { benchScale(b, srcTux, 120, 80, NearestNeighbor) }
-func BenchmarkScaleDownAB(b *testing.B) { benchScale(b, srcTux, 120, 80, ApproxBiLinear) }
-func BenchmarkScaleDownBL(b *testing.B) { benchScale(b, srcTux, 120, 80, BiLinear) }
-func BenchmarkScaleDownCR(b *testing.B) { benchScale(b, srcTux, 120, 80, CatmullRom) }
+func BenchmarkScaleNNDown(b *testing.B) { benchScale(b, srcTux, 120, 80, NearestNeighbor) }
+func BenchmarkScaleABDown(b *testing.B) { benchScale(b, srcTux, 120, 80, ApproxBiLinear) }
+func BenchmarkScaleBLDown(b *testing.B) { benchScale(b, srcTux, 120, 80, BiLinear) }
+func BenchmarkScaleCRDown(b *testing.B) { benchScale(b, srcTux, 120, 80, CatmullRom) }
 
-func BenchmarkScaleUpNN(b *testing.B) { benchScale(b, srcTux, 800, 600, NearestNeighbor) }
-func BenchmarkScaleUpAB(b *testing.B) { benchScale(b, srcTux, 800, 600, ApproxBiLinear) }
-func BenchmarkScaleUpBL(b *testing.B) { benchScale(b, srcTux, 800, 600, BiLinear) }
-func BenchmarkScaleUpCR(b *testing.B) { benchScale(b, srcTux, 800, 600, CatmullRom) }
+func BenchmarkScaleNNUp(b *testing.B) { benchScale(b, srcTux, 800, 600, NearestNeighbor) }
+func BenchmarkScaleABUp(b *testing.B) { benchScale(b, srcTux, 800, 600, ApproxBiLinear) }
+func BenchmarkScaleBLUp(b *testing.B) { benchScale(b, srcTux, 800, 600, BiLinear) }
+func BenchmarkScaleCRUp(b *testing.B) { benchScale(b, srcTux, 800, 600, CatmullRom) }
 
-func BenchmarkScaleSrcGray(b *testing.B)    { benchScale(b, srcGray, 200, 150, ApproxBiLinear) }
-func BenchmarkScaleSrcNRGBA(b *testing.B)   { benchScale(b, srcNRGBA, 200, 150, ApproxBiLinear) }
-func BenchmarkScaleSrcRGBA(b *testing.B)    { benchScale(b, srcRGBA, 200, 150, ApproxBiLinear) }
-func BenchmarkScaleSrcUniform(b *testing.B) { benchScale(b, srcUniform, 200, 150, ApproxBiLinear) }
-func BenchmarkScaleSrcYCbCr(b *testing.B)   { benchScale(b, srcYCbCr, 200, 150, ApproxBiLinear) }
+func BenchmarkScaleNNSrcRGBA(b *testing.B)    { benchScale(b, srcRGBA, 200, 150, NearestNeighbor) }
+func BenchmarkScaleNNSrcUniform(b *testing.B) { benchScale(b, srcUniform, 200, 150, NearestNeighbor) }
 
-func BenchmarkTformABSrcGray(b *testing.B)    { benchTform(b, srcGray, 200, 150, ApproxBiLinear) }
-func BenchmarkTformABSrcNRGBA(b *testing.B)   { benchTform(b, srcNRGBA, 200, 150, ApproxBiLinear) }
-func BenchmarkTformABSrcRGBA(b *testing.B)    { benchTform(b, srcRGBA, 200, 150, ApproxBiLinear) }
-func BenchmarkTformABSrcUniform(b *testing.B) { benchTform(b, srcUniform, 200, 150, ApproxBiLinear) }
-func BenchmarkTformABSrcYCbCr(b *testing.B)   { benchTform(b, srcYCbCr, 200, 150, ApproxBiLinear) }
+func BenchmarkTformNNSrcRGBA(b *testing.B)    { benchTform(b, srcRGBA, 200, 150, NearestNeighbor) }
+func BenchmarkTformNNSrcUniform(b *testing.B) { benchTform(b, srcUniform, 200, 150, NearestNeighbor) }
 
-func BenchmarkTformCRSrcGray(b *testing.B)    { benchTform(b, srcGray, 200, 150, CatmullRom) }
-func BenchmarkTformCRSrcNRGBA(b *testing.B)   { benchTform(b, srcNRGBA, 200, 150, CatmullRom) }
-func BenchmarkTformCRSrcRGBA(b *testing.B)    { benchTform(b, srcRGBA, 200, 150, CatmullRom) }
-func BenchmarkTformCRSrcUniform(b *testing.B) { benchTform(b, srcUniform, 200, 150, CatmullRom) }
-func BenchmarkTformCRSrcYCbCr(b *testing.B)   { benchTform(b, srcYCbCr, 200, 150, CatmullRom) }
+func BenchmarkScaleABSrcGray(b *testing.B)  { benchScale(b, srcGray, 200, 150, ApproxBiLinear) }
+func BenchmarkScaleABSrcNRGBA(b *testing.B) { benchScale(b, srcNRGBA, 200, 150, ApproxBiLinear) }
+func BenchmarkScaleABSrcRGBA(b *testing.B)  { benchScale(b, srcRGBA, 200, 150, ApproxBiLinear) }
+func BenchmarkScaleABSrcYCbCr(b *testing.B) { benchScale(b, srcYCbCr, 200, 150, ApproxBiLinear) }
+
+func BenchmarkTformABSrcGray(b *testing.B)  { benchTform(b, srcGray, 200, 150, ApproxBiLinear) }
+func BenchmarkTformABSrcNRGBA(b *testing.B) { benchTform(b, srcNRGBA, 200, 150, ApproxBiLinear) }
+func BenchmarkTformABSrcRGBA(b *testing.B)  { benchTform(b, srcRGBA, 200, 150, ApproxBiLinear) }
+func BenchmarkTformABSrcYCbCr(b *testing.B) { benchTform(b, srcYCbCr, 200, 150, ApproxBiLinear) }
+
+func BenchmarkScaleCRSrcGray(b *testing.B)  { benchScale(b, srcGray, 200, 150, CatmullRom) }
+func BenchmarkScaleCRSrcNRGBA(b *testing.B) { benchScale(b, srcNRGBA, 200, 150, CatmullRom) }
+func BenchmarkScaleCRSrcRGBA(b *testing.B)  { benchScale(b, srcRGBA, 200, 150, CatmullRom) }
+func BenchmarkScaleCRSrcYCbCr(b *testing.B) { benchScale(b, srcYCbCr, 200, 150, CatmullRom) }
+
+func BenchmarkTformCRSrcGray(b *testing.B)  { benchTform(b, srcGray, 200, 150, CatmullRom) }
+func BenchmarkTformCRSrcNRGBA(b *testing.B) { benchTform(b, srcNRGBA, 200, 150, CatmullRom) }
+func BenchmarkTformCRSrcRGBA(b *testing.B)  { benchTform(b, srcRGBA, 200, 150, CatmullRom) }
+func BenchmarkTformCRSrcYCbCr(b *testing.B) { benchTform(b, srcYCbCr, 200, 150, CatmullRom) }

@@ -61,50 +61,64 @@ func (z nnInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, sr
 
 func (z nnInterpolator) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
 	dr := transformRect(s2d, &sr)
-	// adr is the affected destination pixels, relative to dr.Min.
-	adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
+	// adr is the affected destination pixels.
+	adr := dst.Bounds().Intersect(dr)
 	if adr.Empty() || sr.Empty() {
 		return
 	}
 	d2s := invert(s2d)
+	// bias is a translation of the mapping from dst co-ordinates to
+	// src co-ordinates such that the latter temporarily have
+	// non-negative X and Y co-ordinates. This allows us to write
+	// int(f) instead of int(math.Floor(f)), since "round to zero" and
+	// "round down" are equivalent when f >= 0, but the former is much
+	// cheaper. The X-- and Y-- are because the TransformLeaf methods
+	// have a "sx -= 0.5" adjustment.
+	bias := transformRect(&d2s, &adr).Min
+	bias.X--
+	bias.Y--
+	d2s[2] -= float64(bias.X)
+	d2s[5] -= float64(bias.Y)
+	// Make adr relative to dr.Min.
+	adr = adr.Sub(dr.Min)
 	// sr is the source pixels. If it extends beyond the src bounds,
 	// we cannot use the type-specific fast paths, as they access
 	// the Pix fields directly without bounds checking.
 	if !sr.In(src.Bounds()) {
-		z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+		z.transform_Image_Image(dst, dr, adr, &d2s, src, sr, bias)
 	} else if u, ok := src.(*image.Uniform); ok {
 		// TODO: get the Op from opts.
-		transform_Uniform(dst, dr, adr, &d2s, u, sr, Src)
+		transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, Src)
 	} else {
 		switch dst := dst.(type) {
 		case *image.RGBA:
 			switch src := src.(type) {
 			case *image.Gray:
-				z.transform_RGBA_Gray(dst, dr, adr, &d2s, src, sr)
+				z.transform_RGBA_Gray(dst, dr, adr, &d2s, src, sr, bias)
 			case *image.NRGBA:
-				z.transform_RGBA_NRGBA(dst, dr, adr, &d2s, src, sr)
+				z.transform_RGBA_NRGBA(dst, dr, adr, &d2s, src, sr, bias)
 			case *image.RGBA:
-				z.transform_RGBA_RGBA(dst, dr, adr, &d2s, src, sr)
+				z.transform_RGBA_RGBA(dst, dr, adr, &d2s, src, sr, bias)
 			case *image.YCbCr:
 				switch src.SubsampleRatio {
 				default:
-					z.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr)
+					z.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr, bias)
 				case image.YCbCrSubsampleRatio444:
-					z.transform_RGBA_YCbCr444(dst, dr, adr, &d2s, src, sr)
+					z.transform_RGBA_YCbCr444(dst, dr, adr, &d2s, src, sr, bias)
 				case image.YCbCrSubsampleRatio422:
-					z.transform_RGBA_YCbCr422(dst, dr, adr, &d2s, src, sr)
+					z.transform_RGBA_YCbCr422(dst, dr, adr, &d2s, src, sr, bias)
 				case image.YCbCrSubsampleRatio420:
-					z.transform_RGBA_YCbCr420(dst, dr, adr, &d2s, src, sr)
+					z.transform_RGBA_YCbCr420(dst, dr, adr, &d2s, src, sr, bias)
 				case image.YCbCrSubsampleRatio440:
-					z.transform_RGBA_YCbCr440(dst, dr, adr, &d2s, src, sr)
+					z.transform_RGBA_YCbCr440(dst, dr, adr, &d2s, src, sr, bias)
 				}
 			default:
-				z.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr)
+				z.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr, bias)
 			}
 		default:
 			switch src := src.(type) {
 			default:
-				z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+				z.transform_Image_Image(dst, dr, adr, &d2s, src, sr, bias)
 			}
 		}
 	}
@@ -405,15 +419,14 @@ func (nnInterpolator) scale_Image_Image(dst Image, dr, adr image.Rectangle, src 
 	}
 }
 
-func (nnInterpolator) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Gray, sr image.Rectangle) {
+func (nnInterpolator) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Gray, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
-			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
-			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
+			sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+			sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
 			if !(image.Point{sx0, sy0}).In(sr) {
 				continue
 			}
@@ -428,15 +441,14 @@ func (nnInterpolator) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectang
 	}
 }
 
-func (nnInterpolator) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle) {
+func (nnInterpolator) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
-			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
-			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
+			sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+			sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
 			if !(image.Point{sx0, sy0}).In(sr) {
 				continue
 			}
@@ -453,15 +465,14 @@ func (nnInterpolator) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Rectan
 	}
 }
 
-func (nnInterpolator) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle) {
+func (nnInterpolator) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
-			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
-			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
+			sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+			sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
 			if !(image.Point{sx0, sy0}).In(sr) {
 				continue
 			}
@@ -478,15 +489,14 @@ func (nnInterpolator) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectang
 	}
 }
 
-func (nnInterpolator) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle) {
+func (nnInterpolator) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
-			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
-			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
+			sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+			sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
 			if !(image.Point{sx0, sy0}).In(sr) {
 				continue
 			}
@@ -527,15 +537,14 @@ func (nnInterpolator) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rec
 	}
 }
 
-func (nnInterpolator) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle) {
+func (nnInterpolator) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
-			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
-			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
+			sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+			sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
 			if !(image.Point{sx0, sy0}).In(sr) {
 				continue
 			}
@@ -576,15 +585,14 @@ func (nnInterpolator) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rec
 	}
 }
 
-func (nnInterpolator) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle) {
+func (nnInterpolator) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
-			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
-			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
+			sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+			sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
 			if !(image.Point{sx0, sy0}).In(sr) {
 				continue
 			}
@@ -625,15 +633,14 @@ func (nnInterpolator) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rec
 	}
 }
 
-func (nnInterpolator) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle) {
+func (nnInterpolator) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
-			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
-			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
+			sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+			sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
 			if !(image.Point{sx0, sy0}).In(sr) {
 				continue
 			}
@@ -674,15 +681,14 @@ func (nnInterpolator) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rec
 	}
 }
 
-func (nnInterpolator) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle) {
+func (nnInterpolator) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
-			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
-			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
+			sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+			sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
 			if !(image.Point{sx0, sy0}).In(sr) {
 				continue
 			}
@@ -695,16 +701,15 @@ func (nnInterpolator) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Rectan
 	}
 }
 
-func (nnInterpolator) transform_Image_Image(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle) {
+func (nnInterpolator) transform_Image_Image(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point) {
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
-			sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
-			sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
+			sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+			sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
 			if !(image.Point{sx0, sy0}).In(sr) {
 				continue
 			}
@@ -769,50 +774,64 @@ func (z ablInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, s
 
 func (z ablInterpolator) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
 	dr := transformRect(s2d, &sr)
-	// adr is the affected destination pixels, relative to dr.Min.
-	adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
+	// adr is the affected destination pixels.
+	adr := dst.Bounds().Intersect(dr)
 	if adr.Empty() || sr.Empty() {
 		return
 	}
 	d2s := invert(s2d)
+	// bias is a translation of the mapping from dst co-ordinates to
+	// src co-ordinates such that the latter temporarily have
+	// non-negative X and Y co-ordinates. This allows us to write
+	// int(f) instead of int(math.Floor(f)), since "round to zero" and
+	// "round down" are equivalent when f >= 0, but the former is much
+	// cheaper. The X-- and Y-- are because the TransformLeaf methods
+	// have a "sx -= 0.5" adjustment.
+	bias := transformRect(&d2s, &adr).Min
+	bias.X--
+	bias.Y--
+	d2s[2] -= float64(bias.X)
+	d2s[5] -= float64(bias.Y)
+	// Make adr relative to dr.Min.
+	adr = adr.Sub(dr.Min)
 	// sr is the source pixels. If it extends beyond the src bounds,
 	// we cannot use the type-specific fast paths, as they access
 	// the Pix fields directly without bounds checking.
 	if !sr.In(src.Bounds()) {
-		z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+		z.transform_Image_Image(dst, dr, adr, &d2s, src, sr, bias)
 	} else if u, ok := src.(*image.Uniform); ok {
 		// TODO: get the Op from opts.
-		transform_Uniform(dst, dr, adr, &d2s, u, sr, Src)
+		transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, Src)
 	} else {
 		switch dst := dst.(type) {
 		case *image.RGBA:
 			switch src := src.(type) {
 			case *image.Gray:
-				z.transform_RGBA_Gray(dst, dr, adr, &d2s, src, sr)
+				z.transform_RGBA_Gray(dst, dr, adr, &d2s, src, sr, bias)
 			case *image.NRGBA:
-				z.transform_RGBA_NRGBA(dst, dr, adr, &d2s, src, sr)
+				z.transform_RGBA_NRGBA(dst, dr, adr, &d2s, src, sr, bias)
 			case *image.RGBA:
-				z.transform_RGBA_RGBA(dst, dr, adr, &d2s, src, sr)
+				z.transform_RGBA_RGBA(dst, dr, adr, &d2s, src, sr, bias)
 			case *image.YCbCr:
 				switch src.SubsampleRatio {
 				default:
-					z.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr)
+					z.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr, bias)
 				case image.YCbCrSubsampleRatio444:
-					z.transform_RGBA_YCbCr444(dst, dr, adr, &d2s, src, sr)
+					z.transform_RGBA_YCbCr444(dst, dr, adr, &d2s, src, sr, bias)
 				case image.YCbCrSubsampleRatio422:
-					z.transform_RGBA_YCbCr422(dst, dr, adr, &d2s, src, sr)
+					z.transform_RGBA_YCbCr422(dst, dr, adr, &d2s, src, sr, bias)
 				case image.YCbCrSubsampleRatio420:
-					z.transform_RGBA_YCbCr420(dst, dr, adr, &d2s, src, sr)
+					z.transform_RGBA_YCbCr420(dst, dr, adr, &d2s, src, sr, bias)
 				case image.YCbCrSubsampleRatio440:
-					z.transform_RGBA_YCbCr440(dst, dr, adr, &d2s, src, sr)
+					z.transform_RGBA_YCbCr440(dst, dr, adr, &d2s, src, sr, bias)
 				}
 			default:
-				z.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr)
+				z.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr, bias)
 			}
 		default:
 			switch src := src.(type) {
 			default:
-				z.transform_Image_Image(dst, dr, adr, &d2s, src, sr)
+				z.transform_Image_Image(dst, dr, adr, &d2s, src, sr, bias)
 			}
 		}
 	}
@@ -1967,24 +1986,23 @@ func (ablInterpolator) scale_Image_Image(dst Image, dr, adr image.Rectangle, src
 	}
 }
 
-func (ablInterpolator) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Gray, sr image.Rectangle) {
+func (ablInterpolator) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Gray, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
 			sx -= 0.5
-			sxf := math.Floor(sx)
-			xFrac0 := sx - sxf
+			sx0 := int(sx)
+			xFrac0 := sx - float64(sx0)
 			xFrac1 := 1 - xFrac0
-			sx0 := int(sxf)
+			sx0 += bias.X
 			sx1 := sx0 + 1
 			if sx0 < sr.Min.X {
 				sx0, sx1 = sr.Min.X, sr.Min.X
@@ -1995,10 +2013,10 @@ func (ablInterpolator) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectan
 			}
 
 			sy -= 0.5
-			syf := math.Floor(sy)
-			yFrac0 := sy - syf
+			sy0 := int(sy)
+			yFrac0 := sy - float64(sy0)
 			yFrac1 := 1 - yFrac0
-			sy0 := int(syf)
+			sy0 += bias.Y
 			sy1 := sy0 + 1
 			if sy0 < sr.Min.Y {
 				sy0, sy1 = sr.Min.Y, sr.Min.Y
@@ -2032,24 +2050,23 @@ func (ablInterpolator) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectan
 	}
 }
 
-func (ablInterpolator) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle) {
+func (ablInterpolator) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
 			sx -= 0.5
-			sxf := math.Floor(sx)
-			xFrac0 := sx - sxf
+			sx0 := int(sx)
+			xFrac0 := sx - float64(sx0)
 			xFrac1 := 1 - xFrac0
-			sx0 := int(sxf)
+			sx0 += bias.X
 			sx1 := sx0 + 1
 			if sx0 < sr.Min.X {
 				sx0, sx1 = sr.Min.X, sr.Min.X
@@ -2060,10 +2077,10 @@ func (ablInterpolator) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Recta
 			}
 
 			sy -= 0.5
-			syf := math.Floor(sy)
-			yFrac0 := sy - syf
+			sy0 := int(sy)
+			yFrac0 := sy - float64(sy0)
 			yFrac1 := 1 - yFrac0
-			sy0 := int(syf)
+			sy0 += bias.Y
 			sy1 := sy0 + 1
 			if sy0 < sr.Min.Y {
 				sy0, sy1 = sr.Min.Y, sr.Min.Y
@@ -2129,24 +2146,23 @@ func (ablInterpolator) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Recta
 	}
 }
 
-func (ablInterpolator) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle) {
+func (ablInterpolator) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
 			sx -= 0.5
-			sxf := math.Floor(sx)
-			xFrac0 := sx - sxf
+			sx0 := int(sx)
+			xFrac0 := sx - float64(sx0)
 			xFrac1 := 1 - xFrac0
-			sx0 := int(sxf)
+			sx0 += bias.X
 			sx1 := sx0 + 1
 			if sx0 < sr.Min.X {
 				sx0, sx1 = sr.Min.X, sr.Min.X
@@ -2157,10 +2173,10 @@ func (ablInterpolator) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectan
 			}
 
 			sy -= 0.5
-			syf := math.Floor(sy)
-			yFrac0 := sy - syf
+			sy0 := int(sy)
+			yFrac0 := sy - float64(sy0)
 			yFrac1 := 1 - yFrac0
-			sy0 := int(syf)
+			sy0 += bias.Y
 			sy1 := sy0 + 1
 			if sy0 < sr.Min.Y {
 				sy0, sy1 = sr.Min.Y, sr.Min.Y
@@ -2226,24 +2242,23 @@ func (ablInterpolator) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectan
 	}
 }
 
-func (ablInterpolator) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle) {
+func (ablInterpolator) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
 			sx -= 0.5
-			sxf := math.Floor(sx)
-			xFrac0 := sx - sxf
+			sx0 := int(sx)
+			xFrac0 := sx - float64(sx0)
 			xFrac1 := 1 - xFrac0
-			sx0 := int(sxf)
+			sx0 += bias.X
 			sx1 := sx0 + 1
 			if sx0 < sr.Min.X {
 				sx0, sx1 = sr.Min.X, sr.Min.X
@@ -2254,10 +2269,10 @@ func (ablInterpolator) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Re
 			}
 
 			sy -= 0.5
-			syf := math.Floor(sy)
-			yFrac0 := sy - syf
+			sy0 := int(sy)
+			yFrac0 := sy - float64(sy0)
 			yFrac1 := 1 - yFrac0
-			sy0 := int(syf)
+			sy0 += bias.Y
 			sy1 := sy0 + 1
 			if sy0 < sr.Min.Y {
 				sy0, sy1 = sr.Min.Y, sr.Min.Y
@@ -2412,24 +2427,23 @@ func (ablInterpolator) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Re
 	}
 }
 
-func (ablInterpolator) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle) {
+func (ablInterpolator) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
 			sx -= 0.5
-			sxf := math.Floor(sx)
-			xFrac0 := sx - sxf
+			sx0 := int(sx)
+			xFrac0 := sx - float64(sx0)
 			xFrac1 := 1 - xFrac0
-			sx0 := int(sxf)
+			sx0 += bias.X
 			sx1 := sx0 + 1
 			if sx0 < sr.Min.X {
 				sx0, sx1 = sr.Min.X, sr.Min.X
@@ -2440,10 +2454,10 @@ func (ablInterpolator) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Re
 			}
 
 			sy -= 0.5
-			syf := math.Floor(sy)
-			yFrac0 := sy - syf
+			sy0 := int(sy)
+			yFrac0 := sy - float64(sy0)
 			yFrac1 := 1 - yFrac0
-			sy0 := int(syf)
+			sy0 += bias.Y
 			sy1 := sy0 + 1
 			if sy0 < sr.Min.Y {
 				sy0, sy1 = sr.Min.Y, sr.Min.Y
@@ -2598,24 +2612,23 @@ func (ablInterpolator) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Re
 	}
 }
 
-func (ablInterpolator) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle) {
+func (ablInterpolator) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
 			sx -= 0.5
-			sxf := math.Floor(sx)
-			xFrac0 := sx - sxf
+			sx0 := int(sx)
+			xFrac0 := sx - float64(sx0)
 			xFrac1 := 1 - xFrac0
-			sx0 := int(sxf)
+			sx0 += bias.X
 			sx1 := sx0 + 1
 			if sx0 < sr.Min.X {
 				sx0, sx1 = sr.Min.X, sr.Min.X
@@ -2626,10 +2639,10 @@ func (ablInterpolator) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Re
 			}
 
 			sy -= 0.5
-			syf := math.Floor(sy)
-			yFrac0 := sy - syf
+			sy0 := int(sy)
+			yFrac0 := sy - float64(sy0)
 			yFrac1 := 1 - yFrac0
-			sy0 := int(syf)
+			sy0 += bias.Y
 			sy1 := sy0 + 1
 			if sy0 < sr.Min.Y {
 				sy0, sy1 = sr.Min.Y, sr.Min.Y
@@ -2784,24 +2797,23 @@ func (ablInterpolator) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Re
 	}
 }
 
-func (ablInterpolator) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle) {
+func (ablInterpolator) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
 			sx -= 0.5
-			sxf := math.Floor(sx)
-			xFrac0 := sx - sxf
+			sx0 := int(sx)
+			xFrac0 := sx - float64(sx0)
 			xFrac1 := 1 - xFrac0
-			sx0 := int(sxf)
+			sx0 += bias.X
 			sx1 := sx0 + 1
 			if sx0 < sr.Min.X {
 				sx0, sx1 = sr.Min.X, sr.Min.X
@@ -2812,10 +2824,10 @@ func (ablInterpolator) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Re
 			}
 
 			sy -= 0.5
-			syf := math.Floor(sy)
-			yFrac0 := sy - syf
+			sy0 := int(sy)
+			yFrac0 := sy - float64(sy0)
 			yFrac1 := 1 - yFrac0
-			sy0 := int(syf)
+			sy0 += bias.Y
 			sy1 := sy0 + 1
 			if sy0 < sr.Min.Y {
 				sy0, sy1 = sr.Min.Y, sr.Min.Y
@@ -2970,24 +2982,23 @@ func (ablInterpolator) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Re
 	}
 }
 
-func (ablInterpolator) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle) {
+func (ablInterpolator) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
 			sx -= 0.5
-			sxf := math.Floor(sx)
-			xFrac0 := sx - sxf
+			sx0 := int(sx)
+			xFrac0 := sx - float64(sx0)
 			xFrac1 := 1 - xFrac0
-			sx0 := int(sxf)
+			sx0 += bias.X
 			sx1 := sx0 + 1
 			if sx0 < sr.Min.X {
 				sx0, sx1 = sr.Min.X, sr.Min.X
@@ -2998,10 +3009,10 @@ func (ablInterpolator) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Recta
 			}
 
 			sy -= 0.5
-			syf := math.Floor(sy)
-			yFrac0 := sy - syf
+			sy0 := int(sy)
+			yFrac0 := sy - float64(sy0)
 			yFrac1 := 1 - yFrac0
-			sy0 := int(syf)
+			sy0 += bias.Y
 			sy1 := sy0 + 1
 			if sy0 < sr.Min.Y {
 				sy0, sy1 = sr.Min.Y, sr.Min.Y
@@ -3051,25 +3062,24 @@ func (ablInterpolator) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Recta
 	}
 }
 
-func (ablInterpolator) transform_Image_Image(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle) {
+func (ablInterpolator) transform_Image_Image(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point) {
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
 			sx -= 0.5
-			sxf := math.Floor(sx)
-			xFrac0 := sx - sxf
+			sx0 := int(sx)
+			xFrac0 := sx - float64(sx0)
 			xFrac1 := 1 - xFrac0
-			sx0 := int(sxf)
+			sx0 += bias.X
 			sx1 := sx0 + 1
 			if sx0 < sr.Min.X {
 				sx0, sx1 = sr.Min.X, sr.Min.X
@@ -3080,10 +3090,10 @@ func (ablInterpolator) transform_Image_Image(dst Image, dr, adr image.Rectangle,
 			}
 
 			sy -= 0.5
-			syf := math.Floor(sy)
-			yFrac0 := sy - syf
+			sy0 := int(sy)
+			yFrac0 := sy - float64(sy0)
 			yFrac1 := 1 - yFrac0
-			sy0 := int(syf)
+			sy0 += bias.Y
 			sy1 := sy0 + 1
 			if sy0 < sr.Min.Y {
 				sy0, sy1 = sr.Min.Y, sr.Min.Y
@@ -3198,16 +3208,30 @@ func (z *kernelScaler) Scale(dst Image, dr image.Rectangle, src image.Image, sr 
 
 func (q *Kernel) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
 	dr := transformRect(s2d, &sr)
-	// adr is the affected destination pixels, relative to dr.Min.
-	adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
+	// adr is the affected destination pixels.
+	adr := dst.Bounds().Intersect(dr)
 	if adr.Empty() || sr.Empty() {
 		return
 	}
 	d2s := invert(s2d)
+	// bias is a translation of the mapping from dst co-ordinates to
+	// src co-ordinates such that the latter temporarily have
+	// non-negative X and Y co-ordinates. This allows us to write
+	// int(f) instead of int(math.Floor(f)), since "round to zero" and
+	// "round down" are equivalent when f >= 0, but the former is much
+	// cheaper. The X-- and Y-- are because the TransformLeaf methods
+	// have a "sx -= 0.5" adjustment.
+	bias := transformRect(&d2s, &adr).Min
+	bias.X--
+	bias.Y--
+	d2s[2] -= float64(bias.X)
+	d2s[5] -= float64(bias.Y)
+	// Make adr relative to dr.Min.
+	adr = adr.Sub(dr.Min)
 
 	if u, ok := src.(*image.Uniform); ok && sr.In(src.Bounds()) {
 		// TODO: get the Op from opts.
-		transform_Uniform(dst, dr, adr, &d2s, u, sr, Src)
+		transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, Src)
 		return
 	}
 
@@ -3224,37 +3248,37 @@ func (q *Kernel) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.R
 	// we cannot use the type-specific fast paths, as they access
 	// the Pix fields directly without bounds checking.
 	if !sr.In(src.Bounds()) {
-		q.transform_Image_Image(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+		q.transform_Image_Image(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 	} else {
 		switch dst := dst.(type) {
 		case *image.RGBA:
 			switch src := src.(type) {
 			case *image.Gray:
-				q.transform_RGBA_Gray(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+				q.transform_RGBA_Gray(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 			case *image.NRGBA:
-				q.transform_RGBA_NRGBA(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+				q.transform_RGBA_NRGBA(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 			case *image.RGBA:
-				q.transform_RGBA_RGBA(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+				q.transform_RGBA_RGBA(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 			case *image.YCbCr:
 				switch src.SubsampleRatio {
 				default:
-					q.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+					q.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 				case image.YCbCrSubsampleRatio444:
-					q.transform_RGBA_YCbCr444(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+					q.transform_RGBA_YCbCr444(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 				case image.YCbCrSubsampleRatio422:
-					q.transform_RGBA_YCbCr422(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+					q.transform_RGBA_YCbCr422(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 				case image.YCbCrSubsampleRatio420:
-					q.transform_RGBA_YCbCr420(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+					q.transform_RGBA_YCbCr420(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 				case image.YCbCrSubsampleRatio440:
-					q.transform_RGBA_YCbCr440(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+					q.transform_RGBA_YCbCr440(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 				}
 			default:
-				q.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+				q.transform_RGBA_Image(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 			}
 		default:
 			switch src := src.(type) {
 			default:
-				q.transform_Image_Image(dst, dr, adr, &d2s, src, sr, xscale, yscale)
+				q.transform_Image_Image(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 			}
 		}
 	}
@@ -3602,7 +3626,7 @@ func (z *kernelScaler) scaleY_Image(dst Image, dr, adr image.Rectangle, tmp [][4
 	}
 }
 
-func (q *Kernel) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Gray, sr image.Rectangle, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Gray, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -3624,13 +3648,15 @@ func (q *Kernel) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, d
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
+			// TODO: adjust the bias so that we can use int(f) instead
+			// of math.Floor(f) and math.Ceil(f).
+			sx += float64(bias.X)
 			sx -= 0.5
 			ix := int(math.Floor(sx - xHalfWidth))
 			if ix < sr.Min.X {
@@ -3654,6 +3680,7 @@ func (q *Kernel) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, d
 				xWeights[x] /= totalXWeight
 			}
 
+			sy += float64(bias.Y)
 			sy -= 0.5
 			iy := int(math.Floor(sy - yHalfWidth))
 			if iy < sr.Min.Y {
@@ -3696,7 +3723,7 @@ func (q *Kernel) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, d
 	}
 }
 
-func (q *Kernel) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -3718,13 +3745,15 @@ func (q *Kernel) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Rectangle, 
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
+			// TODO: adjust the bias so that we can use int(f) instead
+			// of math.Floor(f) and math.Ceil(f).
+			sx += float64(bias.X)
 			sx -= 0.5
 			ix := int(math.Floor(sx - xHalfWidth))
 			if ix < sr.Min.X {
@@ -3748,6 +3777,7 @@ func (q *Kernel) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Rectangle, 
 				xWeights[x] /= totalXWeight
 			}
 
+			sy += float64(bias.Y)
 			sy -= 0.5
 			iy := int(math.Floor(sy - yHalfWidth))
 			if iy < sr.Min.Y {
@@ -3795,7 +3825,7 @@ func (q *Kernel) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Rectangle, 
 	}
 }
 
-func (q *Kernel) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -3817,13 +3847,15 @@ func (q *Kernel) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectangle, d
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
+			// TODO: adjust the bias so that we can use int(f) instead
+			// of math.Floor(f) and math.Ceil(f).
+			sx += float64(bias.X)
 			sx -= 0.5
 			ix := int(math.Floor(sx - xHalfWidth))
 			if ix < sr.Min.X {
@@ -3847,6 +3879,7 @@ func (q *Kernel) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectangle, d
 				xWeights[x] /= totalXWeight
 			}
 
+			sy += float64(bias.Y)
 			sy -= 0.5
 			iy := int(math.Floor(sy - yHalfWidth))
 			if iy < sr.Min.Y {
@@ -3894,7 +3927,7 @@ func (q *Kernel) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectangle, d
 	}
 }
 
-func (q *Kernel) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -3916,13 +3949,15 @@ func (q *Kernel) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectangl
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
+			// TODO: adjust the bias so that we can use int(f) instead
+			// of math.Floor(f) and math.Ceil(f).
+			sx += float64(bias.X)
 			sx -= 0.5
 			ix := int(math.Floor(sx - xHalfWidth))
 			if ix < sr.Min.X {
@@ -3946,6 +3981,7 @@ func (q *Kernel) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectangl
 				xWeights[x] /= totalXWeight
 			}
 
+			sy += float64(bias.Y)
 			sy -= 0.5
 			iy := int(math.Floor(sy - yHalfWidth))
 			if iy < sr.Min.Y {
@@ -4016,7 +4052,7 @@ func (q *Kernel) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectangl
 	}
 }
 
-func (q *Kernel) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -4038,13 +4074,15 @@ func (q *Kernel) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectangl
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
+			// TODO: adjust the bias so that we can use int(f) instead
+			// of math.Floor(f) and math.Ceil(f).
+			sx += float64(bias.X)
 			sx -= 0.5
 			ix := int(math.Floor(sx - xHalfWidth))
 			if ix < sr.Min.X {
@@ -4068,6 +4106,7 @@ func (q *Kernel) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectangl
 				xWeights[x] /= totalXWeight
 			}
 
+			sy += float64(bias.Y)
 			sy -= 0.5
 			iy := int(math.Floor(sy - yHalfWidth))
 			if iy < sr.Min.Y {
@@ -4138,7 +4177,7 @@ func (q *Kernel) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectangl
 	}
 }
 
-func (q *Kernel) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -4160,13 +4199,15 @@ func (q *Kernel) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectangl
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
+			// TODO: adjust the bias so that we can use int(f) instead
+			// of math.Floor(f) and math.Ceil(f).
+			sx += float64(bias.X)
 			sx -= 0.5
 			ix := int(math.Floor(sx - xHalfWidth))
 			if ix < sr.Min.X {
@@ -4190,6 +4231,7 @@ func (q *Kernel) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectangl
 				xWeights[x] /= totalXWeight
 			}
 
+			sy += float64(bias.Y)
 			sy -= 0.5
 			iy := int(math.Floor(sy - yHalfWidth))
 			if iy < sr.Min.Y {
@@ -4260,7 +4302,7 @@ func (q *Kernel) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectangl
 	}
 }
 
-func (q *Kernel) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -4282,13 +4324,15 @@ func (q *Kernel) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectangl
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
+			// TODO: adjust the bias so that we can use int(f) instead
+			// of math.Floor(f) and math.Ceil(f).
+			sx += float64(bias.X)
 			sx -= 0.5
 			ix := int(math.Floor(sx - xHalfWidth))
 			if ix < sr.Min.X {
@@ -4312,6 +4356,7 @@ func (q *Kernel) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectangl
 				xWeights[x] /= totalXWeight
 			}
 
+			sy += float64(bias.Y)
 			sy -= 0.5
 			iy := int(math.Floor(sy - yHalfWidth))
 			if iy < sr.Min.Y {
@@ -4382,7 +4427,7 @@ func (q *Kernel) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectangl
 	}
 }
 
-func (q *Kernel) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -4404,13 +4449,15 @@ func (q *Kernel) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Rectangle, 
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
+			// TODO: adjust the bias so that we can use int(f) instead
+			// of math.Floor(f) and math.Ceil(f).
+			sx += float64(bias.X)
 			sx -= 0.5
 			ix := int(math.Floor(sx - xHalfWidth))
 			if ix < sr.Min.X {
@@ -4434,6 +4481,7 @@ func (q *Kernel) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Rectangle, 
 				xWeights[x] /= totalXWeight
 			}
 
+			sy += float64(bias.Y)
 			sy -= 0.5
 			iy := int(math.Floor(sy - yHalfWidth))
 			if iy < sr.Min.Y {
@@ -4477,7 +4525,7 @@ func (q *Kernel) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Rectangle, 
 	}
 }
 
-func (q *Kernel) transform_Image_Image(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, xscale, yscale float64) {
+func (q *Kernel) transform_Image_Image(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -4500,13 +4548,15 @@ func (q *Kernel) transform_Image_Image(dst Image, dr, adr image.Rectangle, d2s *
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 			dxf := float64(dr.Min.X+int(dx)) + 0.5
-			// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
 			sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
 			sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
-			if !(image.Point{int(math.Floor(sx)), int(math.Floor(sy))}).In(sr) {
+			if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 				continue
 			}
 
+			// TODO: adjust the bias so that we can use int(f) instead
+			// of math.Floor(f) and math.Ceil(f).
+			sx += float64(bias.X)
 			sx -= 0.5
 			ix := int(math.Floor(sx - xHalfWidth))
 			if ix < sr.Min.X {
@@ -4530,6 +4580,7 @@ func (q *Kernel) transform_Image_Image(dst Image, dr, adr image.Rectangle, d2s *
 				xWeights[x] /= totalXWeight
 			}
 
+			sy += float64(bias.Y)
 			sy -= 0.5
 			iy := int(math.Floor(sy - yHalfWidth))
 			if iy < sr.Min.Y {
