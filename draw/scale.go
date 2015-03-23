@@ -353,7 +353,7 @@ func transformRect(s2d *f64.Aff3, sr *image.Rectangle) (dr image.Rectangle) {
 	return dr
 }
 
-func transform_Uniform(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Uniform, sr image.Rectangle, op Op) {
+func transform_Uniform(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Uniform, sr image.Rectangle, bias image.Point, op Op) {
 	switch dst := dst.(type) {
 	case *image.RGBA:
 		pr, pg, pb, pa := src.C.RGBA()
@@ -367,9 +367,8 @@ func transform_Uniform(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src *i
 			d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
 			for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 				dxf := float64(dr.Min.X+int(dx)) + 0.5
-				// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
-				sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
-				sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
+				sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+				sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
 				if !(image.Point{sx0, sy0}).In(sr) {
 					continue
 				}
@@ -394,9 +393,8 @@ func transform_Uniform(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src *i
 			dyf := float64(dr.Min.Y+int(dy)) + 0.5
 			for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 				dxf := float64(dr.Min.X+int(dx)) + 0.5
-				// TODO: change the src origin so that we can say int(f) instead of int(math.Floor(f)).
-				sx0 := int(math.Floor(d2s[0]*dxf + d2s[1]*dyf + d2s[2]))
-				sy0 := int(math.Floor(d2s[3]*dxf + d2s[4]*dyf + d2s[5]))
+				sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+				sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
 				if !(image.Point{sx0, sy0}).In(sr) {
 					continue
 				}
