@@ -1131,10 +1131,12 @@ const (
 
 					var pr, pg, pb, pa float64 $tweakVarP
 					for ky := iy; ky < jy; ky++ {
-						yWeight := yWeights[ky - iy]
-						for kx := ix; kx < jx; kx++ {
-							w := xWeights[kx - ix] * yWeight
-							p += $srcf[kx, ky] * w
+						if yWeight := yWeights[ky - iy]; yWeight != 0 {
+							for kx := ix; kx < jx; kx++ {
+								if w := xWeights[kx - ix] * yWeight; w != 0 {
+									p += $srcf[kx, ky] * w
+								}
+							}
 						}
 					}
 					$outputf[dr.Min.X + int(dx), dr.Min.Y + int(dy), fffftou, p, 1]

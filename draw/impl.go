@@ -3706,12 +3706,14 @@ func (q *Kernel) transform_RGBA_Gray(dst *image.RGBA, dr, adr image.Rectangle, d
 
 			var pr float64
 			for ky := iy; ky < jy; ky++ {
-				yWeight := yWeights[ky-iy]
-				for kx := ix; kx < jx; kx++ {
-					w := xWeights[kx-ix] * yWeight
-					pi := (ky-src.Rect.Min.Y)*src.Stride + (kx - src.Rect.Min.X)
-					pru := uint32(src.Pix[pi]) * 0x101
-					pr += float64(pru) * w
+				if yWeight := yWeights[ky-iy]; yWeight != 0 {
+					for kx := ix; kx < jx; kx++ {
+						if w := xWeights[kx-ix] * yWeight; w != 0 {
+							pi := (ky-src.Rect.Min.Y)*src.Stride + (kx - src.Rect.Min.X)
+							pru := uint32(src.Pix[pi]) * 0x101
+							pr += float64(pru) * w
+						}
+					}
 				}
 			}
 			out := uint8(fffftou(pr) >> 8)
@@ -3803,18 +3805,20 @@ func (q *Kernel) transform_RGBA_NRGBA(dst *image.RGBA, dr, adr image.Rectangle, 
 
 			var pr, pg, pb, pa float64
 			for ky := iy; ky < jy; ky++ {
-				yWeight := yWeights[ky-iy]
-				for kx := ix; kx < jx; kx++ {
-					w := xWeights[kx-ix] * yWeight
-					pi := (ky-src.Rect.Min.Y)*src.Stride + (kx-src.Rect.Min.X)*4
-					pau := uint32(src.Pix[pi+3]) * 0x101
-					pru := uint32(src.Pix[pi+0]) * pau / 0xff
-					pgu := uint32(src.Pix[pi+1]) * pau / 0xff
-					pbu := uint32(src.Pix[pi+2]) * pau / 0xff
-					pr += float64(pru) * w
-					pg += float64(pgu) * w
-					pb += float64(pbu) * w
-					pa += float64(pau) * w
+				if yWeight := yWeights[ky-iy]; yWeight != 0 {
+					for kx := ix; kx < jx; kx++ {
+						if w := xWeights[kx-ix] * yWeight; w != 0 {
+							pi := (ky-src.Rect.Min.Y)*src.Stride + (kx-src.Rect.Min.X)*4
+							pau := uint32(src.Pix[pi+3]) * 0x101
+							pru := uint32(src.Pix[pi+0]) * pau / 0xff
+							pgu := uint32(src.Pix[pi+1]) * pau / 0xff
+							pbu := uint32(src.Pix[pi+2]) * pau / 0xff
+							pr += float64(pru) * w
+							pg += float64(pgu) * w
+							pb += float64(pbu) * w
+							pa += float64(pau) * w
+						}
+					}
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -3905,18 +3909,20 @@ func (q *Kernel) transform_RGBA_RGBA(dst *image.RGBA, dr, adr image.Rectangle, d
 
 			var pr, pg, pb, pa float64
 			for ky := iy; ky < jy; ky++ {
-				yWeight := yWeights[ky-iy]
-				for kx := ix; kx < jx; kx++ {
-					w := xWeights[kx-ix] * yWeight
-					pi := (ky-src.Rect.Min.Y)*src.Stride + (kx-src.Rect.Min.X)*4
-					pru := uint32(src.Pix[pi+0]) * 0x101
-					pgu := uint32(src.Pix[pi+1]) * 0x101
-					pbu := uint32(src.Pix[pi+2]) * 0x101
-					pau := uint32(src.Pix[pi+3]) * 0x101
-					pr += float64(pru) * w
-					pg += float64(pgu) * w
-					pb += float64(pbu) * w
-					pa += float64(pau) * w
+				if yWeight := yWeights[ky-iy]; yWeight != 0 {
+					for kx := ix; kx < jx; kx++ {
+						if w := xWeights[kx-ix] * yWeight; w != 0 {
+							pi := (ky-src.Rect.Min.Y)*src.Stride + (kx-src.Rect.Min.X)*4
+							pru := uint32(src.Pix[pi+0]) * 0x101
+							pgu := uint32(src.Pix[pi+1]) * 0x101
+							pbu := uint32(src.Pix[pi+2]) * 0x101
+							pau := uint32(src.Pix[pi+3]) * 0x101
+							pr += float64(pru) * w
+							pg += float64(pgu) * w
+							pb += float64(pbu) * w
+							pa += float64(pau) * w
+						}
+					}
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -4007,41 +4013,43 @@ func (q *Kernel) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectangl
 
 			var pr, pg, pb float64
 			for ky := iy; ky < jy; ky++ {
-				yWeight := yWeights[ky-iy]
-				for kx := ix; kx < jx; kx++ {
-					w := xWeights[kx-ix] * yWeight
-					pi := (ky-src.Rect.Min.Y)*src.YStride + (kx - src.Rect.Min.X)
-					pj := (ky-src.Rect.Min.Y)*src.CStride + (kx - src.Rect.Min.X)
+				if yWeight := yWeights[ky-iy]; yWeight != 0 {
+					for kx := ix; kx < jx; kx++ {
+						if w := xWeights[kx-ix] * yWeight; w != 0 {
+							pi := (ky-src.Rect.Min.Y)*src.YStride + (kx - src.Rect.Min.X)
+							pj := (ky-src.Rect.Min.Y)*src.CStride + (kx - src.Rect.Min.X)
 
-					// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
-					pyy1 := int(src.Y[pi])<<16 + 1<<15
-					pcb1 := int(src.Cb[pj]) - 128
-					pcr1 := int(src.Cr[pj]) - 128
-					pr8 := (pyy1 + 91881*pcr1) >> 16
-					pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-					pb8 := (pyy1 + 116130*pcb1) >> 16
-					if pr8 < 0 {
-						pr8 = 0
-					} else if pr8 > 0xff {
-						pr8 = 0xff
-					}
-					if pg8 < 0 {
-						pg8 = 0
-					} else if pg8 > 0xff {
-						pg8 = 0xff
-					}
-					if pb8 < 0 {
-						pb8 = 0
-					} else if pb8 > 0xff {
-						pb8 = 0xff
-					}
+							// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+							pyy1 := int(src.Y[pi])<<16 + 1<<15
+							pcb1 := int(src.Cb[pj]) - 128
+							pcr1 := int(src.Cr[pj]) - 128
+							pr8 := (pyy1 + 91881*pcr1) >> 16
+							pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
+							pb8 := (pyy1 + 116130*pcb1) >> 16
+							if pr8 < 0 {
+								pr8 = 0
+							} else if pr8 > 0xff {
+								pr8 = 0xff
+							}
+							if pg8 < 0 {
+								pg8 = 0
+							} else if pg8 > 0xff {
+								pg8 = 0xff
+							}
+							if pb8 < 0 {
+								pb8 = 0
+							} else if pb8 > 0xff {
+								pb8 = 0xff
+							}
 
-					pru := uint32(pr8) * 0x101
-					pgu := uint32(pg8) * 0x101
-					pbu := uint32(pb8) * 0x101
-					pr += float64(pru) * w
-					pg += float64(pgu) * w
-					pb += float64(pbu) * w
+							pru := uint32(pr8) * 0x101
+							pgu := uint32(pg8) * 0x101
+							pbu := uint32(pb8) * 0x101
+							pr += float64(pru) * w
+							pg += float64(pgu) * w
+							pb += float64(pbu) * w
+						}
+					}
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -4132,41 +4140,43 @@ func (q *Kernel) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectangl
 
 			var pr, pg, pb float64
 			for ky := iy; ky < jy; ky++ {
-				yWeight := yWeights[ky-iy]
-				for kx := ix; kx < jx; kx++ {
-					w := xWeights[kx-ix] * yWeight
-					pi := (ky-src.Rect.Min.Y)*src.YStride + (kx - src.Rect.Min.X)
-					pj := (ky-src.Rect.Min.Y)*src.CStride + ((kx)/2 - src.Rect.Min.X/2)
+				if yWeight := yWeights[ky-iy]; yWeight != 0 {
+					for kx := ix; kx < jx; kx++ {
+						if w := xWeights[kx-ix] * yWeight; w != 0 {
+							pi := (ky-src.Rect.Min.Y)*src.YStride + (kx - src.Rect.Min.X)
+							pj := (ky-src.Rect.Min.Y)*src.CStride + ((kx)/2 - src.Rect.Min.X/2)
 
-					// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
-					pyy1 := int(src.Y[pi])<<16 + 1<<15
-					pcb1 := int(src.Cb[pj]) - 128
-					pcr1 := int(src.Cr[pj]) - 128
-					pr8 := (pyy1 + 91881*pcr1) >> 16
-					pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-					pb8 := (pyy1 + 116130*pcb1) >> 16
-					if pr8 < 0 {
-						pr8 = 0
-					} else if pr8 > 0xff {
-						pr8 = 0xff
-					}
-					if pg8 < 0 {
-						pg8 = 0
-					} else if pg8 > 0xff {
-						pg8 = 0xff
-					}
-					if pb8 < 0 {
-						pb8 = 0
-					} else if pb8 > 0xff {
-						pb8 = 0xff
-					}
+							// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+							pyy1 := int(src.Y[pi])<<16 + 1<<15
+							pcb1 := int(src.Cb[pj]) - 128
+							pcr1 := int(src.Cr[pj]) - 128
+							pr8 := (pyy1 + 91881*pcr1) >> 16
+							pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
+							pb8 := (pyy1 + 116130*pcb1) >> 16
+							if pr8 < 0 {
+								pr8 = 0
+							} else if pr8 > 0xff {
+								pr8 = 0xff
+							}
+							if pg8 < 0 {
+								pg8 = 0
+							} else if pg8 > 0xff {
+								pg8 = 0xff
+							}
+							if pb8 < 0 {
+								pb8 = 0
+							} else if pb8 > 0xff {
+								pb8 = 0xff
+							}
 
-					pru := uint32(pr8) * 0x101
-					pgu := uint32(pg8) * 0x101
-					pbu := uint32(pb8) * 0x101
-					pr += float64(pru) * w
-					pg += float64(pgu) * w
-					pb += float64(pbu) * w
+							pru := uint32(pr8) * 0x101
+							pgu := uint32(pg8) * 0x101
+							pbu := uint32(pb8) * 0x101
+							pr += float64(pru) * w
+							pg += float64(pgu) * w
+							pb += float64(pbu) * w
+						}
+					}
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -4257,41 +4267,43 @@ func (q *Kernel) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectangl
 
 			var pr, pg, pb float64
 			for ky := iy; ky < jy; ky++ {
-				yWeight := yWeights[ky-iy]
-				for kx := ix; kx < jx; kx++ {
-					w := xWeights[kx-ix] * yWeight
-					pi := (ky-src.Rect.Min.Y)*src.YStride + (kx - src.Rect.Min.X)
-					pj := ((ky)/2-src.Rect.Min.Y/2)*src.CStride + ((kx)/2 - src.Rect.Min.X/2)
+				if yWeight := yWeights[ky-iy]; yWeight != 0 {
+					for kx := ix; kx < jx; kx++ {
+						if w := xWeights[kx-ix] * yWeight; w != 0 {
+							pi := (ky-src.Rect.Min.Y)*src.YStride + (kx - src.Rect.Min.X)
+							pj := ((ky)/2-src.Rect.Min.Y/2)*src.CStride + ((kx)/2 - src.Rect.Min.X/2)
 
-					// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
-					pyy1 := int(src.Y[pi])<<16 + 1<<15
-					pcb1 := int(src.Cb[pj]) - 128
-					pcr1 := int(src.Cr[pj]) - 128
-					pr8 := (pyy1 + 91881*pcr1) >> 16
-					pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-					pb8 := (pyy1 + 116130*pcb1) >> 16
-					if pr8 < 0 {
-						pr8 = 0
-					} else if pr8 > 0xff {
-						pr8 = 0xff
-					}
-					if pg8 < 0 {
-						pg8 = 0
-					} else if pg8 > 0xff {
-						pg8 = 0xff
-					}
-					if pb8 < 0 {
-						pb8 = 0
-					} else if pb8 > 0xff {
-						pb8 = 0xff
-					}
+							// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+							pyy1 := int(src.Y[pi])<<16 + 1<<15
+							pcb1 := int(src.Cb[pj]) - 128
+							pcr1 := int(src.Cr[pj]) - 128
+							pr8 := (pyy1 + 91881*pcr1) >> 16
+							pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
+							pb8 := (pyy1 + 116130*pcb1) >> 16
+							if pr8 < 0 {
+								pr8 = 0
+							} else if pr8 > 0xff {
+								pr8 = 0xff
+							}
+							if pg8 < 0 {
+								pg8 = 0
+							} else if pg8 > 0xff {
+								pg8 = 0xff
+							}
+							if pb8 < 0 {
+								pb8 = 0
+							} else if pb8 > 0xff {
+								pb8 = 0xff
+							}
 
-					pru := uint32(pr8) * 0x101
-					pgu := uint32(pg8) * 0x101
-					pbu := uint32(pb8) * 0x101
-					pr += float64(pru) * w
-					pg += float64(pgu) * w
-					pb += float64(pbu) * w
+							pru := uint32(pr8) * 0x101
+							pgu := uint32(pg8) * 0x101
+							pbu := uint32(pb8) * 0x101
+							pr += float64(pru) * w
+							pg += float64(pgu) * w
+							pb += float64(pbu) * w
+						}
+					}
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -4382,41 +4394,43 @@ func (q *Kernel) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectangl
 
 			var pr, pg, pb float64
 			for ky := iy; ky < jy; ky++ {
-				yWeight := yWeights[ky-iy]
-				for kx := ix; kx < jx; kx++ {
-					w := xWeights[kx-ix] * yWeight
-					pi := (ky-src.Rect.Min.Y)*src.YStride + (kx - src.Rect.Min.X)
-					pj := ((ky)/2-src.Rect.Min.Y/2)*src.CStride + (kx - src.Rect.Min.X)
+				if yWeight := yWeights[ky-iy]; yWeight != 0 {
+					for kx := ix; kx < jx; kx++ {
+						if w := xWeights[kx-ix] * yWeight; w != 0 {
+							pi := (ky-src.Rect.Min.Y)*src.YStride + (kx - src.Rect.Min.X)
+							pj := ((ky)/2-src.Rect.Min.Y/2)*src.CStride + (kx - src.Rect.Min.X)
 
-					// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
-					pyy1 := int(src.Y[pi])<<16 + 1<<15
-					pcb1 := int(src.Cb[pj]) - 128
-					pcr1 := int(src.Cr[pj]) - 128
-					pr8 := (pyy1 + 91881*pcr1) >> 16
-					pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-					pb8 := (pyy1 + 116130*pcb1) >> 16
-					if pr8 < 0 {
-						pr8 = 0
-					} else if pr8 > 0xff {
-						pr8 = 0xff
-					}
-					if pg8 < 0 {
-						pg8 = 0
-					} else if pg8 > 0xff {
-						pg8 = 0xff
-					}
-					if pb8 < 0 {
-						pb8 = 0
-					} else if pb8 > 0xff {
-						pb8 = 0xff
-					}
+							// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+							pyy1 := int(src.Y[pi])<<16 + 1<<15
+							pcb1 := int(src.Cb[pj]) - 128
+							pcr1 := int(src.Cr[pj]) - 128
+							pr8 := (pyy1 + 91881*pcr1) >> 16
+							pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
+							pb8 := (pyy1 + 116130*pcb1) >> 16
+							if pr8 < 0 {
+								pr8 = 0
+							} else if pr8 > 0xff {
+								pr8 = 0xff
+							}
+							if pg8 < 0 {
+								pg8 = 0
+							} else if pg8 > 0xff {
+								pg8 = 0xff
+							}
+							if pb8 < 0 {
+								pb8 = 0
+							} else if pb8 > 0xff {
+								pb8 = 0xff
+							}
 
-					pru := uint32(pr8) * 0x101
-					pgu := uint32(pg8) * 0x101
-					pbu := uint32(pb8) * 0x101
-					pr += float64(pru) * w
-					pg += float64(pgu) * w
-					pb += float64(pbu) * w
+							pru := uint32(pr8) * 0x101
+							pgu := uint32(pg8) * 0x101
+							pbu := uint32(pb8) * 0x101
+							pr += float64(pru) * w
+							pg += float64(pgu) * w
+							pb += float64(pbu) * w
+						}
+					}
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -4507,14 +4521,16 @@ func (q *Kernel) transform_RGBA_Image(dst *image.RGBA, dr, adr image.Rectangle, 
 
 			var pr, pg, pb, pa float64
 			for ky := iy; ky < jy; ky++ {
-				yWeight := yWeights[ky-iy]
-				for kx := ix; kx < jx; kx++ {
-					w := xWeights[kx-ix] * yWeight
-					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
-					pr += float64(pru) * w
-					pg += float64(pgu) * w
-					pb += float64(pbu) * w
-					pa += float64(pau) * w
+				if yWeight := yWeights[ky-iy]; yWeight != 0 {
+					for kx := ix; kx < jx; kx++ {
+						if w := xWeights[kx-ix] * yWeight; w != 0 {
+							pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+							pr += float64(pru) * w
+							pg += float64(pgu) * w
+							pb += float64(pbu) * w
+							pa += float64(pau) * w
+						}
+					}
 				}
 			}
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
@@ -4606,14 +4622,16 @@ func (q *Kernel) transform_Image_Image(dst Image, dr, adr image.Rectangle, d2s *
 
 			var pr, pg, pb, pa float64
 			for ky := iy; ky < jy; ky++ {
-				yWeight := yWeights[ky-iy]
-				for kx := ix; kx < jx; kx++ {
-					w := xWeights[kx-ix] * yWeight
-					pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
-					pr += float64(pru) * w
-					pg += float64(pgu) * w
-					pb += float64(pbu) * w
-					pa += float64(pau) * w
+				if yWeight := yWeights[ky-iy]; yWeight != 0 {
+					for kx := ix; kx < jx; kx++ {
+						if w := xWeights[kx-ix] * yWeight; w != 0 {
+							pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+							pr += float64(pru) * w
+							pg += float64(pgu) * w
+							pb += float64(pbu) * w
+							pa += float64(pau) * w
+						}
+					}
 				}
 			}
 			dstColorRGBA64.R = fffftou(pr)
