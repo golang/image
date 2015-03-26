@@ -204,32 +204,28 @@ func (nnInterpolator) scale_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectang
 			pi := (sr.Min.Y+int(sy)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx) - src.Rect.Min.X)
 			pj := (sr.Min.Y+int(sy)-src.Rect.Min.Y)*src.CStride + (sr.Min.X + int(sx) - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			pyy1 := int(src.Y[pi])<<16 + 1<<15
 			pcb1 := int(src.Cb[pj]) - 128
 			pcr1 := int(src.Cr[pj]) - 128
-			pr8 := (pyy1 + 91881*pcr1) >> 16
-			pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-			pb8 := (pyy1 + 116130*pcb1) >> 16
-			if pr8 < 0 {
-				pr8 = 0
-			} else if pr8 > 0xff {
-				pr8 = 0xff
+			pr := (pyy1 + 91881*pcr1) >> 8
+			pg := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+			pb := (pyy1 + 116130*pcb1) >> 8
+			if pr < 0 {
+				pr = 0
+			} else if pr > 0xffff {
+				pr = 0xffff
 			}
-			if pg8 < 0 {
-				pg8 = 0
-			} else if pg8 > 0xff {
-				pg8 = 0xff
+			if pg < 0 {
+				pg = 0
+			} else if pg > 0xffff {
+				pg = 0xffff
 			}
-			if pb8 < 0 {
-				pb8 = 0
-			} else if pb8 > 0xff {
-				pb8 = 0xff
+			if pb < 0 {
+				pb = 0
+			} else if pb > 0xffff {
+				pb = 0xffff
 			}
-
-			pr := uint32(pr8) * 0x101
-			pg := uint32(pg8) * 0x101
-			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
@@ -251,32 +247,28 @@ func (nnInterpolator) scale_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectang
 			pi := (sr.Min.Y+int(sy)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx) - src.Rect.Min.X)
 			pj := (sr.Min.Y+int(sy)-src.Rect.Min.Y)*src.CStride + ((sr.Min.X+int(sx))/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			pyy1 := int(src.Y[pi])<<16 + 1<<15
 			pcb1 := int(src.Cb[pj]) - 128
 			pcr1 := int(src.Cr[pj]) - 128
-			pr8 := (pyy1 + 91881*pcr1) >> 16
-			pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-			pb8 := (pyy1 + 116130*pcb1) >> 16
-			if pr8 < 0 {
-				pr8 = 0
-			} else if pr8 > 0xff {
-				pr8 = 0xff
+			pr := (pyy1 + 91881*pcr1) >> 8
+			pg := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+			pb := (pyy1 + 116130*pcb1) >> 8
+			if pr < 0 {
+				pr = 0
+			} else if pr > 0xffff {
+				pr = 0xffff
 			}
-			if pg8 < 0 {
-				pg8 = 0
-			} else if pg8 > 0xff {
-				pg8 = 0xff
+			if pg < 0 {
+				pg = 0
+			} else if pg > 0xffff {
+				pg = 0xffff
 			}
-			if pb8 < 0 {
-				pb8 = 0
-			} else if pb8 > 0xff {
-				pb8 = 0xff
+			if pb < 0 {
+				pb = 0
+			} else if pb > 0xffff {
+				pb = 0xffff
 			}
-
-			pr := uint32(pr8) * 0x101
-			pg := uint32(pg8) * 0x101
-			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
@@ -298,32 +290,28 @@ func (nnInterpolator) scale_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectang
 			pi := (sr.Min.Y+int(sy)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx) - src.Rect.Min.X)
 			pj := ((sr.Min.Y+int(sy))/2-src.Rect.Min.Y/2)*src.CStride + ((sr.Min.X+int(sx))/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			pyy1 := int(src.Y[pi])<<16 + 1<<15
 			pcb1 := int(src.Cb[pj]) - 128
 			pcr1 := int(src.Cr[pj]) - 128
-			pr8 := (pyy1 + 91881*pcr1) >> 16
-			pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-			pb8 := (pyy1 + 116130*pcb1) >> 16
-			if pr8 < 0 {
-				pr8 = 0
-			} else if pr8 > 0xff {
-				pr8 = 0xff
+			pr := (pyy1 + 91881*pcr1) >> 8
+			pg := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+			pb := (pyy1 + 116130*pcb1) >> 8
+			if pr < 0 {
+				pr = 0
+			} else if pr > 0xffff {
+				pr = 0xffff
 			}
-			if pg8 < 0 {
-				pg8 = 0
-			} else if pg8 > 0xff {
-				pg8 = 0xff
+			if pg < 0 {
+				pg = 0
+			} else if pg > 0xffff {
+				pg = 0xffff
 			}
-			if pb8 < 0 {
-				pb8 = 0
-			} else if pb8 > 0xff {
-				pb8 = 0xff
+			if pb < 0 {
+				pb = 0
+			} else if pb > 0xffff {
+				pb = 0xffff
 			}
-
-			pr := uint32(pr8) * 0x101
-			pg := uint32(pg8) * 0x101
-			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
@@ -345,32 +333,28 @@ func (nnInterpolator) scale_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectang
 			pi := (sr.Min.Y+int(sy)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx) - src.Rect.Min.X)
 			pj := ((sr.Min.Y+int(sy))/2-src.Rect.Min.Y/2)*src.CStride + (sr.Min.X + int(sx) - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			pyy1 := int(src.Y[pi])<<16 + 1<<15
 			pcb1 := int(src.Cb[pj]) - 128
 			pcr1 := int(src.Cr[pj]) - 128
-			pr8 := (pyy1 + 91881*pcr1) >> 16
-			pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-			pb8 := (pyy1 + 116130*pcb1) >> 16
-			if pr8 < 0 {
-				pr8 = 0
-			} else if pr8 > 0xff {
-				pr8 = 0xff
+			pr := (pyy1 + 91881*pcr1) >> 8
+			pg := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+			pb := (pyy1 + 116130*pcb1) >> 8
+			if pr < 0 {
+				pr = 0
+			} else if pr > 0xffff {
+				pr = 0xffff
 			}
-			if pg8 < 0 {
-				pg8 = 0
-			} else if pg8 > 0xff {
-				pg8 = 0xff
+			if pg < 0 {
+				pg = 0
+			} else if pg > 0xffff {
+				pg = 0xffff
 			}
-			if pb8 < 0 {
-				pb8 = 0
-			} else if pb8 > 0xff {
-				pb8 = 0xff
+			if pb < 0 {
+				pb = 0
+			} else if pb > 0xffff {
+				pb = 0xffff
 			}
-
-			pr := uint32(pr8) * 0x101
-			pg := uint32(pg8) * 0x101
-			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
@@ -503,32 +487,28 @@ func (nnInterpolator) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rec
 			pi := (sy0-src.Rect.Min.Y)*src.YStride + (sx0 - src.Rect.Min.X)
 			pj := (sy0-src.Rect.Min.Y)*src.CStride + (sx0 - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			pyy1 := int(src.Y[pi])<<16 + 1<<15
 			pcb1 := int(src.Cb[pj]) - 128
 			pcr1 := int(src.Cr[pj]) - 128
-			pr8 := (pyy1 + 91881*pcr1) >> 16
-			pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-			pb8 := (pyy1 + 116130*pcb1) >> 16
-			if pr8 < 0 {
-				pr8 = 0
-			} else if pr8 > 0xff {
-				pr8 = 0xff
+			pr := (pyy1 + 91881*pcr1) >> 8
+			pg := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+			pb := (pyy1 + 116130*pcb1) >> 8
+			if pr < 0 {
+				pr = 0
+			} else if pr > 0xffff {
+				pr = 0xffff
 			}
-			if pg8 < 0 {
-				pg8 = 0
-			} else if pg8 > 0xff {
-				pg8 = 0xff
+			if pg < 0 {
+				pg = 0
+			} else if pg > 0xffff {
+				pg = 0xffff
 			}
-			if pb8 < 0 {
-				pb8 = 0
-			} else if pb8 > 0xff {
-				pb8 = 0xff
+			if pb < 0 {
+				pb = 0
+			} else if pb > 0xffff {
+				pb = 0xffff
 			}
-
-			pr := uint32(pr8) * 0x101
-			pg := uint32(pg8) * 0x101
-			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
@@ -551,32 +531,28 @@ func (nnInterpolator) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rec
 			pi := (sy0-src.Rect.Min.Y)*src.YStride + (sx0 - src.Rect.Min.X)
 			pj := (sy0-src.Rect.Min.Y)*src.CStride + ((sx0)/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			pyy1 := int(src.Y[pi])<<16 + 1<<15
 			pcb1 := int(src.Cb[pj]) - 128
 			pcr1 := int(src.Cr[pj]) - 128
-			pr8 := (pyy1 + 91881*pcr1) >> 16
-			pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-			pb8 := (pyy1 + 116130*pcb1) >> 16
-			if pr8 < 0 {
-				pr8 = 0
-			} else if pr8 > 0xff {
-				pr8 = 0xff
+			pr := (pyy1 + 91881*pcr1) >> 8
+			pg := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+			pb := (pyy1 + 116130*pcb1) >> 8
+			if pr < 0 {
+				pr = 0
+			} else if pr > 0xffff {
+				pr = 0xffff
 			}
-			if pg8 < 0 {
-				pg8 = 0
-			} else if pg8 > 0xff {
-				pg8 = 0xff
+			if pg < 0 {
+				pg = 0
+			} else if pg > 0xffff {
+				pg = 0xffff
 			}
-			if pb8 < 0 {
-				pb8 = 0
-			} else if pb8 > 0xff {
-				pb8 = 0xff
+			if pb < 0 {
+				pb = 0
+			} else if pb > 0xffff {
+				pb = 0xffff
 			}
-
-			pr := uint32(pr8) * 0x101
-			pg := uint32(pg8) * 0x101
-			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
@@ -599,32 +575,28 @@ func (nnInterpolator) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rec
 			pi := (sy0-src.Rect.Min.Y)*src.YStride + (sx0 - src.Rect.Min.X)
 			pj := ((sy0)/2-src.Rect.Min.Y/2)*src.CStride + ((sx0)/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			pyy1 := int(src.Y[pi])<<16 + 1<<15
 			pcb1 := int(src.Cb[pj]) - 128
 			pcr1 := int(src.Cr[pj]) - 128
-			pr8 := (pyy1 + 91881*pcr1) >> 16
-			pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-			pb8 := (pyy1 + 116130*pcb1) >> 16
-			if pr8 < 0 {
-				pr8 = 0
-			} else if pr8 > 0xff {
-				pr8 = 0xff
+			pr := (pyy1 + 91881*pcr1) >> 8
+			pg := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+			pb := (pyy1 + 116130*pcb1) >> 8
+			if pr < 0 {
+				pr = 0
+			} else if pr > 0xffff {
+				pr = 0xffff
 			}
-			if pg8 < 0 {
-				pg8 = 0
-			} else if pg8 > 0xff {
-				pg8 = 0xff
+			if pg < 0 {
+				pg = 0
+			} else if pg > 0xffff {
+				pg = 0xffff
 			}
-			if pb8 < 0 {
-				pb8 = 0
-			} else if pb8 > 0xff {
-				pb8 = 0xff
+			if pb < 0 {
+				pb = 0
+			} else if pb > 0xffff {
+				pb = 0xffff
 			}
-
-			pr := uint32(pr8) * 0x101
-			pg := uint32(pg8) * 0x101
-			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
@@ -647,32 +619,28 @@ func (nnInterpolator) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rec
 			pi := (sy0-src.Rect.Min.Y)*src.YStride + (sx0 - src.Rect.Min.X)
 			pj := ((sy0)/2-src.Rect.Min.Y/2)*src.CStride + (sx0 - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			pyy1 := int(src.Y[pi])<<16 + 1<<15
 			pcb1 := int(src.Cb[pj]) - 128
 			pcr1 := int(src.Cr[pj]) - 128
-			pr8 := (pyy1 + 91881*pcr1) >> 16
-			pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-			pb8 := (pyy1 + 116130*pcb1) >> 16
-			if pr8 < 0 {
-				pr8 = 0
-			} else if pr8 > 0xff {
-				pr8 = 0xff
+			pr := (pyy1 + 91881*pcr1) >> 8
+			pg := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+			pb := (pyy1 + 116130*pcb1) >> 8
+			if pr < 0 {
+				pr = 0
+			} else if pr > 0xffff {
+				pr = 0xffff
 			}
-			if pg8 < 0 {
-				pg8 = 0
-			} else if pg8 > 0xff {
-				pg8 = 0xff
+			if pg < 0 {
+				pg = 0
+			} else if pg > 0xffff {
+				pg = 0xffff
 			}
-			if pb8 < 0 {
-				pb8 = 0
-			} else if pb8 > 0xff {
-				pb8 = 0xff
+			if pb < 0 {
+				pb = 0
+			} else if pb > 0xffff {
+				pb = 0xffff
 			}
-
-			pr := uint32(pr8) * 0x101
-			pg := uint32(pg8) * 0x101
-			pb := uint32(pb8) * 0x101
 			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
 			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
 			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
@@ -1132,64 +1100,58 @@ func (ablInterpolator) scale_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectan
 			s00i := (sr.Min.Y+int(sy0)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx0) - src.Rect.Min.X)
 			s00j := (sr.Min.Y+int(sy0)-src.Rect.Min.Y)*src.CStride + (sr.Min.X + int(sx0) - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s00yy1 := int(src.Y[s00i])<<16 + 1<<15
 			s00cb1 := int(src.Cb[s00j]) - 128
 			s00cr1 := int(src.Cr[s00j]) - 128
-			s00r8 := (s00yy1 + 91881*s00cr1) >> 16
-			s00g8 := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 16
-			s00b8 := (s00yy1 + 116130*s00cb1) >> 16
-			if s00r8 < 0 {
-				s00r8 = 0
-			} else if s00r8 > 0xff {
-				s00r8 = 0xff
+			s00ru := (s00yy1 + 91881*s00cr1) >> 8
+			s00gu := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 8
+			s00bu := (s00yy1 + 116130*s00cb1) >> 8
+			if s00ru < 0 {
+				s00ru = 0
+			} else if s00ru > 0xffff {
+				s00ru = 0xffff
 			}
-			if s00g8 < 0 {
-				s00g8 = 0
-			} else if s00g8 > 0xff {
-				s00g8 = 0xff
+			if s00gu < 0 {
+				s00gu = 0
+			} else if s00gu > 0xffff {
+				s00gu = 0xffff
 			}
-			if s00b8 < 0 {
-				s00b8 = 0
-			} else if s00b8 > 0xff {
-				s00b8 = 0xff
+			if s00bu < 0 {
+				s00bu = 0
+			} else if s00bu > 0xffff {
+				s00bu = 0xffff
 			}
 
-			s00ru := uint32(s00r8) * 0x101
-			s00gu := uint32(s00g8) * 0x101
-			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
 			s10i := (sr.Min.Y+int(sy0)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx1) - src.Rect.Min.X)
 			s10j := (sr.Min.Y+int(sy0)-src.Rect.Min.Y)*src.CStride + (sr.Min.X + int(sx1) - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s10yy1 := int(src.Y[s10i])<<16 + 1<<15
 			s10cb1 := int(src.Cb[s10j]) - 128
 			s10cr1 := int(src.Cr[s10j]) - 128
-			s10r8 := (s10yy1 + 91881*s10cr1) >> 16
-			s10g8 := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 16
-			s10b8 := (s10yy1 + 116130*s10cb1) >> 16
-			if s10r8 < 0 {
-				s10r8 = 0
-			} else if s10r8 > 0xff {
-				s10r8 = 0xff
+			s10ru := (s10yy1 + 91881*s10cr1) >> 8
+			s10gu := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 8
+			s10bu := (s10yy1 + 116130*s10cb1) >> 8
+			if s10ru < 0 {
+				s10ru = 0
+			} else if s10ru > 0xffff {
+				s10ru = 0xffff
 			}
-			if s10g8 < 0 {
-				s10g8 = 0
-			} else if s10g8 > 0xff {
-				s10g8 = 0xff
+			if s10gu < 0 {
+				s10gu = 0
+			} else if s10gu > 0xffff {
+				s10gu = 0xffff
 			}
-			if s10b8 < 0 {
-				s10b8 = 0
-			} else if s10b8 > 0xff {
-				s10b8 = 0xff
+			if s10bu < 0 {
+				s10bu = 0
+			} else if s10bu > 0xffff {
+				s10bu = 0xffff
 			}
 
-			s10ru := uint32(s10r8) * 0x101
-			s10gu := uint32(s10g8) * 0x101
-			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
@@ -1199,64 +1161,58 @@ func (ablInterpolator) scale_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectan
 			s01i := (sr.Min.Y+int(sy1)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx0) - src.Rect.Min.X)
 			s01j := (sr.Min.Y+int(sy1)-src.Rect.Min.Y)*src.CStride + (sr.Min.X + int(sx0) - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s01yy1 := int(src.Y[s01i])<<16 + 1<<15
 			s01cb1 := int(src.Cb[s01j]) - 128
 			s01cr1 := int(src.Cr[s01j]) - 128
-			s01r8 := (s01yy1 + 91881*s01cr1) >> 16
-			s01g8 := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 16
-			s01b8 := (s01yy1 + 116130*s01cb1) >> 16
-			if s01r8 < 0 {
-				s01r8 = 0
-			} else if s01r8 > 0xff {
-				s01r8 = 0xff
+			s01ru := (s01yy1 + 91881*s01cr1) >> 8
+			s01gu := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 8
+			s01bu := (s01yy1 + 116130*s01cb1) >> 8
+			if s01ru < 0 {
+				s01ru = 0
+			} else if s01ru > 0xffff {
+				s01ru = 0xffff
 			}
-			if s01g8 < 0 {
-				s01g8 = 0
-			} else if s01g8 > 0xff {
-				s01g8 = 0xff
+			if s01gu < 0 {
+				s01gu = 0
+			} else if s01gu > 0xffff {
+				s01gu = 0xffff
 			}
-			if s01b8 < 0 {
-				s01b8 = 0
-			} else if s01b8 > 0xff {
-				s01b8 = 0xff
+			if s01bu < 0 {
+				s01bu = 0
+			} else if s01bu > 0xffff {
+				s01bu = 0xffff
 			}
 
-			s01ru := uint32(s01r8) * 0x101
-			s01gu := uint32(s01g8) * 0x101
-			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
 			s11i := (sr.Min.Y+int(sy1)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx1) - src.Rect.Min.X)
 			s11j := (sr.Min.Y+int(sy1)-src.Rect.Min.Y)*src.CStride + (sr.Min.X + int(sx1) - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s11yy1 := int(src.Y[s11i])<<16 + 1<<15
 			s11cb1 := int(src.Cb[s11j]) - 128
 			s11cr1 := int(src.Cr[s11j]) - 128
-			s11r8 := (s11yy1 + 91881*s11cr1) >> 16
-			s11g8 := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 16
-			s11b8 := (s11yy1 + 116130*s11cb1) >> 16
-			if s11r8 < 0 {
-				s11r8 = 0
-			} else if s11r8 > 0xff {
-				s11r8 = 0xff
+			s11ru := (s11yy1 + 91881*s11cr1) >> 8
+			s11gu := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 8
+			s11bu := (s11yy1 + 116130*s11cb1) >> 8
+			if s11ru < 0 {
+				s11ru = 0
+			} else if s11ru > 0xffff {
+				s11ru = 0xffff
 			}
-			if s11g8 < 0 {
-				s11g8 = 0
-			} else if s11g8 > 0xff {
-				s11g8 = 0xff
+			if s11gu < 0 {
+				s11gu = 0
+			} else if s11gu > 0xffff {
+				s11gu = 0xffff
 			}
-			if s11b8 < 0 {
-				s11b8 = 0
-			} else if s11b8 > 0xff {
-				s11b8 = 0xff
+			if s11bu < 0 {
+				s11bu = 0
+			} else if s11bu > 0xffff {
+				s11bu = 0xffff
 			}
 
-			s11ru := uint32(s11r8) * 0x101
-			s11gu := uint32(s11g8) * 0x101
-			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
@@ -1316,64 +1272,58 @@ func (ablInterpolator) scale_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectan
 			s00i := (sr.Min.Y+int(sy0)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx0) - src.Rect.Min.X)
 			s00j := (sr.Min.Y+int(sy0)-src.Rect.Min.Y)*src.CStride + ((sr.Min.X+int(sx0))/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s00yy1 := int(src.Y[s00i])<<16 + 1<<15
 			s00cb1 := int(src.Cb[s00j]) - 128
 			s00cr1 := int(src.Cr[s00j]) - 128
-			s00r8 := (s00yy1 + 91881*s00cr1) >> 16
-			s00g8 := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 16
-			s00b8 := (s00yy1 + 116130*s00cb1) >> 16
-			if s00r8 < 0 {
-				s00r8 = 0
-			} else if s00r8 > 0xff {
-				s00r8 = 0xff
+			s00ru := (s00yy1 + 91881*s00cr1) >> 8
+			s00gu := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 8
+			s00bu := (s00yy1 + 116130*s00cb1) >> 8
+			if s00ru < 0 {
+				s00ru = 0
+			} else if s00ru > 0xffff {
+				s00ru = 0xffff
 			}
-			if s00g8 < 0 {
-				s00g8 = 0
-			} else if s00g8 > 0xff {
-				s00g8 = 0xff
+			if s00gu < 0 {
+				s00gu = 0
+			} else if s00gu > 0xffff {
+				s00gu = 0xffff
 			}
-			if s00b8 < 0 {
-				s00b8 = 0
-			} else if s00b8 > 0xff {
-				s00b8 = 0xff
+			if s00bu < 0 {
+				s00bu = 0
+			} else if s00bu > 0xffff {
+				s00bu = 0xffff
 			}
 
-			s00ru := uint32(s00r8) * 0x101
-			s00gu := uint32(s00g8) * 0x101
-			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
 			s10i := (sr.Min.Y+int(sy0)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx1) - src.Rect.Min.X)
 			s10j := (sr.Min.Y+int(sy0)-src.Rect.Min.Y)*src.CStride + ((sr.Min.X+int(sx1))/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s10yy1 := int(src.Y[s10i])<<16 + 1<<15
 			s10cb1 := int(src.Cb[s10j]) - 128
 			s10cr1 := int(src.Cr[s10j]) - 128
-			s10r8 := (s10yy1 + 91881*s10cr1) >> 16
-			s10g8 := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 16
-			s10b8 := (s10yy1 + 116130*s10cb1) >> 16
-			if s10r8 < 0 {
-				s10r8 = 0
-			} else if s10r8 > 0xff {
-				s10r8 = 0xff
+			s10ru := (s10yy1 + 91881*s10cr1) >> 8
+			s10gu := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 8
+			s10bu := (s10yy1 + 116130*s10cb1) >> 8
+			if s10ru < 0 {
+				s10ru = 0
+			} else if s10ru > 0xffff {
+				s10ru = 0xffff
 			}
-			if s10g8 < 0 {
-				s10g8 = 0
-			} else if s10g8 > 0xff {
-				s10g8 = 0xff
+			if s10gu < 0 {
+				s10gu = 0
+			} else if s10gu > 0xffff {
+				s10gu = 0xffff
 			}
-			if s10b8 < 0 {
-				s10b8 = 0
-			} else if s10b8 > 0xff {
-				s10b8 = 0xff
+			if s10bu < 0 {
+				s10bu = 0
+			} else if s10bu > 0xffff {
+				s10bu = 0xffff
 			}
 
-			s10ru := uint32(s10r8) * 0x101
-			s10gu := uint32(s10g8) * 0x101
-			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
@@ -1383,64 +1333,58 @@ func (ablInterpolator) scale_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectan
 			s01i := (sr.Min.Y+int(sy1)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx0) - src.Rect.Min.X)
 			s01j := (sr.Min.Y+int(sy1)-src.Rect.Min.Y)*src.CStride + ((sr.Min.X+int(sx0))/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s01yy1 := int(src.Y[s01i])<<16 + 1<<15
 			s01cb1 := int(src.Cb[s01j]) - 128
 			s01cr1 := int(src.Cr[s01j]) - 128
-			s01r8 := (s01yy1 + 91881*s01cr1) >> 16
-			s01g8 := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 16
-			s01b8 := (s01yy1 + 116130*s01cb1) >> 16
-			if s01r8 < 0 {
-				s01r8 = 0
-			} else if s01r8 > 0xff {
-				s01r8 = 0xff
+			s01ru := (s01yy1 + 91881*s01cr1) >> 8
+			s01gu := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 8
+			s01bu := (s01yy1 + 116130*s01cb1) >> 8
+			if s01ru < 0 {
+				s01ru = 0
+			} else if s01ru > 0xffff {
+				s01ru = 0xffff
 			}
-			if s01g8 < 0 {
-				s01g8 = 0
-			} else if s01g8 > 0xff {
-				s01g8 = 0xff
+			if s01gu < 0 {
+				s01gu = 0
+			} else if s01gu > 0xffff {
+				s01gu = 0xffff
 			}
-			if s01b8 < 0 {
-				s01b8 = 0
-			} else if s01b8 > 0xff {
-				s01b8 = 0xff
+			if s01bu < 0 {
+				s01bu = 0
+			} else if s01bu > 0xffff {
+				s01bu = 0xffff
 			}
 
-			s01ru := uint32(s01r8) * 0x101
-			s01gu := uint32(s01g8) * 0x101
-			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
 			s11i := (sr.Min.Y+int(sy1)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx1) - src.Rect.Min.X)
 			s11j := (sr.Min.Y+int(sy1)-src.Rect.Min.Y)*src.CStride + ((sr.Min.X+int(sx1))/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s11yy1 := int(src.Y[s11i])<<16 + 1<<15
 			s11cb1 := int(src.Cb[s11j]) - 128
 			s11cr1 := int(src.Cr[s11j]) - 128
-			s11r8 := (s11yy1 + 91881*s11cr1) >> 16
-			s11g8 := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 16
-			s11b8 := (s11yy1 + 116130*s11cb1) >> 16
-			if s11r8 < 0 {
-				s11r8 = 0
-			} else if s11r8 > 0xff {
-				s11r8 = 0xff
+			s11ru := (s11yy1 + 91881*s11cr1) >> 8
+			s11gu := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 8
+			s11bu := (s11yy1 + 116130*s11cb1) >> 8
+			if s11ru < 0 {
+				s11ru = 0
+			} else if s11ru > 0xffff {
+				s11ru = 0xffff
 			}
-			if s11g8 < 0 {
-				s11g8 = 0
-			} else if s11g8 > 0xff {
-				s11g8 = 0xff
+			if s11gu < 0 {
+				s11gu = 0
+			} else if s11gu > 0xffff {
+				s11gu = 0xffff
 			}
-			if s11b8 < 0 {
-				s11b8 = 0
-			} else if s11b8 > 0xff {
-				s11b8 = 0xff
+			if s11bu < 0 {
+				s11bu = 0
+			} else if s11bu > 0xffff {
+				s11bu = 0xffff
 			}
 
-			s11ru := uint32(s11r8) * 0x101
-			s11gu := uint32(s11g8) * 0x101
-			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
@@ -1500,64 +1444,58 @@ func (ablInterpolator) scale_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectan
 			s00i := (sr.Min.Y+int(sy0)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx0) - src.Rect.Min.X)
 			s00j := ((sr.Min.Y+int(sy0))/2-src.Rect.Min.Y/2)*src.CStride + ((sr.Min.X+int(sx0))/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s00yy1 := int(src.Y[s00i])<<16 + 1<<15
 			s00cb1 := int(src.Cb[s00j]) - 128
 			s00cr1 := int(src.Cr[s00j]) - 128
-			s00r8 := (s00yy1 + 91881*s00cr1) >> 16
-			s00g8 := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 16
-			s00b8 := (s00yy1 + 116130*s00cb1) >> 16
-			if s00r8 < 0 {
-				s00r8 = 0
-			} else if s00r8 > 0xff {
-				s00r8 = 0xff
+			s00ru := (s00yy1 + 91881*s00cr1) >> 8
+			s00gu := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 8
+			s00bu := (s00yy1 + 116130*s00cb1) >> 8
+			if s00ru < 0 {
+				s00ru = 0
+			} else if s00ru > 0xffff {
+				s00ru = 0xffff
 			}
-			if s00g8 < 0 {
-				s00g8 = 0
-			} else if s00g8 > 0xff {
-				s00g8 = 0xff
+			if s00gu < 0 {
+				s00gu = 0
+			} else if s00gu > 0xffff {
+				s00gu = 0xffff
 			}
-			if s00b8 < 0 {
-				s00b8 = 0
-			} else if s00b8 > 0xff {
-				s00b8 = 0xff
+			if s00bu < 0 {
+				s00bu = 0
+			} else if s00bu > 0xffff {
+				s00bu = 0xffff
 			}
 
-			s00ru := uint32(s00r8) * 0x101
-			s00gu := uint32(s00g8) * 0x101
-			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
 			s10i := (sr.Min.Y+int(sy0)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx1) - src.Rect.Min.X)
 			s10j := ((sr.Min.Y+int(sy0))/2-src.Rect.Min.Y/2)*src.CStride + ((sr.Min.X+int(sx1))/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s10yy1 := int(src.Y[s10i])<<16 + 1<<15
 			s10cb1 := int(src.Cb[s10j]) - 128
 			s10cr1 := int(src.Cr[s10j]) - 128
-			s10r8 := (s10yy1 + 91881*s10cr1) >> 16
-			s10g8 := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 16
-			s10b8 := (s10yy1 + 116130*s10cb1) >> 16
-			if s10r8 < 0 {
-				s10r8 = 0
-			} else if s10r8 > 0xff {
-				s10r8 = 0xff
+			s10ru := (s10yy1 + 91881*s10cr1) >> 8
+			s10gu := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 8
+			s10bu := (s10yy1 + 116130*s10cb1) >> 8
+			if s10ru < 0 {
+				s10ru = 0
+			} else if s10ru > 0xffff {
+				s10ru = 0xffff
 			}
-			if s10g8 < 0 {
-				s10g8 = 0
-			} else if s10g8 > 0xff {
-				s10g8 = 0xff
+			if s10gu < 0 {
+				s10gu = 0
+			} else if s10gu > 0xffff {
+				s10gu = 0xffff
 			}
-			if s10b8 < 0 {
-				s10b8 = 0
-			} else if s10b8 > 0xff {
-				s10b8 = 0xff
+			if s10bu < 0 {
+				s10bu = 0
+			} else if s10bu > 0xffff {
+				s10bu = 0xffff
 			}
 
-			s10ru := uint32(s10r8) * 0x101
-			s10gu := uint32(s10g8) * 0x101
-			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
@@ -1567,64 +1505,58 @@ func (ablInterpolator) scale_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectan
 			s01i := (sr.Min.Y+int(sy1)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx0) - src.Rect.Min.X)
 			s01j := ((sr.Min.Y+int(sy1))/2-src.Rect.Min.Y/2)*src.CStride + ((sr.Min.X+int(sx0))/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s01yy1 := int(src.Y[s01i])<<16 + 1<<15
 			s01cb1 := int(src.Cb[s01j]) - 128
 			s01cr1 := int(src.Cr[s01j]) - 128
-			s01r8 := (s01yy1 + 91881*s01cr1) >> 16
-			s01g8 := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 16
-			s01b8 := (s01yy1 + 116130*s01cb1) >> 16
-			if s01r8 < 0 {
-				s01r8 = 0
-			} else if s01r8 > 0xff {
-				s01r8 = 0xff
+			s01ru := (s01yy1 + 91881*s01cr1) >> 8
+			s01gu := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 8
+			s01bu := (s01yy1 + 116130*s01cb1) >> 8
+			if s01ru < 0 {
+				s01ru = 0
+			} else if s01ru > 0xffff {
+				s01ru = 0xffff
 			}
-			if s01g8 < 0 {
-				s01g8 = 0
-			} else if s01g8 > 0xff {
-				s01g8 = 0xff
+			if s01gu < 0 {
+				s01gu = 0
+			} else if s01gu > 0xffff {
+				s01gu = 0xffff
 			}
-			if s01b8 < 0 {
-				s01b8 = 0
-			} else if s01b8 > 0xff {
-				s01b8 = 0xff
+			if s01bu < 0 {
+				s01bu = 0
+			} else if s01bu > 0xffff {
+				s01bu = 0xffff
 			}
 
-			s01ru := uint32(s01r8) * 0x101
-			s01gu := uint32(s01g8) * 0x101
-			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
 			s11i := (sr.Min.Y+int(sy1)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx1) - src.Rect.Min.X)
 			s11j := ((sr.Min.Y+int(sy1))/2-src.Rect.Min.Y/2)*src.CStride + ((sr.Min.X+int(sx1))/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s11yy1 := int(src.Y[s11i])<<16 + 1<<15
 			s11cb1 := int(src.Cb[s11j]) - 128
 			s11cr1 := int(src.Cr[s11j]) - 128
-			s11r8 := (s11yy1 + 91881*s11cr1) >> 16
-			s11g8 := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 16
-			s11b8 := (s11yy1 + 116130*s11cb1) >> 16
-			if s11r8 < 0 {
-				s11r8 = 0
-			} else if s11r8 > 0xff {
-				s11r8 = 0xff
+			s11ru := (s11yy1 + 91881*s11cr1) >> 8
+			s11gu := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 8
+			s11bu := (s11yy1 + 116130*s11cb1) >> 8
+			if s11ru < 0 {
+				s11ru = 0
+			} else if s11ru > 0xffff {
+				s11ru = 0xffff
 			}
-			if s11g8 < 0 {
-				s11g8 = 0
-			} else if s11g8 > 0xff {
-				s11g8 = 0xff
+			if s11gu < 0 {
+				s11gu = 0
+			} else if s11gu > 0xffff {
+				s11gu = 0xffff
 			}
-			if s11b8 < 0 {
-				s11b8 = 0
-			} else if s11b8 > 0xff {
-				s11b8 = 0xff
+			if s11bu < 0 {
+				s11bu = 0
+			} else if s11bu > 0xffff {
+				s11bu = 0xffff
 			}
 
-			s11ru := uint32(s11r8) * 0x101
-			s11gu := uint32(s11g8) * 0x101
-			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
@@ -1684,64 +1616,58 @@ func (ablInterpolator) scale_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectan
 			s00i := (sr.Min.Y+int(sy0)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx0) - src.Rect.Min.X)
 			s00j := ((sr.Min.Y+int(sy0))/2-src.Rect.Min.Y/2)*src.CStride + (sr.Min.X + int(sx0) - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s00yy1 := int(src.Y[s00i])<<16 + 1<<15
 			s00cb1 := int(src.Cb[s00j]) - 128
 			s00cr1 := int(src.Cr[s00j]) - 128
-			s00r8 := (s00yy1 + 91881*s00cr1) >> 16
-			s00g8 := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 16
-			s00b8 := (s00yy1 + 116130*s00cb1) >> 16
-			if s00r8 < 0 {
-				s00r8 = 0
-			} else if s00r8 > 0xff {
-				s00r8 = 0xff
+			s00ru := (s00yy1 + 91881*s00cr1) >> 8
+			s00gu := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 8
+			s00bu := (s00yy1 + 116130*s00cb1) >> 8
+			if s00ru < 0 {
+				s00ru = 0
+			} else if s00ru > 0xffff {
+				s00ru = 0xffff
 			}
-			if s00g8 < 0 {
-				s00g8 = 0
-			} else if s00g8 > 0xff {
-				s00g8 = 0xff
+			if s00gu < 0 {
+				s00gu = 0
+			} else if s00gu > 0xffff {
+				s00gu = 0xffff
 			}
-			if s00b8 < 0 {
-				s00b8 = 0
-			} else if s00b8 > 0xff {
-				s00b8 = 0xff
+			if s00bu < 0 {
+				s00bu = 0
+			} else if s00bu > 0xffff {
+				s00bu = 0xffff
 			}
 
-			s00ru := uint32(s00r8) * 0x101
-			s00gu := uint32(s00g8) * 0x101
-			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
 			s10i := (sr.Min.Y+int(sy0)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx1) - src.Rect.Min.X)
 			s10j := ((sr.Min.Y+int(sy0))/2-src.Rect.Min.Y/2)*src.CStride + (sr.Min.X + int(sx1) - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s10yy1 := int(src.Y[s10i])<<16 + 1<<15
 			s10cb1 := int(src.Cb[s10j]) - 128
 			s10cr1 := int(src.Cr[s10j]) - 128
-			s10r8 := (s10yy1 + 91881*s10cr1) >> 16
-			s10g8 := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 16
-			s10b8 := (s10yy1 + 116130*s10cb1) >> 16
-			if s10r8 < 0 {
-				s10r8 = 0
-			} else if s10r8 > 0xff {
-				s10r8 = 0xff
+			s10ru := (s10yy1 + 91881*s10cr1) >> 8
+			s10gu := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 8
+			s10bu := (s10yy1 + 116130*s10cb1) >> 8
+			if s10ru < 0 {
+				s10ru = 0
+			} else if s10ru > 0xffff {
+				s10ru = 0xffff
 			}
-			if s10g8 < 0 {
-				s10g8 = 0
-			} else if s10g8 > 0xff {
-				s10g8 = 0xff
+			if s10gu < 0 {
+				s10gu = 0
+			} else if s10gu > 0xffff {
+				s10gu = 0xffff
 			}
-			if s10b8 < 0 {
-				s10b8 = 0
-			} else if s10b8 > 0xff {
-				s10b8 = 0xff
+			if s10bu < 0 {
+				s10bu = 0
+			} else if s10bu > 0xffff {
+				s10bu = 0xffff
 			}
 
-			s10ru := uint32(s10r8) * 0x101
-			s10gu := uint32(s10g8) * 0x101
-			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
@@ -1751,64 +1677,58 @@ func (ablInterpolator) scale_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectan
 			s01i := (sr.Min.Y+int(sy1)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx0) - src.Rect.Min.X)
 			s01j := ((sr.Min.Y+int(sy1))/2-src.Rect.Min.Y/2)*src.CStride + (sr.Min.X + int(sx0) - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s01yy1 := int(src.Y[s01i])<<16 + 1<<15
 			s01cb1 := int(src.Cb[s01j]) - 128
 			s01cr1 := int(src.Cr[s01j]) - 128
-			s01r8 := (s01yy1 + 91881*s01cr1) >> 16
-			s01g8 := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 16
-			s01b8 := (s01yy1 + 116130*s01cb1) >> 16
-			if s01r8 < 0 {
-				s01r8 = 0
-			} else if s01r8 > 0xff {
-				s01r8 = 0xff
+			s01ru := (s01yy1 + 91881*s01cr1) >> 8
+			s01gu := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 8
+			s01bu := (s01yy1 + 116130*s01cb1) >> 8
+			if s01ru < 0 {
+				s01ru = 0
+			} else if s01ru > 0xffff {
+				s01ru = 0xffff
 			}
-			if s01g8 < 0 {
-				s01g8 = 0
-			} else if s01g8 > 0xff {
-				s01g8 = 0xff
+			if s01gu < 0 {
+				s01gu = 0
+			} else if s01gu > 0xffff {
+				s01gu = 0xffff
 			}
-			if s01b8 < 0 {
-				s01b8 = 0
-			} else if s01b8 > 0xff {
-				s01b8 = 0xff
+			if s01bu < 0 {
+				s01bu = 0
+			} else if s01bu > 0xffff {
+				s01bu = 0xffff
 			}
 
-			s01ru := uint32(s01r8) * 0x101
-			s01gu := uint32(s01g8) * 0x101
-			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
 			s11i := (sr.Min.Y+int(sy1)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(sx1) - src.Rect.Min.X)
 			s11j := ((sr.Min.Y+int(sy1))/2-src.Rect.Min.Y/2)*src.CStride + (sr.Min.X + int(sx1) - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s11yy1 := int(src.Y[s11i])<<16 + 1<<15
 			s11cb1 := int(src.Cb[s11j]) - 128
 			s11cr1 := int(src.Cr[s11j]) - 128
-			s11r8 := (s11yy1 + 91881*s11cr1) >> 16
-			s11g8 := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 16
-			s11b8 := (s11yy1 + 116130*s11cb1) >> 16
-			if s11r8 < 0 {
-				s11r8 = 0
-			} else if s11r8 > 0xff {
-				s11r8 = 0xff
+			s11ru := (s11yy1 + 91881*s11cr1) >> 8
+			s11gu := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 8
+			s11bu := (s11yy1 + 116130*s11cb1) >> 8
+			if s11ru < 0 {
+				s11ru = 0
+			} else if s11ru > 0xffff {
+				s11ru = 0xffff
 			}
-			if s11g8 < 0 {
-				s11g8 = 0
-			} else if s11g8 > 0xff {
-				s11g8 = 0xff
+			if s11gu < 0 {
+				s11gu = 0
+			} else if s11gu > 0xffff {
+				s11gu = 0xffff
 			}
-			if s11b8 < 0 {
-				s11b8 = 0
-			} else if s11b8 > 0xff {
-				s11b8 = 0xff
+			if s11bu < 0 {
+				s11bu = 0
+			} else if s11bu > 0xffff {
+				s11bu = 0xffff
 			}
 
-			s11ru := uint32(s11r8) * 0x101
-			s11gu := uint32(s11g8) * 0x101
-			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
@@ -2285,64 +2205,58 @@ func (ablInterpolator) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Re
 			s00i := (sy0-src.Rect.Min.Y)*src.YStride + (sx0 - src.Rect.Min.X)
 			s00j := (sy0-src.Rect.Min.Y)*src.CStride + (sx0 - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s00yy1 := int(src.Y[s00i])<<16 + 1<<15
 			s00cb1 := int(src.Cb[s00j]) - 128
 			s00cr1 := int(src.Cr[s00j]) - 128
-			s00r8 := (s00yy1 + 91881*s00cr1) >> 16
-			s00g8 := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 16
-			s00b8 := (s00yy1 + 116130*s00cb1) >> 16
-			if s00r8 < 0 {
-				s00r8 = 0
-			} else if s00r8 > 0xff {
-				s00r8 = 0xff
+			s00ru := (s00yy1 + 91881*s00cr1) >> 8
+			s00gu := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 8
+			s00bu := (s00yy1 + 116130*s00cb1) >> 8
+			if s00ru < 0 {
+				s00ru = 0
+			} else if s00ru > 0xffff {
+				s00ru = 0xffff
 			}
-			if s00g8 < 0 {
-				s00g8 = 0
-			} else if s00g8 > 0xff {
-				s00g8 = 0xff
+			if s00gu < 0 {
+				s00gu = 0
+			} else if s00gu > 0xffff {
+				s00gu = 0xffff
 			}
-			if s00b8 < 0 {
-				s00b8 = 0
-			} else if s00b8 > 0xff {
-				s00b8 = 0xff
+			if s00bu < 0 {
+				s00bu = 0
+			} else if s00bu > 0xffff {
+				s00bu = 0xffff
 			}
 
-			s00ru := uint32(s00r8) * 0x101
-			s00gu := uint32(s00g8) * 0x101
-			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
 			s10i := (sy0-src.Rect.Min.Y)*src.YStride + (sx1 - src.Rect.Min.X)
 			s10j := (sy0-src.Rect.Min.Y)*src.CStride + (sx1 - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s10yy1 := int(src.Y[s10i])<<16 + 1<<15
 			s10cb1 := int(src.Cb[s10j]) - 128
 			s10cr1 := int(src.Cr[s10j]) - 128
-			s10r8 := (s10yy1 + 91881*s10cr1) >> 16
-			s10g8 := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 16
-			s10b8 := (s10yy1 + 116130*s10cb1) >> 16
-			if s10r8 < 0 {
-				s10r8 = 0
-			} else if s10r8 > 0xff {
-				s10r8 = 0xff
+			s10ru := (s10yy1 + 91881*s10cr1) >> 8
+			s10gu := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 8
+			s10bu := (s10yy1 + 116130*s10cb1) >> 8
+			if s10ru < 0 {
+				s10ru = 0
+			} else if s10ru > 0xffff {
+				s10ru = 0xffff
 			}
-			if s10g8 < 0 {
-				s10g8 = 0
-			} else if s10g8 > 0xff {
-				s10g8 = 0xff
+			if s10gu < 0 {
+				s10gu = 0
+			} else if s10gu > 0xffff {
+				s10gu = 0xffff
 			}
-			if s10b8 < 0 {
-				s10b8 = 0
-			} else if s10b8 > 0xff {
-				s10b8 = 0xff
+			if s10bu < 0 {
+				s10bu = 0
+			} else if s10bu > 0xffff {
+				s10bu = 0xffff
 			}
 
-			s10ru := uint32(s10r8) * 0x101
-			s10gu := uint32(s10g8) * 0x101
-			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
@@ -2352,64 +2266,58 @@ func (ablInterpolator) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Re
 			s01i := (sy1-src.Rect.Min.Y)*src.YStride + (sx0 - src.Rect.Min.X)
 			s01j := (sy1-src.Rect.Min.Y)*src.CStride + (sx0 - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s01yy1 := int(src.Y[s01i])<<16 + 1<<15
 			s01cb1 := int(src.Cb[s01j]) - 128
 			s01cr1 := int(src.Cr[s01j]) - 128
-			s01r8 := (s01yy1 + 91881*s01cr1) >> 16
-			s01g8 := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 16
-			s01b8 := (s01yy1 + 116130*s01cb1) >> 16
-			if s01r8 < 0 {
-				s01r8 = 0
-			} else if s01r8 > 0xff {
-				s01r8 = 0xff
+			s01ru := (s01yy1 + 91881*s01cr1) >> 8
+			s01gu := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 8
+			s01bu := (s01yy1 + 116130*s01cb1) >> 8
+			if s01ru < 0 {
+				s01ru = 0
+			} else if s01ru > 0xffff {
+				s01ru = 0xffff
 			}
-			if s01g8 < 0 {
-				s01g8 = 0
-			} else if s01g8 > 0xff {
-				s01g8 = 0xff
+			if s01gu < 0 {
+				s01gu = 0
+			} else if s01gu > 0xffff {
+				s01gu = 0xffff
 			}
-			if s01b8 < 0 {
-				s01b8 = 0
-			} else if s01b8 > 0xff {
-				s01b8 = 0xff
+			if s01bu < 0 {
+				s01bu = 0
+			} else if s01bu > 0xffff {
+				s01bu = 0xffff
 			}
 
-			s01ru := uint32(s01r8) * 0x101
-			s01gu := uint32(s01g8) * 0x101
-			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
 			s11i := (sy1-src.Rect.Min.Y)*src.YStride + (sx1 - src.Rect.Min.X)
 			s11j := (sy1-src.Rect.Min.Y)*src.CStride + (sx1 - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s11yy1 := int(src.Y[s11i])<<16 + 1<<15
 			s11cb1 := int(src.Cb[s11j]) - 128
 			s11cr1 := int(src.Cr[s11j]) - 128
-			s11r8 := (s11yy1 + 91881*s11cr1) >> 16
-			s11g8 := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 16
-			s11b8 := (s11yy1 + 116130*s11cb1) >> 16
-			if s11r8 < 0 {
-				s11r8 = 0
-			} else if s11r8 > 0xff {
-				s11r8 = 0xff
+			s11ru := (s11yy1 + 91881*s11cr1) >> 8
+			s11gu := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 8
+			s11bu := (s11yy1 + 116130*s11cb1) >> 8
+			if s11ru < 0 {
+				s11ru = 0
+			} else if s11ru > 0xffff {
+				s11ru = 0xffff
 			}
-			if s11g8 < 0 {
-				s11g8 = 0
-			} else if s11g8 > 0xff {
-				s11g8 = 0xff
+			if s11gu < 0 {
+				s11gu = 0
+			} else if s11gu > 0xffff {
+				s11gu = 0xffff
 			}
-			if s11b8 < 0 {
-				s11b8 = 0
-			} else if s11b8 > 0xff {
-				s11b8 = 0xff
+			if s11bu < 0 {
+				s11bu = 0
+			} else if s11bu > 0xffff {
+				s11bu = 0xffff
 			}
 
-			s11ru := uint32(s11r8) * 0x101
-			s11gu := uint32(s11g8) * 0x101
-			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
@@ -2470,64 +2378,58 @@ func (ablInterpolator) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Re
 			s00i := (sy0-src.Rect.Min.Y)*src.YStride + (sx0 - src.Rect.Min.X)
 			s00j := (sy0-src.Rect.Min.Y)*src.CStride + ((sx0)/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s00yy1 := int(src.Y[s00i])<<16 + 1<<15
 			s00cb1 := int(src.Cb[s00j]) - 128
 			s00cr1 := int(src.Cr[s00j]) - 128
-			s00r8 := (s00yy1 + 91881*s00cr1) >> 16
-			s00g8 := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 16
-			s00b8 := (s00yy1 + 116130*s00cb1) >> 16
-			if s00r8 < 0 {
-				s00r8 = 0
-			} else if s00r8 > 0xff {
-				s00r8 = 0xff
+			s00ru := (s00yy1 + 91881*s00cr1) >> 8
+			s00gu := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 8
+			s00bu := (s00yy1 + 116130*s00cb1) >> 8
+			if s00ru < 0 {
+				s00ru = 0
+			} else if s00ru > 0xffff {
+				s00ru = 0xffff
 			}
-			if s00g8 < 0 {
-				s00g8 = 0
-			} else if s00g8 > 0xff {
-				s00g8 = 0xff
+			if s00gu < 0 {
+				s00gu = 0
+			} else if s00gu > 0xffff {
+				s00gu = 0xffff
 			}
-			if s00b8 < 0 {
-				s00b8 = 0
-			} else if s00b8 > 0xff {
-				s00b8 = 0xff
+			if s00bu < 0 {
+				s00bu = 0
+			} else if s00bu > 0xffff {
+				s00bu = 0xffff
 			}
 
-			s00ru := uint32(s00r8) * 0x101
-			s00gu := uint32(s00g8) * 0x101
-			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
 			s10i := (sy0-src.Rect.Min.Y)*src.YStride + (sx1 - src.Rect.Min.X)
 			s10j := (sy0-src.Rect.Min.Y)*src.CStride + ((sx1)/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s10yy1 := int(src.Y[s10i])<<16 + 1<<15
 			s10cb1 := int(src.Cb[s10j]) - 128
 			s10cr1 := int(src.Cr[s10j]) - 128
-			s10r8 := (s10yy1 + 91881*s10cr1) >> 16
-			s10g8 := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 16
-			s10b8 := (s10yy1 + 116130*s10cb1) >> 16
-			if s10r8 < 0 {
-				s10r8 = 0
-			} else if s10r8 > 0xff {
-				s10r8 = 0xff
+			s10ru := (s10yy1 + 91881*s10cr1) >> 8
+			s10gu := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 8
+			s10bu := (s10yy1 + 116130*s10cb1) >> 8
+			if s10ru < 0 {
+				s10ru = 0
+			} else if s10ru > 0xffff {
+				s10ru = 0xffff
 			}
-			if s10g8 < 0 {
-				s10g8 = 0
-			} else if s10g8 > 0xff {
-				s10g8 = 0xff
+			if s10gu < 0 {
+				s10gu = 0
+			} else if s10gu > 0xffff {
+				s10gu = 0xffff
 			}
-			if s10b8 < 0 {
-				s10b8 = 0
-			} else if s10b8 > 0xff {
-				s10b8 = 0xff
+			if s10bu < 0 {
+				s10bu = 0
+			} else if s10bu > 0xffff {
+				s10bu = 0xffff
 			}
 
-			s10ru := uint32(s10r8) * 0x101
-			s10gu := uint32(s10g8) * 0x101
-			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
@@ -2537,64 +2439,58 @@ func (ablInterpolator) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Re
 			s01i := (sy1-src.Rect.Min.Y)*src.YStride + (sx0 - src.Rect.Min.X)
 			s01j := (sy1-src.Rect.Min.Y)*src.CStride + ((sx0)/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s01yy1 := int(src.Y[s01i])<<16 + 1<<15
 			s01cb1 := int(src.Cb[s01j]) - 128
 			s01cr1 := int(src.Cr[s01j]) - 128
-			s01r8 := (s01yy1 + 91881*s01cr1) >> 16
-			s01g8 := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 16
-			s01b8 := (s01yy1 + 116130*s01cb1) >> 16
-			if s01r8 < 0 {
-				s01r8 = 0
-			} else if s01r8 > 0xff {
-				s01r8 = 0xff
+			s01ru := (s01yy1 + 91881*s01cr1) >> 8
+			s01gu := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 8
+			s01bu := (s01yy1 + 116130*s01cb1) >> 8
+			if s01ru < 0 {
+				s01ru = 0
+			} else if s01ru > 0xffff {
+				s01ru = 0xffff
 			}
-			if s01g8 < 0 {
-				s01g8 = 0
-			} else if s01g8 > 0xff {
-				s01g8 = 0xff
+			if s01gu < 0 {
+				s01gu = 0
+			} else if s01gu > 0xffff {
+				s01gu = 0xffff
 			}
-			if s01b8 < 0 {
-				s01b8 = 0
-			} else if s01b8 > 0xff {
-				s01b8 = 0xff
+			if s01bu < 0 {
+				s01bu = 0
+			} else if s01bu > 0xffff {
+				s01bu = 0xffff
 			}
 
-			s01ru := uint32(s01r8) * 0x101
-			s01gu := uint32(s01g8) * 0x101
-			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
 			s11i := (sy1-src.Rect.Min.Y)*src.YStride + (sx1 - src.Rect.Min.X)
 			s11j := (sy1-src.Rect.Min.Y)*src.CStride + ((sx1)/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s11yy1 := int(src.Y[s11i])<<16 + 1<<15
 			s11cb1 := int(src.Cb[s11j]) - 128
 			s11cr1 := int(src.Cr[s11j]) - 128
-			s11r8 := (s11yy1 + 91881*s11cr1) >> 16
-			s11g8 := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 16
-			s11b8 := (s11yy1 + 116130*s11cb1) >> 16
-			if s11r8 < 0 {
-				s11r8 = 0
-			} else if s11r8 > 0xff {
-				s11r8 = 0xff
+			s11ru := (s11yy1 + 91881*s11cr1) >> 8
+			s11gu := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 8
+			s11bu := (s11yy1 + 116130*s11cb1) >> 8
+			if s11ru < 0 {
+				s11ru = 0
+			} else if s11ru > 0xffff {
+				s11ru = 0xffff
 			}
-			if s11g8 < 0 {
-				s11g8 = 0
-			} else if s11g8 > 0xff {
-				s11g8 = 0xff
+			if s11gu < 0 {
+				s11gu = 0
+			} else if s11gu > 0xffff {
+				s11gu = 0xffff
 			}
-			if s11b8 < 0 {
-				s11b8 = 0
-			} else if s11b8 > 0xff {
-				s11b8 = 0xff
+			if s11bu < 0 {
+				s11bu = 0
+			} else if s11bu > 0xffff {
+				s11bu = 0xffff
 			}
 
-			s11ru := uint32(s11r8) * 0x101
-			s11gu := uint32(s11g8) * 0x101
-			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
@@ -2655,64 +2551,58 @@ func (ablInterpolator) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Re
 			s00i := (sy0-src.Rect.Min.Y)*src.YStride + (sx0 - src.Rect.Min.X)
 			s00j := ((sy0)/2-src.Rect.Min.Y/2)*src.CStride + ((sx0)/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s00yy1 := int(src.Y[s00i])<<16 + 1<<15
 			s00cb1 := int(src.Cb[s00j]) - 128
 			s00cr1 := int(src.Cr[s00j]) - 128
-			s00r8 := (s00yy1 + 91881*s00cr1) >> 16
-			s00g8 := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 16
-			s00b8 := (s00yy1 + 116130*s00cb1) >> 16
-			if s00r8 < 0 {
-				s00r8 = 0
-			} else if s00r8 > 0xff {
-				s00r8 = 0xff
+			s00ru := (s00yy1 + 91881*s00cr1) >> 8
+			s00gu := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 8
+			s00bu := (s00yy1 + 116130*s00cb1) >> 8
+			if s00ru < 0 {
+				s00ru = 0
+			} else if s00ru > 0xffff {
+				s00ru = 0xffff
 			}
-			if s00g8 < 0 {
-				s00g8 = 0
-			} else if s00g8 > 0xff {
-				s00g8 = 0xff
+			if s00gu < 0 {
+				s00gu = 0
+			} else if s00gu > 0xffff {
+				s00gu = 0xffff
 			}
-			if s00b8 < 0 {
-				s00b8 = 0
-			} else if s00b8 > 0xff {
-				s00b8 = 0xff
+			if s00bu < 0 {
+				s00bu = 0
+			} else if s00bu > 0xffff {
+				s00bu = 0xffff
 			}
 
-			s00ru := uint32(s00r8) * 0x101
-			s00gu := uint32(s00g8) * 0x101
-			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
 			s10i := (sy0-src.Rect.Min.Y)*src.YStride + (sx1 - src.Rect.Min.X)
 			s10j := ((sy0)/2-src.Rect.Min.Y/2)*src.CStride + ((sx1)/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s10yy1 := int(src.Y[s10i])<<16 + 1<<15
 			s10cb1 := int(src.Cb[s10j]) - 128
 			s10cr1 := int(src.Cr[s10j]) - 128
-			s10r8 := (s10yy1 + 91881*s10cr1) >> 16
-			s10g8 := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 16
-			s10b8 := (s10yy1 + 116130*s10cb1) >> 16
-			if s10r8 < 0 {
-				s10r8 = 0
-			} else if s10r8 > 0xff {
-				s10r8 = 0xff
+			s10ru := (s10yy1 + 91881*s10cr1) >> 8
+			s10gu := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 8
+			s10bu := (s10yy1 + 116130*s10cb1) >> 8
+			if s10ru < 0 {
+				s10ru = 0
+			} else if s10ru > 0xffff {
+				s10ru = 0xffff
 			}
-			if s10g8 < 0 {
-				s10g8 = 0
-			} else if s10g8 > 0xff {
-				s10g8 = 0xff
+			if s10gu < 0 {
+				s10gu = 0
+			} else if s10gu > 0xffff {
+				s10gu = 0xffff
 			}
-			if s10b8 < 0 {
-				s10b8 = 0
-			} else if s10b8 > 0xff {
-				s10b8 = 0xff
+			if s10bu < 0 {
+				s10bu = 0
+			} else if s10bu > 0xffff {
+				s10bu = 0xffff
 			}
 
-			s10ru := uint32(s10r8) * 0x101
-			s10gu := uint32(s10g8) * 0x101
-			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
@@ -2722,64 +2612,58 @@ func (ablInterpolator) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Re
 			s01i := (sy1-src.Rect.Min.Y)*src.YStride + (sx0 - src.Rect.Min.X)
 			s01j := ((sy1)/2-src.Rect.Min.Y/2)*src.CStride + ((sx0)/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s01yy1 := int(src.Y[s01i])<<16 + 1<<15
 			s01cb1 := int(src.Cb[s01j]) - 128
 			s01cr1 := int(src.Cr[s01j]) - 128
-			s01r8 := (s01yy1 + 91881*s01cr1) >> 16
-			s01g8 := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 16
-			s01b8 := (s01yy1 + 116130*s01cb1) >> 16
-			if s01r8 < 0 {
-				s01r8 = 0
-			} else if s01r8 > 0xff {
-				s01r8 = 0xff
+			s01ru := (s01yy1 + 91881*s01cr1) >> 8
+			s01gu := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 8
+			s01bu := (s01yy1 + 116130*s01cb1) >> 8
+			if s01ru < 0 {
+				s01ru = 0
+			} else if s01ru > 0xffff {
+				s01ru = 0xffff
 			}
-			if s01g8 < 0 {
-				s01g8 = 0
-			} else if s01g8 > 0xff {
-				s01g8 = 0xff
+			if s01gu < 0 {
+				s01gu = 0
+			} else if s01gu > 0xffff {
+				s01gu = 0xffff
 			}
-			if s01b8 < 0 {
-				s01b8 = 0
-			} else if s01b8 > 0xff {
-				s01b8 = 0xff
+			if s01bu < 0 {
+				s01bu = 0
+			} else if s01bu > 0xffff {
+				s01bu = 0xffff
 			}
 
-			s01ru := uint32(s01r8) * 0x101
-			s01gu := uint32(s01g8) * 0x101
-			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
 			s11i := (sy1-src.Rect.Min.Y)*src.YStride + (sx1 - src.Rect.Min.X)
 			s11j := ((sy1)/2-src.Rect.Min.Y/2)*src.CStride + ((sx1)/2 - src.Rect.Min.X/2)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s11yy1 := int(src.Y[s11i])<<16 + 1<<15
 			s11cb1 := int(src.Cb[s11j]) - 128
 			s11cr1 := int(src.Cr[s11j]) - 128
-			s11r8 := (s11yy1 + 91881*s11cr1) >> 16
-			s11g8 := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 16
-			s11b8 := (s11yy1 + 116130*s11cb1) >> 16
-			if s11r8 < 0 {
-				s11r8 = 0
-			} else if s11r8 > 0xff {
-				s11r8 = 0xff
+			s11ru := (s11yy1 + 91881*s11cr1) >> 8
+			s11gu := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 8
+			s11bu := (s11yy1 + 116130*s11cb1) >> 8
+			if s11ru < 0 {
+				s11ru = 0
+			} else if s11ru > 0xffff {
+				s11ru = 0xffff
 			}
-			if s11g8 < 0 {
-				s11g8 = 0
-			} else if s11g8 > 0xff {
-				s11g8 = 0xff
+			if s11gu < 0 {
+				s11gu = 0
+			} else if s11gu > 0xffff {
+				s11gu = 0xffff
 			}
-			if s11b8 < 0 {
-				s11b8 = 0
-			} else if s11b8 > 0xff {
-				s11b8 = 0xff
+			if s11bu < 0 {
+				s11bu = 0
+			} else if s11bu > 0xffff {
+				s11bu = 0xffff
 			}
 
-			s11ru := uint32(s11r8) * 0x101
-			s11gu := uint32(s11g8) * 0x101
-			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
@@ -2840,64 +2724,58 @@ func (ablInterpolator) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Re
 			s00i := (sy0-src.Rect.Min.Y)*src.YStride + (sx0 - src.Rect.Min.X)
 			s00j := ((sy0)/2-src.Rect.Min.Y/2)*src.CStride + (sx0 - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s00yy1 := int(src.Y[s00i])<<16 + 1<<15
 			s00cb1 := int(src.Cb[s00j]) - 128
 			s00cr1 := int(src.Cr[s00j]) - 128
-			s00r8 := (s00yy1 + 91881*s00cr1) >> 16
-			s00g8 := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 16
-			s00b8 := (s00yy1 + 116130*s00cb1) >> 16
-			if s00r8 < 0 {
-				s00r8 = 0
-			} else if s00r8 > 0xff {
-				s00r8 = 0xff
+			s00ru := (s00yy1 + 91881*s00cr1) >> 8
+			s00gu := (s00yy1 - 22554*s00cb1 - 46802*s00cr1) >> 8
+			s00bu := (s00yy1 + 116130*s00cb1) >> 8
+			if s00ru < 0 {
+				s00ru = 0
+			} else if s00ru > 0xffff {
+				s00ru = 0xffff
 			}
-			if s00g8 < 0 {
-				s00g8 = 0
-			} else if s00g8 > 0xff {
-				s00g8 = 0xff
+			if s00gu < 0 {
+				s00gu = 0
+			} else if s00gu > 0xffff {
+				s00gu = 0xffff
 			}
-			if s00b8 < 0 {
-				s00b8 = 0
-			} else if s00b8 > 0xff {
-				s00b8 = 0xff
+			if s00bu < 0 {
+				s00bu = 0
+			} else if s00bu > 0xffff {
+				s00bu = 0xffff
 			}
 
-			s00ru := uint32(s00r8) * 0x101
-			s00gu := uint32(s00g8) * 0x101
-			s00bu := uint32(s00b8) * 0x101
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
 			s10i := (sy0-src.Rect.Min.Y)*src.YStride + (sx1 - src.Rect.Min.X)
 			s10j := ((sy0)/2-src.Rect.Min.Y/2)*src.CStride + (sx1 - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s10yy1 := int(src.Y[s10i])<<16 + 1<<15
 			s10cb1 := int(src.Cb[s10j]) - 128
 			s10cr1 := int(src.Cr[s10j]) - 128
-			s10r8 := (s10yy1 + 91881*s10cr1) >> 16
-			s10g8 := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 16
-			s10b8 := (s10yy1 + 116130*s10cb1) >> 16
-			if s10r8 < 0 {
-				s10r8 = 0
-			} else if s10r8 > 0xff {
-				s10r8 = 0xff
+			s10ru := (s10yy1 + 91881*s10cr1) >> 8
+			s10gu := (s10yy1 - 22554*s10cb1 - 46802*s10cr1) >> 8
+			s10bu := (s10yy1 + 116130*s10cb1) >> 8
+			if s10ru < 0 {
+				s10ru = 0
+			} else if s10ru > 0xffff {
+				s10ru = 0xffff
 			}
-			if s10g8 < 0 {
-				s10g8 = 0
-			} else if s10g8 > 0xff {
-				s10g8 = 0xff
+			if s10gu < 0 {
+				s10gu = 0
+			} else if s10gu > 0xffff {
+				s10gu = 0xffff
 			}
-			if s10b8 < 0 {
-				s10b8 = 0
-			} else if s10b8 > 0xff {
-				s10b8 = 0xff
+			if s10bu < 0 {
+				s10bu = 0
+			} else if s10bu > 0xffff {
+				s10bu = 0xffff
 			}
 
-			s10ru := uint32(s10r8) * 0x101
-			s10gu := uint32(s10g8) * 0x101
-			s10bu := uint32(s10b8) * 0x101
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
@@ -2907,64 +2785,58 @@ func (ablInterpolator) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Re
 			s01i := (sy1-src.Rect.Min.Y)*src.YStride + (sx0 - src.Rect.Min.X)
 			s01j := ((sy1)/2-src.Rect.Min.Y/2)*src.CStride + (sx0 - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s01yy1 := int(src.Y[s01i])<<16 + 1<<15
 			s01cb1 := int(src.Cb[s01j]) - 128
 			s01cr1 := int(src.Cr[s01j]) - 128
-			s01r8 := (s01yy1 + 91881*s01cr1) >> 16
-			s01g8 := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 16
-			s01b8 := (s01yy1 + 116130*s01cb1) >> 16
-			if s01r8 < 0 {
-				s01r8 = 0
-			} else if s01r8 > 0xff {
-				s01r8 = 0xff
+			s01ru := (s01yy1 + 91881*s01cr1) >> 8
+			s01gu := (s01yy1 - 22554*s01cb1 - 46802*s01cr1) >> 8
+			s01bu := (s01yy1 + 116130*s01cb1) >> 8
+			if s01ru < 0 {
+				s01ru = 0
+			} else if s01ru > 0xffff {
+				s01ru = 0xffff
 			}
-			if s01g8 < 0 {
-				s01g8 = 0
-			} else if s01g8 > 0xff {
-				s01g8 = 0xff
+			if s01gu < 0 {
+				s01gu = 0
+			} else if s01gu > 0xffff {
+				s01gu = 0xffff
 			}
-			if s01b8 < 0 {
-				s01b8 = 0
-			} else if s01b8 > 0xff {
-				s01b8 = 0xff
+			if s01bu < 0 {
+				s01bu = 0
+			} else if s01bu > 0xffff {
+				s01bu = 0xffff
 			}
 
-			s01ru := uint32(s01r8) * 0x101
-			s01gu := uint32(s01g8) * 0x101
-			s01bu := uint32(s01b8) * 0x101
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
 			s11i := (sy1-src.Rect.Min.Y)*src.YStride + (sx1 - src.Rect.Min.X)
 			s11j := ((sy1)/2-src.Rect.Min.Y/2)*src.CStride + (sx1 - src.Rect.Min.X)
 
-			// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+			// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 			s11yy1 := int(src.Y[s11i])<<16 + 1<<15
 			s11cb1 := int(src.Cb[s11j]) - 128
 			s11cr1 := int(src.Cr[s11j]) - 128
-			s11r8 := (s11yy1 + 91881*s11cr1) >> 16
-			s11g8 := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 16
-			s11b8 := (s11yy1 + 116130*s11cb1) >> 16
-			if s11r8 < 0 {
-				s11r8 = 0
-			} else if s11r8 > 0xff {
-				s11r8 = 0xff
+			s11ru := (s11yy1 + 91881*s11cr1) >> 8
+			s11gu := (s11yy1 - 22554*s11cb1 - 46802*s11cr1) >> 8
+			s11bu := (s11yy1 + 116130*s11cb1) >> 8
+			if s11ru < 0 {
+				s11ru = 0
+			} else if s11ru > 0xffff {
+				s11ru = 0xffff
 			}
-			if s11g8 < 0 {
-				s11g8 = 0
-			} else if s11g8 > 0xff {
-				s11g8 = 0xff
+			if s11gu < 0 {
+				s11gu = 0
+			} else if s11gu > 0xffff {
+				s11gu = 0xffff
 			}
-			if s11b8 < 0 {
-				s11b8 = 0
-			} else if s11b8 > 0xff {
-				s11b8 = 0xff
+			if s11bu < 0 {
+				s11bu = 0
+			} else if s11bu > 0xffff {
+				s11bu = 0xffff
 			}
 
-			s11ru := uint32(s11r8) * 0x101
-			s11gu := uint32(s11g8) * 0x101
-			s11bu := uint32(s11b8) * 0x101
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
@@ -3369,32 +3241,29 @@ func (z *kernelScaler) scaleX_YCbCr444(tmp [][4]float64, src *image.YCbCr, sr im
 				pi := (sr.Min.Y+int(y)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(c.coord) - src.Rect.Min.X)
 				pj := (sr.Min.Y+int(y)-src.Rect.Min.Y)*src.CStride + (sr.Min.X + int(c.coord) - src.Rect.Min.X)
 
-				// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+				// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 				pyy1 := int(src.Y[pi])<<16 + 1<<15
 				pcb1 := int(src.Cb[pj]) - 128
 				pcr1 := int(src.Cr[pj]) - 128
-				pr8 := (pyy1 + 91881*pcr1) >> 16
-				pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-				pb8 := (pyy1 + 116130*pcb1) >> 16
-				if pr8 < 0 {
-					pr8 = 0
-				} else if pr8 > 0xff {
-					pr8 = 0xff
+				pru := (pyy1 + 91881*pcr1) >> 8
+				pgu := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+				pbu := (pyy1 + 116130*pcb1) >> 8
+				if pru < 0 {
+					pru = 0
+				} else if pru > 0xffff {
+					pru = 0xffff
 				}
-				if pg8 < 0 {
-					pg8 = 0
-				} else if pg8 > 0xff {
-					pg8 = 0xff
+				if pgu < 0 {
+					pgu = 0
+				} else if pgu > 0xffff {
+					pgu = 0xffff
 				}
-				if pb8 < 0 {
-					pb8 = 0
-				} else if pb8 > 0xff {
-					pb8 = 0xff
+				if pbu < 0 {
+					pbu = 0
+				} else if pbu > 0xffff {
+					pbu = 0xffff
 				}
 
-				pru := uint32(pr8) * 0x101
-				pgu := uint32(pg8) * 0x101
-				pbu := uint32(pb8) * 0x101
 				pr += float64(pru) * c.weight
 				pg += float64(pgu) * c.weight
 				pb += float64(pbu) * c.weight
@@ -3419,32 +3288,29 @@ func (z *kernelScaler) scaleX_YCbCr422(tmp [][4]float64, src *image.YCbCr, sr im
 				pi := (sr.Min.Y+int(y)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(c.coord) - src.Rect.Min.X)
 				pj := (sr.Min.Y+int(y)-src.Rect.Min.Y)*src.CStride + ((sr.Min.X+int(c.coord))/2 - src.Rect.Min.X/2)
 
-				// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+				// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 				pyy1 := int(src.Y[pi])<<16 + 1<<15
 				pcb1 := int(src.Cb[pj]) - 128
 				pcr1 := int(src.Cr[pj]) - 128
-				pr8 := (pyy1 + 91881*pcr1) >> 16
-				pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-				pb8 := (pyy1 + 116130*pcb1) >> 16
-				if pr8 < 0 {
-					pr8 = 0
-				} else if pr8 > 0xff {
-					pr8 = 0xff
+				pru := (pyy1 + 91881*pcr1) >> 8
+				pgu := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+				pbu := (pyy1 + 116130*pcb1) >> 8
+				if pru < 0 {
+					pru = 0
+				} else if pru > 0xffff {
+					pru = 0xffff
 				}
-				if pg8 < 0 {
-					pg8 = 0
-				} else if pg8 > 0xff {
-					pg8 = 0xff
+				if pgu < 0 {
+					pgu = 0
+				} else if pgu > 0xffff {
+					pgu = 0xffff
 				}
-				if pb8 < 0 {
-					pb8 = 0
-				} else if pb8 > 0xff {
-					pb8 = 0xff
+				if pbu < 0 {
+					pbu = 0
+				} else if pbu > 0xffff {
+					pbu = 0xffff
 				}
 
-				pru := uint32(pr8) * 0x101
-				pgu := uint32(pg8) * 0x101
-				pbu := uint32(pb8) * 0x101
 				pr += float64(pru) * c.weight
 				pg += float64(pgu) * c.weight
 				pb += float64(pbu) * c.weight
@@ -3469,32 +3335,29 @@ func (z *kernelScaler) scaleX_YCbCr420(tmp [][4]float64, src *image.YCbCr, sr im
 				pi := (sr.Min.Y+int(y)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(c.coord) - src.Rect.Min.X)
 				pj := ((sr.Min.Y+int(y))/2-src.Rect.Min.Y/2)*src.CStride + ((sr.Min.X+int(c.coord))/2 - src.Rect.Min.X/2)
 
-				// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+				// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 				pyy1 := int(src.Y[pi])<<16 + 1<<15
 				pcb1 := int(src.Cb[pj]) - 128
 				pcr1 := int(src.Cr[pj]) - 128
-				pr8 := (pyy1 + 91881*pcr1) >> 16
-				pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-				pb8 := (pyy1 + 116130*pcb1) >> 16
-				if pr8 < 0 {
-					pr8 = 0
-				} else if pr8 > 0xff {
-					pr8 = 0xff
+				pru := (pyy1 + 91881*pcr1) >> 8
+				pgu := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+				pbu := (pyy1 + 116130*pcb1) >> 8
+				if pru < 0 {
+					pru = 0
+				} else if pru > 0xffff {
+					pru = 0xffff
 				}
-				if pg8 < 0 {
-					pg8 = 0
-				} else if pg8 > 0xff {
-					pg8 = 0xff
+				if pgu < 0 {
+					pgu = 0
+				} else if pgu > 0xffff {
+					pgu = 0xffff
 				}
-				if pb8 < 0 {
-					pb8 = 0
-				} else if pb8 > 0xff {
-					pb8 = 0xff
+				if pbu < 0 {
+					pbu = 0
+				} else if pbu > 0xffff {
+					pbu = 0xffff
 				}
 
-				pru := uint32(pr8) * 0x101
-				pgu := uint32(pg8) * 0x101
-				pbu := uint32(pb8) * 0x101
 				pr += float64(pru) * c.weight
 				pg += float64(pgu) * c.weight
 				pb += float64(pbu) * c.weight
@@ -3519,32 +3382,29 @@ func (z *kernelScaler) scaleX_YCbCr440(tmp [][4]float64, src *image.YCbCr, sr im
 				pi := (sr.Min.Y+int(y)-src.Rect.Min.Y)*src.YStride + (sr.Min.X + int(c.coord) - src.Rect.Min.X)
 				pj := ((sr.Min.Y+int(y))/2-src.Rect.Min.Y/2)*src.CStride + (sr.Min.X + int(c.coord) - src.Rect.Min.X)
 
-				// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+				// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 				pyy1 := int(src.Y[pi])<<16 + 1<<15
 				pcb1 := int(src.Cb[pj]) - 128
 				pcr1 := int(src.Cr[pj]) - 128
-				pr8 := (pyy1 + 91881*pcr1) >> 16
-				pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-				pb8 := (pyy1 + 116130*pcb1) >> 16
-				if pr8 < 0 {
-					pr8 = 0
-				} else if pr8 > 0xff {
-					pr8 = 0xff
+				pru := (pyy1 + 91881*pcr1) >> 8
+				pgu := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+				pbu := (pyy1 + 116130*pcb1) >> 8
+				if pru < 0 {
+					pru = 0
+				} else if pru > 0xffff {
+					pru = 0xffff
 				}
-				if pg8 < 0 {
-					pg8 = 0
-				} else if pg8 > 0xff {
-					pg8 = 0xff
+				if pgu < 0 {
+					pgu = 0
+				} else if pgu > 0xffff {
+					pgu = 0xffff
 				}
-				if pb8 < 0 {
-					pb8 = 0
-				} else if pb8 > 0xff {
-					pb8 = 0xff
+				if pbu < 0 {
+					pbu = 0
+				} else if pbu > 0xffff {
+					pbu = 0xffff
 				}
 
-				pru := uint32(pr8) * 0x101
-				pgu := uint32(pg8) * 0x101
-				pbu := uint32(pb8) * 0x101
 				pr += float64(pru) * c.weight
 				pg += float64(pgu) * c.weight
 				pb += float64(pbu) * c.weight
@@ -4019,32 +3879,29 @@ func (q *Kernel) transform_RGBA_YCbCr444(dst *image.RGBA, dr, adr image.Rectangl
 							pi := (ky-src.Rect.Min.Y)*src.YStride + (kx - src.Rect.Min.X)
 							pj := (ky-src.Rect.Min.Y)*src.CStride + (kx - src.Rect.Min.X)
 
-							// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+							// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 							pyy1 := int(src.Y[pi])<<16 + 1<<15
 							pcb1 := int(src.Cb[pj]) - 128
 							pcr1 := int(src.Cr[pj]) - 128
-							pr8 := (pyy1 + 91881*pcr1) >> 16
-							pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-							pb8 := (pyy1 + 116130*pcb1) >> 16
-							if pr8 < 0 {
-								pr8 = 0
-							} else if pr8 > 0xff {
-								pr8 = 0xff
+							pru := (pyy1 + 91881*pcr1) >> 8
+							pgu := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+							pbu := (pyy1 + 116130*pcb1) >> 8
+							if pru < 0 {
+								pru = 0
+							} else if pru > 0xffff {
+								pru = 0xffff
 							}
-							if pg8 < 0 {
-								pg8 = 0
-							} else if pg8 > 0xff {
-								pg8 = 0xff
+							if pgu < 0 {
+								pgu = 0
+							} else if pgu > 0xffff {
+								pgu = 0xffff
 							}
-							if pb8 < 0 {
-								pb8 = 0
-							} else if pb8 > 0xff {
-								pb8 = 0xff
+							if pbu < 0 {
+								pbu = 0
+							} else if pbu > 0xffff {
+								pbu = 0xffff
 							}
 
-							pru := uint32(pr8) * 0x101
-							pgu := uint32(pg8) * 0x101
-							pbu := uint32(pb8) * 0x101
 							pr += float64(pru) * w
 							pg += float64(pgu) * w
 							pb += float64(pbu) * w
@@ -4146,32 +4003,29 @@ func (q *Kernel) transform_RGBA_YCbCr422(dst *image.RGBA, dr, adr image.Rectangl
 							pi := (ky-src.Rect.Min.Y)*src.YStride + (kx - src.Rect.Min.X)
 							pj := (ky-src.Rect.Min.Y)*src.CStride + ((kx)/2 - src.Rect.Min.X/2)
 
-							// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+							// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 							pyy1 := int(src.Y[pi])<<16 + 1<<15
 							pcb1 := int(src.Cb[pj]) - 128
 							pcr1 := int(src.Cr[pj]) - 128
-							pr8 := (pyy1 + 91881*pcr1) >> 16
-							pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-							pb8 := (pyy1 + 116130*pcb1) >> 16
-							if pr8 < 0 {
-								pr8 = 0
-							} else if pr8 > 0xff {
-								pr8 = 0xff
+							pru := (pyy1 + 91881*pcr1) >> 8
+							pgu := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+							pbu := (pyy1 + 116130*pcb1) >> 8
+							if pru < 0 {
+								pru = 0
+							} else if pru > 0xffff {
+								pru = 0xffff
 							}
-							if pg8 < 0 {
-								pg8 = 0
-							} else if pg8 > 0xff {
-								pg8 = 0xff
+							if pgu < 0 {
+								pgu = 0
+							} else if pgu > 0xffff {
+								pgu = 0xffff
 							}
-							if pb8 < 0 {
-								pb8 = 0
-							} else if pb8 > 0xff {
-								pb8 = 0xff
+							if pbu < 0 {
+								pbu = 0
+							} else if pbu > 0xffff {
+								pbu = 0xffff
 							}
 
-							pru := uint32(pr8) * 0x101
-							pgu := uint32(pg8) * 0x101
-							pbu := uint32(pb8) * 0x101
 							pr += float64(pru) * w
 							pg += float64(pgu) * w
 							pb += float64(pbu) * w
@@ -4273,32 +4127,29 @@ func (q *Kernel) transform_RGBA_YCbCr420(dst *image.RGBA, dr, adr image.Rectangl
 							pi := (ky-src.Rect.Min.Y)*src.YStride + (kx - src.Rect.Min.X)
 							pj := ((ky)/2-src.Rect.Min.Y/2)*src.CStride + ((kx)/2 - src.Rect.Min.X/2)
 
-							// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+							// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 							pyy1 := int(src.Y[pi])<<16 + 1<<15
 							pcb1 := int(src.Cb[pj]) - 128
 							pcr1 := int(src.Cr[pj]) - 128
-							pr8 := (pyy1 + 91881*pcr1) >> 16
-							pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-							pb8 := (pyy1 + 116130*pcb1) >> 16
-							if pr8 < 0 {
-								pr8 = 0
-							} else if pr8 > 0xff {
-								pr8 = 0xff
+							pru := (pyy1 + 91881*pcr1) >> 8
+							pgu := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+							pbu := (pyy1 + 116130*pcb1) >> 8
+							if pru < 0 {
+								pru = 0
+							} else if pru > 0xffff {
+								pru = 0xffff
 							}
-							if pg8 < 0 {
-								pg8 = 0
-							} else if pg8 > 0xff {
-								pg8 = 0xff
+							if pgu < 0 {
+								pgu = 0
+							} else if pgu > 0xffff {
+								pgu = 0xffff
 							}
-							if pb8 < 0 {
-								pb8 = 0
-							} else if pb8 > 0xff {
-								pb8 = 0xff
+							if pbu < 0 {
+								pbu = 0
+							} else if pbu > 0xffff {
+								pbu = 0xffff
 							}
 
-							pru := uint32(pr8) * 0x101
-							pgu := uint32(pg8) * 0x101
-							pbu := uint32(pb8) * 0x101
 							pr += float64(pru) * w
 							pg += float64(pgu) * w
 							pb += float64(pbu) * w
@@ -4400,32 +4251,29 @@ func (q *Kernel) transform_RGBA_YCbCr440(dst *image.RGBA, dr, adr image.Rectangl
 							pi := (ky-src.Rect.Min.Y)*src.YStride + (kx - src.Rect.Min.X)
 							pj := ((ky)/2-src.Rect.Min.Y/2)*src.CStride + (kx - src.Rect.Min.X)
 
-							// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+							// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 							pyy1 := int(src.Y[pi])<<16 + 1<<15
 							pcb1 := int(src.Cb[pj]) - 128
 							pcr1 := int(src.Cr[pj]) - 128
-							pr8 := (pyy1 + 91881*pcr1) >> 16
-							pg8 := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 16
-							pb8 := (pyy1 + 116130*pcb1) >> 16
-							if pr8 < 0 {
-								pr8 = 0
-							} else if pr8 > 0xff {
-								pr8 = 0xff
+							pru := (pyy1 + 91881*pcr1) >> 8
+							pgu := (pyy1 - 22554*pcb1 - 46802*pcr1) >> 8
+							pbu := (pyy1 + 116130*pcb1) >> 8
+							if pru < 0 {
+								pru = 0
+							} else if pru > 0xffff {
+								pru = 0xffff
 							}
-							if pg8 < 0 {
-								pg8 = 0
-							} else if pg8 > 0xff {
-								pg8 = 0xff
+							if pgu < 0 {
+								pgu = 0
+							} else if pgu > 0xffff {
+								pgu = 0xffff
 							}
-							if pb8 < 0 {
-								pb8 = 0
-							} else if pb8 > 0xff {
-								pb8 = 0xff
+							if pbu < 0 {
+								pbu = 0
+							} else if pbu > 0xffff {
+								pbu = 0xffff
 							}
 
-							pru := uint32(pr8) * 0x101
-							pgu := uint32(pg8) * 0x101
-							pbu := uint32(pb8) * 0x101
 							pr += float64(pru) * w
 							pg += float64(pgu) * w
 							pb += float64(pbu) * w
