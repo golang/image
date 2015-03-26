@@ -479,16 +479,10 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			fmt.Fprintf(buf, ""+
 				"%si := %s\n"+
 				"%sj := %s\n"+
-				"%s\n"+
-				"%sr%s := uint32(%sr8) * 0x101\n"+
-				"%sg%s := uint32(%sg8) * 0x101\n"+
-				"%sb%s := uint32(%sb8) * 0x101\n",
+				"%s\n",
 				lhs, pixOffset("src", args[0], args[1], "", "*src.YStride"),
 				lhs, cOffset(args[0], args[1], d.sratio),
-				ycbcrToRGB(lhs),
-				lhs, tmp, lhs,
-				lhs, tmp, lhs,
-				lhs, tmp, lhs,
+				ycbcrToRGB(lhs, tmp),
 			)
 		}
 
@@ -643,34 +637,34 @@ func cOffset(x, y, sratio string) string {
 	return fmt.Sprintf("unsupported sratio %q", sratio)
 }
 
-// TODO: should we have a color.YCbCrToRGB48 function that returns 16-bit
-// color?
-
-func ycbcrToRGB(lhs string) string {
-	return strings.Replace(`
-		// This is an inline version of image/color/ycbcr.go's func YCbCrToRGB.
+func ycbcrToRGB(lhs, tmp string) string {
+	s := `
+		// This is an inline version of image/color/ycbcr.go's YCbCr.RGBA method.
 		$yy1 := int(src.Y[$i])<<16 + 1<<15
 		$cb1 := int(src.Cb[$j]) - 128
 		$cr1 := int(src.Cr[$j]) - 128
-		$r8 := ($yy1 + 91881*$cr1) >> 16
-		$g8 := ($yy1 - 22554*$cb1 - 46802*$cr1) >> 16
-		$b8 := ($yy1 + 116130*$cb1) >> 16
-		if $r8 < 0 {
-			$r8 = 0
-		} else if $r8 > 0xff {
-			$r8 = 0xff
+		$r@ := ($yy1 + 91881*$cr1) >> 8
+		$g@ := ($yy1 - 22554*$cb1 - 46802*$cr1) >> 8
+		$b@ := ($yy1 + 116130*$cb1) >> 8
+		if $r@ < 0 {
+			$r@ = 0
+		} else if $r@ > 0xffff {
+			$r@ = 0xffff
 		}
-		if $g8 < 0 {
-			$g8 = 0
-		} else if $g8 > 0xff {
-			$g8 = 0xff
+		if $g@ < 0 {
+			$g@ = 0
+		} else if $g@ > 0xffff {
+			$g@ = 0xffff
 		}
-		if $b8 < 0 {
-			$b8 = 0
-		} else if $b8 > 0xff {
-			$b8 = 0xff
+		if $b@ < 0 {
+			$b@ = 0
+		} else if $b@ > 0xffff {
+			$b@ = 0xffff
 		}
-	`, "$", lhs, -1)
+	`
+	s = strings.Replace(s, "$", lhs, -1)
+	s = strings.Replace(s, "@", tmp, -1)
+	return s
 }
 
 func split(s, sep string) (string, string) {
