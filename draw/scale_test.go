@@ -393,6 +393,7 @@ func benchScale(b *testing.B, srcf func(image.Rectangle) (image.Image, error), w
 		scaler = n.NewScaler(dr.Dx(), dr.Dy(), sr.Dx(), sr.Dy())
 	}
 
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		scaler.Scale(dst, dr, src, sr, nil)
@@ -408,6 +409,7 @@ func benchTform(b *testing.B, srcf func(image.Rectangle) (image.Image, error), w
 	sr := src.Bounds()
 	m := transformMatrix(40, 10)
 
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		q.Transform(dst, m, src, sr, nil)
