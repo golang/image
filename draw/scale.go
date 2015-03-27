@@ -10,6 +10,7 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"sync"
 
 	"golang.org/x/image/math/f64"
 )
@@ -88,13 +89,17 @@ type Kernel struct {
 
 // Scale implements the Scaler interface.
 func (q *Kernel) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
-	q.NewScaler(dr.Dx(), dr.Dy(), sr.Dx(), sr.Dy()).Scale(dst, dr, src, sr, opts)
+	q.newScaler(dr.Dx(), dr.Dy(), sr.Dx(), sr.Dy(), false).Scale(dst, dr, src, sr, opts)
 }
 
 // NewScaler returns a Scaler that is optimized for scaling multiple times with
 // the same fixed destination and source width and height.
 func (q *Kernel) NewScaler(dw, dh, sw, sh int) Scaler {
-	return &kernelScaler{
+	return q.newScaler(dw, dh, sw, sh, true)
+}
+
+func (q *Kernel) newScaler(dw, dh, sw, sh int, usePool bool) Scaler {
+	z := &kernelScaler{
 		kernel:     q,
 		dw:         int32(dw),
 		dh:         int32(dh),
@@ -103,6 +108,13 @@ func (q *Kernel) NewScaler(dw, dh, sw, sh int) Scaler {
 		horizontal: newDistrib(q, int32(dw), int32(sw)),
 		vertical:   newDistrib(q, int32(dh), int32(sh)),
 	}
+	if usePool {
+		z.pool.New = func() interface{} {
+			tmp := z.makeTmpBuf()
+			return &tmp
+		}
+	}
+	return z
 }
 
 var (
@@ -152,6 +164,11 @@ type kernelScaler struct {
 	kernel               *Kernel
 	dw, dh, sw, sh       int32
 	horizontal, vertical distrib
+	pool                 sync.Pool
+}
+
+func (z *kernelScaler) makeTmpBuf() [][4]float64 {
+	return make([][4]float64, z.dw*z.sh)
 }
 
 // source is a range of contribs, their inverse total weight, and that ITW

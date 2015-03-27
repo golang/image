@@ -936,8 +936,14 @@ const (
 			// Create a temporary buffer:
 			// scaleX distributes the source image's columns over the temporary image.
 			// scaleY distributes the temporary image's rows over the destination image.
-			// TODO: is it worth having a sync.Pool for this temporary buffer?
-			tmp := make([][4]float64, z.dw*z.sh)
+			var tmp [][4]float64
+			if z.pool.New != nil {
+				tmpp := z.pool.Get().(*[][4]float64)
+				defer z.pool.Put(tmpp)
+				tmp = *tmpp
+			} else {
+				tmp = z.makeTmpBuf()
+			}
 
 			// sr is the source pixels. If it extends beyond the src bounds,
 			// we cannot use the type-specific fast paths, as they access
