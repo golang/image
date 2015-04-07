@@ -71,7 +71,7 @@ var (
 		"420",
 		"440",
 	}
-	ops = []string{"Src"} // TODO: add "Over".
+	ops = []string{"Over", "Src"}
 )
 
 func init() {
@@ -273,6 +273,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		}
 
 	case "outputu":
+		// TODO: handle op==Over, not just op==Src.
 		args, _ := splitArgs(suffix)
 		if len(args) != 3 {
 			return ""
@@ -345,6 +346,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		}
 
 	case "outputf":
+		// TODO: handle op==Over, not just op==Src.
 		args, _ := splitArgs(suffix)
 		if len(args) != 5 {
 			return ""
@@ -749,7 +751,7 @@ const (
 			if !sr.In(src.Bounds()) {
 				switch opts.op() {
 				case Over:
-					// TODO: z.scale_Image_Image_Over(dst, dr, adr, src, sr)
+					z.scale_Image_Image_Over(dst, dr, adr, src, sr)
 				case Src:
 					z.scale_Image_Image_Src(dst, dr, adr, src, sr)
 				}
@@ -788,7 +790,7 @@ const (
 			if !sr.In(src.Bounds()) {
 				switch opts.op() {
 				case Over:
-					// TODO: z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias)
 				case Src:
 					z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias)
 				}
@@ -1032,7 +1034,7 @@ const (
 			if !sr.In(src.Bounds()) {
 				switch opts.op() {
 				case Over:
-					// TODO: q.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+					q.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 				case Src:
 					q.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 				}
