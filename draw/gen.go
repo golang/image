@@ -71,6 +71,7 @@ var (
 		"420",
 		"440",
 	}
+	ops = []string{"Src"} // TODO: add "Over".
 )
 
 func init() {
@@ -95,17 +96,21 @@ type data struct {
 	sType    string
 	sratio   string
 	receiver string
+	op       string
 }
 
 func gen(w *bytes.Buffer, receiver string, codes ...string) {
 	expn(w, codeRoot, &data{receiver: receiver})
 	for _, code := range codes {
 		for _, t := range dsTypes {
-			expn(w, code, &data{
-				dType:    t.dType,
-				sType:    t.sType,
-				receiver: receiver,
-			})
+			for _, op := range ops {
+				expn(w, code, &data{
+					dType:    t.dType,
+					sType:    t.sType,
+					receiver: receiver,
+					op:       op,
+				})
+			}
 		}
 	}
 }
@@ -118,15 +123,21 @@ func genKernel(w *bytes.Buffer) {
 		})
 	}
 	for _, dType := range dTypes {
-		expn(w, codeKernelScaleLeafY, &data{
-			dType: dType,
-		})
+		for _, op := range ops {
+			expn(w, codeKernelScaleLeafY, &data{
+				dType: dType,
+				op:    op,
+			})
+		}
 	}
 	for _, t := range dsTypes {
-		expn(w, codeKernelTransformLeaf, &data{
-			dType: t.dType,
-			sType: t.sType,
-		})
+		for _, op := range ops {
+			expn(w, codeKernelTransformLeaf, &data{
+				dType: t.dType,
+				sType: t.sType,
+				op:    op,
+			})
+		}
 	}
 }
 
@@ -192,13 +203,15 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		return prefix + relName(d.sType) + suffix
 	case "receiver":
 		return prefix + d.receiver + suffix
+	case "op":
+		return prefix + d.op + suffix
 
 	case "switch":
-		return expnSwitch("", true, suffix)
+		return expnSwitch("", "", true, suffix)
 	case "switchD":
-		return expnSwitch("", false, suffix)
+		return expnSwitch("", "", false, suffix)
 	case "switchS":
-		return expnSwitch("anyDType", false, suffix)
+		return expnSwitch("", "anyDType", false, suffix)
 
 	case "preOuter":
 		switch d.dType {
@@ -568,7 +581,19 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 	return ""
 }
 
-func expnSwitch(dType string, expandBoth bool, template string) string {
+func expnSwitch(op, dType string, expandBoth bool, template string) string {
+	if op == "" && dType != "anyDType" {
+		lines := []string{"switch opts.op() {"}
+		for _, op = range ops {
+			lines = append(lines,
+				fmt.Sprintf("case %s:", op),
+				expnSwitch(op, dType, expandBoth, template),
+			)
+		}
+		lines = append(lines, "}")
+		return strings.Join(lines, "\n")
+	}
+
 	switchVar := "dst"
 	if dType != "" {
 		switchVar = "src"
@@ -588,14 +613,14 @@ func expnSwitch(dType string, expandBoth bool, template string) string {
 
 		if dType != "" {
 			if v == "*image.YCbCr" {
-				lines = append(lines, expnSwitchYCbCr(dType, template))
+				lines = append(lines, expnSwitchYCbCr(op, dType, template))
 			} else {
-				lines = append(lines, expnLine(template, &data{dType: dType, sType: v}))
+				lines = append(lines, expnLine(template, &data{dType: dType, sType: v, op: op}))
 			}
 		} else if !expandBoth {
-			lines = append(lines, expnLine(template, &data{dType: v}))
+			lines = append(lines, expnLine(template, &data{dType: v, op: op}))
 		} else {
-			lines = append(lines, expnSwitch(v, false, template))
+			lines = append(lines, expnSwitch(op, v, false, template))
 		}
 	}
 
@@ -603,16 +628,16 @@ func expnSwitch(dType string, expandBoth bool, template string) string {
 	return strings.Join(lines, "\n")
 }
 
-func expnSwitchYCbCr(dType, template string) string {
+func expnSwitchYCbCr(op, dType, template string) string {
 	lines := []string{
 		"switch src.SubsampleRatio {",
 		"default:",
-		expnLine(template, &data{dType: dType, sType: "image.Image"}),
+		expnLine(template, &data{dType: dType, sType: "image.Image", op: op}),
 	}
 	for _, sratio := range subsampleRatios {
 		lines = append(lines,
 			fmt.Sprintf("case image.YCbCrSubsampleRatio%s:", sratio),
-			expnLine(template, &data{dType: dType, sType: "*image.YCbCr", sratio: sratio}),
+			expnLine(template, &data{dType: dType, sType: "*image.YCbCr", sratio: sratio, op: op}),
 		)
 	}
 	lines = append(lines, "}")
@@ -722,12 +747,16 @@ const (
 			// we cannot use the type-specific fast paths, as they access
 			// the Pix fields directly without bounds checking.
 			if !sr.In(src.Bounds()) {
-				z.scale_Image_Image(dst, dr, adr, src, sr)
+				switch opts.op() {
+				case Over:
+					// TODO: z.scale_Image_Image_Over(dst, dr, adr, src, sr)
+				case Src:
+					z.scale_Image_Image_Src(dst, dr, adr, src, sr)
+				}
 			} else if _, ok := src.(*image.Uniform); ok {
-				// TODO: get the Op from opts.
-				Draw(dst, dr, src, src.Bounds().Min, Src)
+				Draw(dst, dr, src, src.Bounds().Min, opts.op())
 			} else {
-				$switch z.scale_$dTypeRN_$sTypeRN$sratio(dst, dr, adr, src, sr)
+				$switch z.scale_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, src, sr)
 			}
 		}
 
@@ -757,18 +786,22 @@ const (
 			// we cannot use the type-specific fast paths, as they access
 			// the Pix fields directly without bounds checking.
 			if !sr.In(src.Bounds()) {
-				z.transform_Image_Image(dst, dr, adr, &d2s, src, sr, bias)
+				switch opts.op() {
+				case Over:
+					// TODO: z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias)
+				case Src:
+					z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias)
+				}
 			} else if u, ok := src.(*image.Uniform); ok {
-				// TODO: get the Op from opts.
-				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, Src)
+				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, opts.op())
 			} else {
-				$switch z.transform_$dTypeRN_$sTypeRN$sratio(dst, dr, adr, &d2s, src, sr, bias)
+				$switch z.transform_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, &d2s, src, sr, bias)
 			}
 		}
 	`
 
 	codeNNScaleLeaf = `
-		func (nnInterpolator) scale_$dTypeRN_$sTypeRN$sratio(dst $dType, dr, adr image.Rectangle, src $sType, sr image.Rectangle) {
+		func (nnInterpolator) scale_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, src $sType, sr image.Rectangle) {
 			dw2 := uint64(dr.Dx()) * 2
 			dh2 := uint64(dr.Dy()) * 2
 			sw := uint64(sr.Dx())
@@ -787,7 +820,7 @@ const (
 	`
 
 	codeNNTransformLeaf = `
-		func (nnInterpolator) transform_$dTypeRN_$sTypeRN$sratio(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, bias image.Point) {
+		func (nnInterpolator) transform_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, bias image.Point) {
 			$preOuter
 			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 				dyf := float64(dr.Min.Y + int(dy)) + 0.5
@@ -807,7 +840,7 @@ const (
 	`
 
 	codeABLScaleLeaf = `
-		func (ablInterpolator) scale_$dTypeRN_$sTypeRN$sratio(dst $dType, dr, adr image.Rectangle, src $sType, sr image.Rectangle) {
+		func (ablInterpolator) scale_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, src $sType, sr image.Rectangle) {
 			sw := int32(sr.Dx())
 			sh := int32(sr.Dy())
 			yscale := float64(sh) / float64(dr.Dy())
@@ -861,7 +894,7 @@ const (
 	`
 
 	codeABLTransformLeaf = `
-		func (ablInterpolator) transform_$dTypeRN_$sTypeRN$sratio(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, bias image.Point) {
+		func (ablInterpolator) transform_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, bias image.Point) {
 			$preOuter
 			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 				dyf := float64(dr.Min.Y + int(dy)) + 0.5
@@ -928,8 +961,7 @@ const (
 			}
 
 			if _, ok := src.(*image.Uniform); ok && sr.In(src.Bounds()) {
-				// TODO: get the Op from opts.
-				Draw(dst, dr, src, src.Bounds().Min, Src)
+				Draw(dst, dr, src, src.Bounds().Min, opts.op())
 				return
 			}
 
@@ -954,7 +986,7 @@ const (
 				$switchS z.scaleX_$sTypeRN$sratio(tmp, src, sr)
 			}
 
-			$switchD z.scaleY_$dTypeRN(dst, dr, adr, tmp)
+			$switchD z.scaleY_$dTypeRN_$op(dst, dr, adr, tmp)
 		}
 
 		func (q *Kernel) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
@@ -981,8 +1013,7 @@ const (
 			adr = adr.Sub(dr.Min)
 
 			if u, ok := src.(*image.Uniform); ok && sr.In(src.Bounds()) {
-				// TODO: get the Op from opts.
-				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, Src)
+				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, opts.op())
 				return
 			}
 
@@ -999,9 +1030,14 @@ const (
 			// we cannot use the type-specific fast paths, as they access
 			// the Pix fields directly without bounds checking.
 			if !sr.In(src.Bounds()) {
-				q.transform_Image_Image(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+				switch opts.op() {
+				case Over:
+					// TODO: q.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+				case Src:
+					q.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+				}
 			} else {
-				$switch q.transform_$dTypeRN_$sTypeRN$sratio(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+				$switch q.transform_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 			}
 		}
 	`
@@ -1029,7 +1065,7 @@ const (
 	`
 
 	codeKernelScaleLeafY = `
-		func (z *kernelScaler) scaleY_$dTypeRN(dst $dType, dr, adr image.Rectangle, tmp [][4]float64) {
+		func (z *kernelScaler) scaleY_$dTypeRN_$op(dst $dType, dr, adr image.Rectangle, tmp [][4]float64) {
 			$preOuter
 			for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 				$preKernelInner
@@ -1050,7 +1086,7 @@ const (
 	`
 
 	codeKernelTransformLeaf = `
-		func (q *Kernel) transform_$dTypeRN_$sTypeRN$sratio(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+		func (q *Kernel) transform_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
 			// When shrinking, broaden the effective kernel support so that we still
 			// visit every source pixel.
 			xHalfWidth, xKernelArgScale := q.Support, 1.0

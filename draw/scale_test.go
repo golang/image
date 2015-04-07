@@ -59,6 +59,9 @@ func testInterp(t *testing.T, w int, h int, direction, srcFilename string) {
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
+	opts := &Options{
+		Op: Src,
+	}
 	testCases := map[string]Interpolator{
 		"nn": NearestNeighbor,
 		"ab": ApproxBiLinear,
@@ -70,9 +73,9 @@ func testInterp(t *testing.T, w int, h int, direction, srcFilename string) {
 
 		got := image.NewRGBA(image.Rect(0, 0, w, h))
 		if direction == "rotate" {
-			q.Transform(got, transformMatrix(40, 10), src, src.Bounds(), nil)
+			q.Transform(got, transformMatrix(40, 10), src, src.Bounds(), opts)
 		} else {
-			q.Scale(got, got.Bounds(), src, src.Bounds(), nil)
+			q.Scale(got, got.Bounds(), src, src.Bounds(), opts)
 		}
 
 		if *genGoldenFiles {
@@ -276,7 +279,7 @@ func TestFastPaths(t *testing.T) {
 		srcGray,
 		srcNRGBA,
 		srcRGBA,
-		srcUniform,
+		srcUnif,
 		srcYCbCr,
 	}
 	var srcs []image.Image
@@ -293,6 +296,9 @@ func TestFastPaths(t *testing.T) {
 		CatmullRom,
 	}
 	blue := image.NewUniform(color.RGBA{0x11, 0x22, 0x44, 0x7f})
+	opts := &Options{
+		Op: Src,
+	}
 
 	for _, dr := range drs {
 		for _, src := range srcs {
@@ -306,11 +312,11 @@ func TestFastPaths(t *testing.T) {
 
 						if transform {
 							m := transformMatrix(2, 1)
-							q.Transform(dst0, m, src, sr, nil)
-							q.Transform(dstWrapper{dst1}, m, srcWrapper{src}, sr, nil)
+							q.Transform(dst0, m, src, sr, opts)
+							q.Transform(dstWrapper{dst1}, m, srcWrapper{src}, sr, opts)
 						} else {
-							q.Scale(dst0, dr, src, sr, nil)
-							q.Scale(dstWrapper{dst1}, dr, srcWrapper{src}, sr, nil)
+							q.Scale(dst0, dr, src, sr, opts)
+							q.Scale(dstWrapper{dst1}, dr, srcWrapper{src}, sr, opts)
 						}
 
 						if !bytes.Equal(dst0.Pix, dst1.Pix) {
@@ -349,7 +355,7 @@ func srcRGBA(boundsHint image.Rectangle) (image.Image, error) {
 	return m, nil
 }
 
-func srcUniform(boundsHint image.Rectangle) (image.Image, error) {
+func srcUnif(boundsHint image.Rectangle) (image.Image, error) {
 	return image.NewUniform(color.RGBA64{0x1234, 0x5555, 0x9181, 0xbeef}), nil
 }
 
@@ -359,7 +365,7 @@ func srcYCbCr(boundsHint image.Rectangle) (image.Image, error) {
 	return m, nil
 }
 
-func srcYCbCrLarge(boundsHint image.Rectangle) (image.Image, error) {
+func srcLarge(boundsHint image.Rectangle) (image.Image, error) {
 	// 3072 x 2304 is over 7 million pixels at 4:3, comparable to a
 	// 2015 smart-phone camera's output.
 	return srcYCbCr(image.Rect(0, 0, 3072, 2304))
@@ -379,7 +385,7 @@ func srcTux(boundsHint image.Rectangle) (image.Image, error) {
 	return src, nil
 }
 
-func benchScale(b *testing.B, srcf func(image.Rectangle) (image.Image, error), w int, h int, q Interpolator) {
+func benchScale(b *testing.B, w int, h int, op Op, srcf func(image.Rectangle) (image.Image, error), q Interpolator) {
 	dst := image.NewRGBA(image.Rect(0, 0, w, h))
 	src, err := srcf(image.Rect(0, 0, 1024, 768))
 	if err != nil {
@@ -392,15 +398,18 @@ func benchScale(b *testing.B, srcf func(image.Rectangle) (image.Image, error), w
 	}); ok {
 		scaler = n.NewScaler(dr.Dx(), dr.Dy(), sr.Dx(), sr.Dy())
 	}
+	opts := &Options{
+		Op: op,
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		scaler.Scale(dst, dr, src, sr, nil)
+		scaler.Scale(dst, dr, src, sr, opts)
 	}
 }
 
-func benchTform(b *testing.B, srcf func(image.Rectangle) (image.Image, error), w int, h int, q Interpolator) {
+func benchTform(b *testing.B, w int, h int, op Op, srcf func(image.Rectangle) (image.Image, error), q Interpolator) {
 	dst := image.NewRGBA(image.Rect(0, 0, w, h))
 	src, err := srcf(image.Rect(0, 0, 1024, 768))
 	if err != nil {
@@ -408,51 +417,54 @@ func benchTform(b *testing.B, srcf func(image.Rectangle) (image.Image, error), w
 	}
 	sr := src.Bounds()
 	m := transformMatrix(40, 10)
+	opts := &Options{
+		Op: op,
+	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		q.Transform(dst, m, src, sr, nil)
+		q.Transform(dst, m, src, sr, opts)
 	}
 }
 
-func BenchmarkScaleNNLargeDown(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, NearestNeighbor) }
-func BenchmarkScaleABLargeDown(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, ApproxBiLinear) }
-func BenchmarkScaleBLLargeDown(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, BiLinear) }
-func BenchmarkScaleCRLargeDown(b *testing.B) { benchScale(b, srcYCbCrLarge, 200, 150, CatmullRom) }
+func BenchmarkScaleNNLargeDown(b *testing.B) { benchScale(b, 200, 150, Src, srcLarge, NearestNeighbor) }
+func BenchmarkScaleABLargeDown(b *testing.B) { benchScale(b, 200, 150, Src, srcLarge, ApproxBiLinear) }
+func BenchmarkScaleBLLargeDown(b *testing.B) { benchScale(b, 200, 150, Src, srcLarge, BiLinear) }
+func BenchmarkScaleCRLargeDown(b *testing.B) { benchScale(b, 200, 150, Src, srcLarge, CatmullRom) }
 
-func BenchmarkScaleNNDown(b *testing.B) { benchScale(b, srcTux, 120, 80, NearestNeighbor) }
-func BenchmarkScaleABDown(b *testing.B) { benchScale(b, srcTux, 120, 80, ApproxBiLinear) }
-func BenchmarkScaleBLDown(b *testing.B) { benchScale(b, srcTux, 120, 80, BiLinear) }
-func BenchmarkScaleCRDown(b *testing.B) { benchScale(b, srcTux, 120, 80, CatmullRom) }
+func BenchmarkScaleNNDown(b *testing.B) { benchScale(b, 120, 80, Src, srcTux, NearestNeighbor) }
+func BenchmarkScaleABDown(b *testing.B) { benchScale(b, 120, 80, Src, srcTux, ApproxBiLinear) }
+func BenchmarkScaleBLDown(b *testing.B) { benchScale(b, 120, 80, Src, srcTux, BiLinear) }
+func BenchmarkScaleCRDown(b *testing.B) { benchScale(b, 120, 80, Src, srcTux, CatmullRom) }
 
-func BenchmarkScaleNNUp(b *testing.B) { benchScale(b, srcTux, 800, 600, NearestNeighbor) }
-func BenchmarkScaleABUp(b *testing.B) { benchScale(b, srcTux, 800, 600, ApproxBiLinear) }
-func BenchmarkScaleBLUp(b *testing.B) { benchScale(b, srcTux, 800, 600, BiLinear) }
-func BenchmarkScaleCRUp(b *testing.B) { benchScale(b, srcTux, 800, 600, CatmullRom) }
+func BenchmarkScaleNNUp(b *testing.B) { benchScale(b, 800, 600, Src, srcTux, NearestNeighbor) }
+func BenchmarkScaleABUp(b *testing.B) { benchScale(b, 800, 600, Src, srcTux, ApproxBiLinear) }
+func BenchmarkScaleBLUp(b *testing.B) { benchScale(b, 800, 600, Src, srcTux, BiLinear) }
+func BenchmarkScaleCRUp(b *testing.B) { benchScale(b, 800, 600, Src, srcTux, CatmullRom) }
 
-func BenchmarkScaleNNSrcRGBA(b *testing.B)    { benchScale(b, srcRGBA, 200, 150, NearestNeighbor) }
-func BenchmarkScaleNNSrcUniform(b *testing.B) { benchScale(b, srcUniform, 200, 150, NearestNeighbor) }
+func BenchmarkScaleNNSrcRGBA(b *testing.B)    { benchScale(b, 200, 150, Src, srcRGBA, NearestNeighbor) }
+func BenchmarkScaleNNSrcUniform(b *testing.B) { benchScale(b, 200, 150, Src, srcUnif, NearestNeighbor) }
 
-func BenchmarkTformNNSrcRGBA(b *testing.B)    { benchTform(b, srcRGBA, 200, 150, NearestNeighbor) }
-func BenchmarkTformNNSrcUniform(b *testing.B) { benchTform(b, srcUniform, 200, 150, NearestNeighbor) }
+func BenchmarkTformNNSrcRGBA(b *testing.B)    { benchTform(b, 200, 150, Src, srcRGBA, NearestNeighbor) }
+func BenchmarkTformNNSrcUniform(b *testing.B) { benchTform(b, 200, 150, Src, srcUnif, NearestNeighbor) }
 
-func BenchmarkScaleABSrcGray(b *testing.B)  { benchScale(b, srcGray, 200, 150, ApproxBiLinear) }
-func BenchmarkScaleABSrcNRGBA(b *testing.B) { benchScale(b, srcNRGBA, 200, 150, ApproxBiLinear) }
-func BenchmarkScaleABSrcRGBA(b *testing.B)  { benchScale(b, srcRGBA, 200, 150, ApproxBiLinear) }
-func BenchmarkScaleABSrcYCbCr(b *testing.B) { benchScale(b, srcYCbCr, 200, 150, ApproxBiLinear) }
+func BenchmarkScaleABSrcGray(b *testing.B)  { benchScale(b, 200, 150, Src, srcGray, ApproxBiLinear) }
+func BenchmarkScaleABSrcNRGBA(b *testing.B) { benchScale(b, 200, 150, Src, srcNRGBA, ApproxBiLinear) }
+func BenchmarkScaleABSrcRGBA(b *testing.B)  { benchScale(b, 200, 150, Src, srcRGBA, ApproxBiLinear) }
+func BenchmarkScaleABSrcYCbCr(b *testing.B) { benchScale(b, 200, 150, Src, srcYCbCr, ApproxBiLinear) }
 
-func BenchmarkTformABSrcGray(b *testing.B)  { benchTform(b, srcGray, 200, 150, ApproxBiLinear) }
-func BenchmarkTformABSrcNRGBA(b *testing.B) { benchTform(b, srcNRGBA, 200, 150, ApproxBiLinear) }
-func BenchmarkTformABSrcRGBA(b *testing.B)  { benchTform(b, srcRGBA, 200, 150, ApproxBiLinear) }
-func BenchmarkTformABSrcYCbCr(b *testing.B) { benchTform(b, srcYCbCr, 200, 150, ApproxBiLinear) }
+func BenchmarkTformABSrcGray(b *testing.B)  { benchTform(b, 200, 150, Src, srcGray, ApproxBiLinear) }
+func BenchmarkTformABSrcNRGBA(b *testing.B) { benchTform(b, 200, 150, Src, srcNRGBA, ApproxBiLinear) }
+func BenchmarkTformABSrcRGBA(b *testing.B)  { benchTform(b, 200, 150, Src, srcRGBA, ApproxBiLinear) }
+func BenchmarkTformABSrcYCbCr(b *testing.B) { benchTform(b, 200, 150, Src, srcYCbCr, ApproxBiLinear) }
 
-func BenchmarkScaleCRSrcGray(b *testing.B)  { benchScale(b, srcGray, 200, 150, CatmullRom) }
-func BenchmarkScaleCRSrcNRGBA(b *testing.B) { benchScale(b, srcNRGBA, 200, 150, CatmullRom) }
-func BenchmarkScaleCRSrcRGBA(b *testing.B)  { benchScale(b, srcRGBA, 200, 150, CatmullRom) }
-func BenchmarkScaleCRSrcYCbCr(b *testing.B) { benchScale(b, srcYCbCr, 200, 150, CatmullRom) }
+func BenchmarkScaleCRSrcGray(b *testing.B)  { benchScale(b, 200, 150, Src, srcGray, CatmullRom) }
+func BenchmarkScaleCRSrcNRGBA(b *testing.B) { benchScale(b, 200, 150, Src, srcNRGBA, CatmullRom) }
+func BenchmarkScaleCRSrcRGBA(b *testing.B)  { benchScale(b, 200, 150, Src, srcRGBA, CatmullRom) }
+func BenchmarkScaleCRSrcYCbCr(b *testing.B) { benchScale(b, 200, 150, Src, srcYCbCr, CatmullRom) }
 
-func BenchmarkTformCRSrcGray(b *testing.B)  { benchTform(b, srcGray, 200, 150, CatmullRom) }
-func BenchmarkTformCRSrcNRGBA(b *testing.B) { benchTform(b, srcNRGBA, 200, 150, CatmullRom) }
-func BenchmarkTformCRSrcRGBA(b *testing.B)  { benchTform(b, srcRGBA, 200, 150, CatmullRom) }
-func BenchmarkTformCRSrcYCbCr(b *testing.B) { benchTform(b, srcYCbCr, 200, 150, CatmullRom) }
+func BenchmarkTformCRSrcGray(b *testing.B)  { benchTform(b, 200, 150, Src, srcGray, CatmullRom) }
+func BenchmarkTformCRSrcNRGBA(b *testing.B) { benchTform(b, 200, 150, Src, srcNRGBA, CatmullRom) }
+func BenchmarkTformCRSrcRGBA(b *testing.B)  { benchTform(b, 200, 150, Src, srcRGBA, CatmullRom) }
+func BenchmarkTformCRSrcYCbCr(b *testing.B) { benchTform(b, 200, 150, Src, srcYCbCr, CatmullRom) }

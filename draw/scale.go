@@ -19,12 +19,12 @@ import (
 // the part of the destination image defined by dst and the translation of sr
 // so that sr.Min translates to dp.
 func Copy(dst Image, dp image.Point, src image.Image, sr image.Rectangle, opts *Options) {
-	mask, mp, op := image.Image(nil), image.Point{}, Over
+	mask, mp := image.Image(nil), image.Point{}
 	if opts != nil {
-		// TODO: set mask, mp and op.
+		// TODO: set mask and mp.
 	}
 	dr := sr.Add(dp.Sub(sr.Min))
-	DrawMask(dst, dr, src, sr.Min, mask, mp, op)
+	DrawMask(dst, dr, src, sr.Min, mask, mp, opts.op())
 }
 
 // Scaler scales the part of the source image defined by src and sr and writes
@@ -56,8 +56,18 @@ type Transformer interface {
 //
 // A nil *Options means to use the default (zero) values of each field.
 type Options struct {
+	// Op is the compositing operator. The default value is Over.
+	Op Op
+
 	// TODO: add fields a la
 	// https://groups.google.com/forum/#!topic/golang-dev/fgn_xM0aeq4
+}
+
+func (o *Options) op() Op {
+	if o == nil {
+		return Over
+	}
+	return o.Op
 }
 
 // Interpolator is an interpolation algorithm, when dst and src pixels don't
@@ -371,6 +381,7 @@ func transformRect(s2d *f64.Aff3, sr *image.Rectangle) (dr image.Rectangle) {
 }
 
 func transform_Uniform(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Uniform, sr image.Rectangle, bias image.Point, op Op) {
+	// TODO: implement op == Over.
 	switch dst := dst.(type) {
 	case *image.RGBA:
 		pr, pg, pb, pa := src.C.RGBA()
