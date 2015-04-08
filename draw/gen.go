@@ -55,6 +55,7 @@ var (
 	// should be the fallback pair ("Image", "image.Image").
 	//
 	// TODO: add *image.CMYK src type after Go 1.5 is released.
+	// An *image.CMYK is also alwaysOpaque.
 	dsTypes = []struct{ dType, sType string }{
 		{"*image.RGBA", "*image.Gray"},
 		{"*image.RGBA", "*image.NRGBA"},
@@ -72,6 +73,13 @@ var (
 		"440",
 	}
 	ops = []string{"Over", "Src"}
+	// alwaysOpaque are those image.Image implementations that are always
+	// opaque. For these types, Over is equivalent to the faster Src, in the
+	// absence of a source mask.
+	alwaysOpaque = map[string]bool{
+		"*image.Gray":  true,
+		"*image.YCbCr": true,
+	}
 )
 
 func init() {
@@ -104,6 +112,9 @@ func gen(w *bytes.Buffer, receiver string, codes ...string) {
 	for _, code := range codes {
 		for _, t := range dsTypes {
 			for _, op := range ops {
+				if op == "Over" && alwaysOpaque[t.sType] {
+					continue
+				}
 				expn(w, code, &data{
 					dType:    t.dType,
 					sType:    t.sType,
@@ -132,6 +143,9 @@ func genKernel(w *bytes.Buffer) {
 	}
 	for _, t := range dsTypes {
 		for _, op := range ops {
+			if op == "Over" && alwaysOpaque[t.sType] {
+				continue
+			}
 			expn(w, codeKernelTransformLeaf, &data{
 				dType: t.dType,
 				sType: t.sType,
@@ -585,7 +599,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 
 func expnSwitch(op, dType string, expandBoth bool, template string) string {
 	if op == "" && dType != "anyDType" {
-		lines := []string{"switch opts.op() {"}
+		lines := []string{"switch op {"}
 		for _, op = range ops {
 			lines = append(lines,
 				fmt.Sprintf("case %s:", op),
@@ -607,6 +621,14 @@ func expnSwitch(op, dType string, expandBoth bool, template string) string {
 		fallback, values = "image.Image", sTypesForDType[dType]
 	}
 	for _, v := range values {
+		if dType != "" {
+			// v is the sType. Skip those always-opaque sTypes, where Over is
+			// equivalent to Src.
+			if op == "Over" && alwaysOpaque[v] {
+				continue
+			}
+		}
+
 		if v == fallback {
 			lines = append(lines, "default:")
 		} else {
@@ -745,18 +767,22 @@ const (
 			if adr.Empty() || sr.Empty() {
 				return
 			}
+			op := opts.op()
+			if op == Over && opaque(src) { // TODO: also check that opts.SrcMask == nil.
+				op = Src
+			}
 			// sr is the source pixels. If it extends beyond the src bounds,
 			// we cannot use the type-specific fast paths, as they access
 			// the Pix fields directly without bounds checking.
 			if !sr.In(src.Bounds()) {
-				switch opts.op() {
+				switch op {
 				case Over:
 					z.scale_Image_Image_Over(dst, dr, adr, src, sr)
 				case Src:
 					z.scale_Image_Image_Src(dst, dr, adr, src, sr)
 				}
 			} else if _, ok := src.(*image.Uniform); ok {
-				Draw(dst, dr, src, src.Bounds().Min, opts.op())
+				Draw(dst, dr, src, src.Bounds().Min, op)
 			} else {
 				$switch z.scale_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, src, sr)
 			}
@@ -768,6 +794,10 @@ const (
 			adr := dst.Bounds().Intersect(dr)
 			if adr.Empty() || sr.Empty() {
 				return
+			}
+			op := opts.op()
+			if op == Over && opaque(src) { // TODO: also check that opts.SrcMask == nil.
+				op = Src
 			}
 			d2s := invert(s2d)
 			// bias is a translation of the mapping from dst co-ordinates to
@@ -788,14 +818,14 @@ const (
 			// we cannot use the type-specific fast paths, as they access
 			// the Pix fields directly without bounds checking.
 			if !sr.In(src.Bounds()) {
-				switch opts.op() {
+				switch op {
 				case Over:
 					z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias)
 				case Src:
 					z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias)
 				}
 			} else if u, ok := src.(*image.Uniform); ok {
-				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, opts.op())
+				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, op)
 			} else {
 				$switch z.transform_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, &d2s, src, sr, bias)
 			}
@@ -961,9 +991,13 @@ const (
 			if adr.Empty() || sr.Empty() {
 				return
 			}
+			op := opts.op()
+			if op == Over && opaque(src) { // TODO: also check that opts.SrcMask == nil.
+				op = Src
+			}
 
 			if _, ok := src.(*image.Uniform); ok && sr.In(src.Bounds()) {
-				Draw(dst, dr, src, src.Bounds().Min, opts.op())
+				Draw(dst, dr, src, src.Bounds().Min, op)
 				return
 			}
 
@@ -998,6 +1032,10 @@ const (
 			if adr.Empty() || sr.Empty() {
 				return
 			}
+			op := opts.op()
+			if op == Over && opaque(src) { // TODO: also check that opts.SrcMask == nil.
+				op = Src
+			}
 			d2s := invert(s2d)
 			// bias is a translation of the mapping from dst co-ordinates to
 			// src co-ordinates such that the latter temporarily have
@@ -1015,7 +1053,7 @@ const (
 			adr = adr.Sub(dr.Min)
 
 			if u, ok := src.(*image.Uniform); ok && sr.In(src.Bounds()) {
-				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, opts.op())
+				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, op)
 				return
 			}
 
@@ -1032,7 +1070,7 @@ const (
 			// we cannot use the type-specific fast paths, as they access
 			// the Pix fields directly without bounds checking.
 			if !sr.In(src.Bounds()) {
-				switch opts.op() {
+				switch op {
 				case Over:
 					q.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 				case Src:
