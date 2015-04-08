@@ -431,3 +431,10 @@ func transform_Uniform(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src *i
 		}
 	}
 }
+
+func opaque(m image.Image) bool {
+	o, ok := m.(interface {
+		Opaque() bool
+	})
+	return ok && o.Opaque()
+}
