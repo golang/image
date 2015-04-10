@@ -381,52 +381,102 @@ func transformRect(s2d *f64.Aff3, sr *image.Rectangle) (dr image.Rectangle) {
 }
 
 func transform_Uniform(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Uniform, sr image.Rectangle, bias image.Point, op Op) {
-	// TODO: implement op == Over.
-	switch dst := dst.(type) {
-	case *image.RGBA:
-		pr, pg, pb, pa := src.C.RGBA()
-		pr8 := uint8(pr >> 8)
-		pg8 := uint8(pg >> 8)
-		pb8 := uint8(pb >> 8)
-		pa8 := uint8(pa >> 8)
+	switch op {
+	case Over:
+		switch dst := dst.(type) {
+		case *image.RGBA:
+			pr, pg, pb, pa := src.C.RGBA()
+			pa1 := (0xffff - pa) * 0x101
 
-		for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
-			dyf := float64(dr.Min.Y+int(dy)) + 0.5
-			d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
-			for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
-				dxf := float64(dr.Min.X+int(dx)) + 0.5
-				sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
-				sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
-				if !(image.Point{sx0, sy0}).In(sr) {
-					continue
+			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+				dyf := float64(dr.Min.Y+int(dy)) + 0.5
+				d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
+				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
+					dxf := float64(dr.Min.X+int(dx)) + 0.5
+					sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+					sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
+					if !(image.Point{sx0, sy0}).In(sr) {
+						continue
+					}
+					dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + pr) >> 8)
+					dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + pg) >> 8)
+					dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + pb) >> 8)
+					dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + pa) >> 8)
 				}
-				dst.Pix[d+0] = pr8
-				dst.Pix[d+1] = pg8
-				dst.Pix[d+2] = pb8
-				dst.Pix[d+3] = pa8
+			}
+
+		default:
+			pr, pg, pb, pa := src.C.RGBA()
+			pa1 := 0xffff - pa
+			dstColorRGBA64 := &color.RGBA64{}
+			dstColor := color.Color(dstColorRGBA64)
+
+			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+				dyf := float64(dr.Min.Y+int(dy)) + 0.5
+				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
+					dxf := float64(dr.Min.X+int(dx)) + 0.5
+					sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+					sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
+					if !(image.Point{sx0, sy0}).In(sr) {
+						continue
+					}
+					qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
+					dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
+					dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
+					dstColorRGBA64.B = uint16(qb*pa1/0xffff + pb)
+					dstColorRGBA64.A = uint16(qa*pa1/0xffff + pa)
+					dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+				}
 			}
 		}
 
-	default:
-		pr, pg, pb, pa := src.C.RGBA()
-		dstColorRGBA64 := &color.RGBA64{
-			uint16(pr),
-			uint16(pg),
-			uint16(pb),
-			uint16(pa),
-		}
-		dstColor := color.Color(dstColorRGBA64)
+	case Src:
+		switch dst := dst.(type) {
+		case *image.RGBA:
+			pr, pg, pb, pa := src.C.RGBA()
+			pr8 := uint8(pr >> 8)
+			pg8 := uint8(pg >> 8)
+			pb8 := uint8(pb >> 8)
+			pa8 := uint8(pa >> 8)
 
-		for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
-			dyf := float64(dr.Min.Y+int(dy)) + 0.5
-			for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
-				dxf := float64(dr.Min.X+int(dx)) + 0.5
-				sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
-				sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
-				if !(image.Point{sx0, sy0}).In(sr) {
-					continue
+			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+				dyf := float64(dr.Min.Y+int(dy)) + 0.5
+				d := dst.PixOffset(dr.Min.X+adr.Min.X, dr.Min.Y+int(dy))
+				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
+					dxf := float64(dr.Min.X+int(dx)) + 0.5
+					sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+					sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
+					if !(image.Point{sx0, sy0}).In(sr) {
+						continue
+					}
+					dst.Pix[d+0] = pr8
+					dst.Pix[d+1] = pg8
+					dst.Pix[d+2] = pb8
+					dst.Pix[d+3] = pa8
 				}
-				dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			}
+
+		default:
+			pr, pg, pb, pa := src.C.RGBA()
+			dstColorRGBA64 := &color.RGBA64{
+				uint16(pr),
+				uint16(pg),
+				uint16(pb),
+				uint16(pa),
+			}
+			dstColor := color.Color(dstColorRGBA64)
+
+			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
+				dyf := float64(dr.Min.Y+int(dy)) + 0.5
+				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
+					dxf := float64(dr.Min.X+int(dx)) + 0.5
+					sx0 := int(d2s[0]*dxf+d2s[1]*dyf+d2s[2]) + bias.X
+					sy0 := int(d2s[3]*dxf+d2s[4]*dyf+d2s[5]) + bias.Y
+					if !(image.Point{sx0, sy0}).In(sr) {
+						continue
+					}
+					dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+				}
 			}
 		}
 	}

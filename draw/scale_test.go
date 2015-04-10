@@ -23,8 +23,8 @@ import (
 
 var genGoldenFiles = flag.Bool("gen_golden_files", false, "whether to generate the TestXxx golden files.")
 
-var transformMatrix = func(tx, ty float64) *f64.Aff3 {
-	const scale, cos30, sin30 = 3.75, 0.866025404, 0.5
+var transformMatrix = func(scale, tx, ty float64) *f64.Aff3 {
+	const cos30, sin30 = 0.866025404, 0.5
 	return &f64.Aff3{
 		+scale * cos30, -scale * sin30, tx,
 		+scale * sin30, +scale * cos30, ty,
@@ -49,8 +49,8 @@ func encode(filename string, m image.Image) error {
 // algorithm or kernel used by any particular quality setting will obviously
 // change the resultant pixels. In such a case, use the gen_golden_files flag
 // to regenerate the golden files.
-func testInterp(t *testing.T, w int, h int, direction, srcFilename string) {
-	f, err := os.Open("../testdata/go-turns-two-" + srcFilename)
+func testInterp(t *testing.T, w int, h int, direction, prefix, suffix string) {
+	f, err := os.Open("../testdata/" + prefix + suffix)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -59,9 +59,16 @@ func testInterp(t *testing.T, w int, h int, direction, srcFilename string) {
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
-	opts := &Options{
-		Op: Src,
+
+	op, scale := Src, 3.75
+	if prefix == "tux" {
+		op, scale = Over, 0.125
 	}
+	opts := &Options{
+		Op: op,
+	}
+	green := image.NewUniform(color.RGBA{0x00, 0x22, 0x11, 0xff})
+
 	testCases := map[string]Interpolator{
 		"nn": NearestNeighbor,
 		"ab": ApproxBiLinear,
@@ -69,11 +76,12 @@ func testInterp(t *testing.T, w int, h int, direction, srcFilename string) {
 		"cr": CatmullRom,
 	}
 	for name, q := range testCases {
-		goldenFilename := fmt.Sprintf("../testdata/go-turns-two-%s-%s.png", direction, name)
+		goldenFilename := fmt.Sprintf("../testdata/%s-%s-%s.png", prefix, direction, name)
 
 		got := image.NewRGBA(image.Rect(0, 0, w, h))
+		Copy(got, image.Point{}, green, got.Bounds(), nil)
 		if direction == "rotate" {
-			q.Transform(got, transformMatrix(40, 10), src, src.Bounds(), opts)
+			q.Transform(got, transformMatrix(scale, 40, 10), src, src.Bounds(), opts)
 		} else {
 			q.Scale(got, got.Bounds(), src, src.Bounds(), opts)
 		}
@@ -111,9 +119,31 @@ func testInterp(t *testing.T, w int, h int, direction, srcFilename string) {
 	}
 }
 
-func TestScaleDown(t *testing.T) { testInterp(t, 100, 100, "down", "280x360.jpeg") }
-func TestScaleUp(t *testing.T)   { testInterp(t, 75, 100, "up", "14x18.png") }
-func TestTransform(t *testing.T) { testInterp(t, 100, 100, "rotate", "14x18.png") }
+func TestScaleDown(t *testing.T) { testInterp(t, 100, 100, "down", "go-turns-two", "-280x360.jpeg") }
+func TestScaleUp(t *testing.T)   { testInterp(t, 75, 100, "up", "go-turns-two", "-14x18.png") }
+func TestTformSrc(t *testing.T)  { testInterp(t, 100, 100, "rotate", "go-turns-two", "-14x18.png") }
+func TestTformOver(t *testing.T) { testInterp(t, 100, 100, "rotate", "tux", ".png") }
+
+func TestOps(t *testing.T) {
+	blue := image.NewUniform(color.RGBA{0x00, 0x00, 0xff, 0xff})
+	testCases := map[Op]color.RGBA{
+		Over: color.RGBA{0x7f, 0x00, 0x80, 0xff},
+		Src:  color.RGBA{0x7f, 0x00, 0x00, 0x7f},
+	}
+	for op, want := range testCases {
+		dst := image.NewRGBA(image.Rect(0, 0, 2, 2))
+		Copy(dst, image.Point{}, blue, dst.Bounds(), nil)
+
+		src := image.NewRGBA(image.Rect(0, 0, 1, 1))
+		src.SetRGBA(0, 0, color.RGBA{0x7f, 0x00, 0x00, 0x7f})
+
+		NearestNeighbor.Scale(dst, dst.Bounds(), src, src.Bounds(), &Options{Op: op})
+
+		if got := dst.RGBAAt(0, 0); got != want {
+			t.Errorf("op=%v: got %v, want %v", op, got, want)
+		}
+	}
+}
 
 // TestNegativeWeights tests that scaling by a kernel that produces negative
 // weights, such as the Catmull-Rom kernel, doesn't produce an invalid color
@@ -183,7 +213,7 @@ func TestInterpClipCommute(t *testing.T) {
 			var interp func(dst *image.RGBA)
 			if transform {
 				interp = func(dst *image.RGBA) {
-					q.Transform(dst, transformMatrix(2, 1), src, src.Bounds(), nil)
+					q.Transform(dst, transformMatrix(3.75, 2, 1), src, src.Bounds(), nil)
 				}
 			} else {
 				interp = func(dst *image.RGBA) {
@@ -256,7 +286,7 @@ func TestSrcTranslationInvariance(t *testing.T) {
 		{-8, +8},
 		{-8, -8},
 	}
-	m00 := transformMatrix(0, 0)
+	m00 := transformMatrix(3.75, 0, 0)
 
 	for _, transform := range []bool{false, true} {
 		for _, q := range qs {
@@ -332,33 +362,37 @@ func TestFastPaths(t *testing.T) {
 		ApproxBiLinear,
 		CatmullRom,
 	}
-	blue := image.NewUniform(color.RGBA{0x11, 0x22, 0x44, 0x7f})
-	opts := &Options{
-		Op: Src,
+	ops := []Op{
+		Over,
+		Src,
 	}
+	blue := image.NewUniform(color.RGBA{0x11, 0x22, 0x44, 0x7f})
 
 	for _, dr := range drs {
 		for _, src := range srcs {
 			for _, sr := range srs {
 				for _, transform := range []bool{false, true} {
 					for _, q := range qs {
-						dst0 := image.NewRGBA(drs[0])
-						dst1 := image.NewRGBA(drs[0])
-						Draw(dst0, dst0.Bounds(), blue, image.Point{}, Src)
-						Draw(dstWrapper{dst1}, dst1.Bounds(), srcWrapper{blue}, image.Point{}, Src)
+						for _, op := range ops {
+							opts := &Options{Op: op}
+							dst0 := image.NewRGBA(drs[0])
+							dst1 := image.NewRGBA(drs[0])
+							Draw(dst0, dst0.Bounds(), blue, image.Point{}, Src)
+							Draw(dstWrapper{dst1}, dst1.Bounds(), srcWrapper{blue}, image.Point{}, Src)
 
-						if transform {
-							m := transformMatrix(2, 1)
-							q.Transform(dst0, m, src, sr, opts)
-							q.Transform(dstWrapper{dst1}, m, srcWrapper{src}, sr, opts)
-						} else {
-							q.Scale(dst0, dr, src, sr, opts)
-							q.Scale(dstWrapper{dst1}, dr, srcWrapper{src}, sr, opts)
-						}
+							if transform {
+								m := transformMatrix(3.75, 2, 1)
+								q.Transform(dst0, m, src, sr, opts)
+								q.Transform(dstWrapper{dst1}, m, srcWrapper{src}, sr, opts)
+							} else {
+								q.Scale(dst0, dr, src, sr, opts)
+								q.Scale(dstWrapper{dst1}, dr, srcWrapper{src}, sr, opts)
+							}
 
-						if !bytes.Equal(dst0.Pix, dst1.Pix) {
-							t.Errorf("pix differ for dr=%v, src=%T, sr=%v, transform=%t, q=%T",
-								dr, src, sr, transform, q)
+							if !bytes.Equal(dst0.Pix, dst1.Pix) {
+								t.Errorf("pix differ for dr=%v, src=%T, sr=%v, transform=%t, q=%T",
+									dr, src, sr, transform, q)
+							}
 						}
 					}
 				}
@@ -453,7 +487,7 @@ func benchTform(b *testing.B, w int, h int, op Op, srcf func(image.Rectangle) (i
 		b.Fatal(err)
 	}
 	sr := src.Bounds()
-	m := transformMatrix(40, 10)
+	m := transformMatrix(3.75, 40, 10)
 	opts := &Options{
 		Op: op,
 	}
@@ -480,28 +514,54 @@ func BenchmarkScaleABUp(b *testing.B) { benchScale(b, 800, 600, Src, srcTux, App
 func BenchmarkScaleBLUp(b *testing.B) { benchScale(b, 800, 600, Src, srcTux, BiLinear) }
 func BenchmarkScaleCRUp(b *testing.B) { benchScale(b, 800, 600, Src, srcTux, CatmullRom) }
 
-func BenchmarkScaleNNSrcRGBA(b *testing.B)    { benchScale(b, 200, 150, Src, srcRGBA, NearestNeighbor) }
-func BenchmarkScaleNNSrcUniform(b *testing.B) { benchScale(b, 200, 150, Src, srcUnif, NearestNeighbor) }
+func BenchmarkScaleNNSrcRGBA(b *testing.B) { benchScale(b, 200, 150, Src, srcRGBA, NearestNeighbor) }
+func BenchmarkScaleNNSrcUnif(b *testing.B) { benchScale(b, 200, 150, Src, srcUnif, NearestNeighbor) }
 
-func BenchmarkTformNNSrcRGBA(b *testing.B)    { benchTform(b, 200, 150, Src, srcRGBA, NearestNeighbor) }
-func BenchmarkTformNNSrcUniform(b *testing.B) { benchTform(b, 200, 150, Src, srcUnif, NearestNeighbor) }
+func BenchmarkScaleNNOverRGBA(b *testing.B) { benchScale(b, 200, 150, Over, srcRGBA, NearestNeighbor) }
+func BenchmarkScaleNNOverUnif(b *testing.B) { benchScale(b, 200, 150, Over, srcUnif, NearestNeighbor) }
+
+func BenchmarkTformNNSrcRGBA(b *testing.B) { benchTform(b, 200, 150, Src, srcRGBA, NearestNeighbor) }
+func BenchmarkTformNNSrcUnif(b *testing.B) { benchTform(b, 200, 150, Src, srcUnif, NearestNeighbor) }
+
+func BenchmarkTformNNOverRGBA(b *testing.B) { benchTform(b, 200, 150, Over, srcRGBA, NearestNeighbor) }
+func BenchmarkTformNNOverUnif(b *testing.B) { benchTform(b, 200, 150, Over, srcUnif, NearestNeighbor) }
 
 func BenchmarkScaleABSrcGray(b *testing.B)  { benchScale(b, 200, 150, Src, srcGray, ApproxBiLinear) }
 func BenchmarkScaleABSrcNRGBA(b *testing.B) { benchScale(b, 200, 150, Src, srcNRGBA, ApproxBiLinear) }
 func BenchmarkScaleABSrcRGBA(b *testing.B)  { benchScale(b, 200, 150, Src, srcRGBA, ApproxBiLinear) }
 func BenchmarkScaleABSrcYCbCr(b *testing.B) { benchScale(b, 200, 150, Src, srcYCbCr, ApproxBiLinear) }
 
+func BenchmarkScaleABOverGray(b *testing.B)  { benchScale(b, 200, 150, Over, srcGray, ApproxBiLinear) }
+func BenchmarkScaleABOverNRGBA(b *testing.B) { benchScale(b, 200, 150, Over, srcNRGBA, ApproxBiLinear) }
+func BenchmarkScaleABOverRGBA(b *testing.B)  { benchScale(b, 200, 150, Over, srcRGBA, ApproxBiLinear) }
+func BenchmarkScaleABOverYCbCr(b *testing.B) { benchScale(b, 200, 150, Over, srcYCbCr, ApproxBiLinear) }
+
 func BenchmarkTformABSrcGray(b *testing.B)  { benchTform(b, 200, 150, Src, srcGray, ApproxBiLinear) }
 func BenchmarkTformABSrcNRGBA(b *testing.B) { benchTform(b, 200, 150, Src, srcNRGBA, ApproxBiLinear) }
 func BenchmarkTformABSrcRGBA(b *testing.B)  { benchTform(b, 200, 150, Src, srcRGBA, ApproxBiLinear) }
 func BenchmarkTformABSrcYCbCr(b *testing.B) { benchTform(b, 200, 150, Src, srcYCbCr, ApproxBiLinear) }
+
+func BenchmarkTformABOverGray(b *testing.B)  { benchTform(b, 200, 150, Over, srcGray, ApproxBiLinear) }
+func BenchmarkTformABOverNRGBA(b *testing.B) { benchTform(b, 200, 150, Over, srcNRGBA, ApproxBiLinear) }
+func BenchmarkTformABOverRGBA(b *testing.B)  { benchTform(b, 200, 150, Over, srcRGBA, ApproxBiLinear) }
+func BenchmarkTformABOverYCbCr(b *testing.B) { benchTform(b, 200, 150, Over, srcYCbCr, ApproxBiLinear) }
 
 func BenchmarkScaleCRSrcGray(b *testing.B)  { benchScale(b, 200, 150, Src, srcGray, CatmullRom) }
 func BenchmarkScaleCRSrcNRGBA(b *testing.B) { benchScale(b, 200, 150, Src, srcNRGBA, CatmullRom) }
 func BenchmarkScaleCRSrcRGBA(b *testing.B)  { benchScale(b, 200, 150, Src, srcRGBA, CatmullRom) }
 func BenchmarkScaleCRSrcYCbCr(b *testing.B) { benchScale(b, 200, 150, Src, srcYCbCr, CatmullRom) }
 
+func BenchmarkScaleCROverGray(b *testing.B)  { benchScale(b, 200, 150, Over, srcGray, CatmullRom) }
+func BenchmarkScaleCROverNRGBA(b *testing.B) { benchScale(b, 200, 150, Over, srcNRGBA, CatmullRom) }
+func BenchmarkScaleCROverRGBA(b *testing.B)  { benchScale(b, 200, 150, Over, srcRGBA, CatmullRom) }
+func BenchmarkScaleCROverYCbCr(b *testing.B) { benchScale(b, 200, 150, Over, srcYCbCr, CatmullRom) }
+
 func BenchmarkTformCRSrcGray(b *testing.B)  { benchTform(b, 200, 150, Src, srcGray, CatmullRom) }
 func BenchmarkTformCRSrcNRGBA(b *testing.B) { benchTform(b, 200, 150, Src, srcNRGBA, CatmullRom) }
 func BenchmarkTformCRSrcRGBA(b *testing.B)  { benchTform(b, 200, 150, Src, srcRGBA, CatmullRom) }
 func BenchmarkTformCRSrcYCbCr(b *testing.B) { benchTform(b, 200, 150, Src, srcYCbCr, CatmullRom) }
+
+func BenchmarkTformCROverGray(b *testing.B)  { benchTform(b, 200, 150, Over, srcGray, CatmullRom) }
+func BenchmarkTformCROverNRGBA(b *testing.B) { benchTform(b, 200, 150, Over, srcNRGBA, CatmullRom) }
+func BenchmarkTformCROverRGBA(b *testing.B)  { benchTform(b, 200, 150, Over, srcRGBA, CatmullRom) }
+func BenchmarkTformCROverYCbCr(b *testing.B) { benchTform(b, 200, 150, Over, srcYCbCr, CatmullRom) }

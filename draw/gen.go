@@ -305,161 +305,256 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		`
 
 	case "outputu":
-		// TODO: handle op==Over, not just op==Src.
 		args, _ := splitArgs(suffix)
 		if len(args) != 3 {
 			return ""
 		}
-		switch d.dType {
-		default:
-			log.Fatalf("bad dType %q", d.dType)
-		case "Image":
-			switch d.sType {
+
+		switch d.op {
+		case "Over":
+			switch d.dType {
 			default:
+				log.Fatalf("bad dType %q", d.dType)
+			case "Image":
 				return fmt.Sprintf(""+
-					"dstColorRGBA64.R = uint16(%sr)\n"+
-					"dstColorRGBA64.G = uint16(%sg)\n"+
-					"dstColorRGBA64.B = uint16(%sb)\n"+
-					"dstColorRGBA64.A = uint16(%sa)\n"+
+					"qr, qg, qb, qa := dst.At(%s, %s).RGBA()\n"+
+					"%sa1 := 0xffff - uint32(%sa)\n"+
+					"dstColorRGBA64.R = uint16(qr*%sa1/0xffff + uint32(%sr))\n"+
+					"dstColorRGBA64.G = uint16(qg*%sa1/0xffff + uint32(%sg))\n"+
+					"dstColorRGBA64.B = uint16(qb*%sa1/0xffff + uint32(%sb))\n"+
+					"dstColorRGBA64.A = uint16(qa*%sa1/0xffff + uint32(%sa))\n"+
 					"dst.Set(%s, %s, dstColor)",
-					args[2], args[2], args[2], args[2],
+					args[0], args[1],
+					args[2], args[2],
+					args[2], args[2],
+					args[2], args[2],
+					args[2], args[2],
+					args[2], args[2],
 					args[0], args[1],
 				)
-			case "*image.Gray":
+			case "*image.RGBA":
 				return fmt.Sprintf(""+
-					"out := uint16(%sr)\n"+
-					"dstColorRGBA64.R = out\n"+
-					"dstColorRGBA64.G = out\n"+
-					"dstColorRGBA64.B = out\n"+
-					"dstColorRGBA64.A = 0xffff\n"+
-					"dst.Set(%s, %s, dstColor)",
-					args[2],
-					args[0], args[1],
-				)
-			case "*image.YCbCr":
-				return fmt.Sprintf(""+
-					"dstColorRGBA64.R = uint16(%sr)\n"+
-					"dstColorRGBA64.G = uint16(%sg)\n"+
-					"dstColorRGBA64.B = uint16(%sb)\n"+
-					"dstColorRGBA64.A = 0xffff\n"+
-					"dst.Set(%s, %s, dstColor)",
-					args[2], args[2], args[2],
-					args[0], args[1],
+					"%sa1 := (0xffff - uint32(%sa)) * 0x101\n"+
+					"dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*%sa1/0xffff + uint32(%sr)) >> 8)\n"+
+					"dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*%sa1/0xffff + uint32(%sg)) >> 8)\n"+
+					"dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*%sa1/0xffff + uint32(%sb)) >> 8)\n"+
+					"dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*%sa1/0xffff + uint32(%sa)) >> 8)",
+					args[2], args[2],
+					args[2], args[2],
+					args[2], args[2],
+					args[2], args[2],
+					args[2], args[2],
 				)
 			}
-		case "*image.RGBA":
-			switch d.sType {
+
+		case "Src":
+			switch d.dType {
 			default:
-				return fmt.Sprintf(""+
-					"dst.Pix[d+0] = uint8(uint32(%sr) >> 8)\n"+
-					"dst.Pix[d+1] = uint8(uint32(%sg) >> 8)\n"+
-					"dst.Pix[d+2] = uint8(uint32(%sb) >> 8)\n"+
-					"dst.Pix[d+3] = uint8(uint32(%sa) >> 8)",
-					args[2], args[2], args[2], args[2],
-				)
-			case "*image.Gray":
-				return fmt.Sprintf(""+
-					"out := uint8(uint32(%sr) >> 8)\n"+
-					"dst.Pix[d+0] = out\n"+
-					"dst.Pix[d+1] = out\n"+
-					"dst.Pix[d+2] = out\n"+
-					"dst.Pix[d+3] = 0xff",
-					args[2],
-				)
-			case "*image.YCbCr":
-				return fmt.Sprintf(""+
-					"dst.Pix[d+0] = uint8(uint32(%sr) >> 8)\n"+
-					"dst.Pix[d+1] = uint8(uint32(%sg) >> 8)\n"+
-					"dst.Pix[d+2] = uint8(uint32(%sb) >> 8)\n"+
-					"dst.Pix[d+3] = 0xff",
-					args[2], args[2], args[2],
-				)
+				log.Fatalf("bad dType %q", d.dType)
+			case "Image":
+				switch d.sType {
+				default:
+					return fmt.Sprintf(""+
+						"dstColorRGBA64.R = uint16(%sr)\n"+
+						"dstColorRGBA64.G = uint16(%sg)\n"+
+						"dstColorRGBA64.B = uint16(%sb)\n"+
+						"dstColorRGBA64.A = uint16(%sa)\n"+
+						"dst.Set(%s, %s, dstColor)",
+						args[2], args[2], args[2], args[2],
+						args[0], args[1],
+					)
+				case "*image.Gray":
+					return fmt.Sprintf(""+
+						"out := uint16(%sr)\n"+
+						"dstColorRGBA64.R = out\n"+
+						"dstColorRGBA64.G = out\n"+
+						"dstColorRGBA64.B = out\n"+
+						"dstColorRGBA64.A = 0xffff\n"+
+						"dst.Set(%s, %s, dstColor)",
+						args[2],
+						args[0], args[1],
+					)
+				case "*image.YCbCr":
+					return fmt.Sprintf(""+
+						"dstColorRGBA64.R = uint16(%sr)\n"+
+						"dstColorRGBA64.G = uint16(%sg)\n"+
+						"dstColorRGBA64.B = uint16(%sb)\n"+
+						"dstColorRGBA64.A = 0xffff\n"+
+						"dst.Set(%s, %s, dstColor)",
+						args[2], args[2], args[2],
+						args[0], args[1],
+					)
+				}
+			case "*image.RGBA":
+				switch d.sType {
+				default:
+					return fmt.Sprintf(""+
+						"dst.Pix[d+0] = uint8(uint32(%sr) >> 8)\n"+
+						"dst.Pix[d+1] = uint8(uint32(%sg) >> 8)\n"+
+						"dst.Pix[d+2] = uint8(uint32(%sb) >> 8)\n"+
+						"dst.Pix[d+3] = uint8(uint32(%sa) >> 8)",
+						args[2], args[2], args[2], args[2],
+					)
+				case "*image.Gray":
+					return fmt.Sprintf(""+
+						"out := uint8(uint32(%sr) >> 8)\n"+
+						"dst.Pix[d+0] = out\n"+
+						"dst.Pix[d+1] = out\n"+
+						"dst.Pix[d+2] = out\n"+
+						"dst.Pix[d+3] = 0xff",
+						args[2],
+					)
+				case "*image.YCbCr":
+					return fmt.Sprintf(""+
+						"dst.Pix[d+0] = uint8(uint32(%sr) >> 8)\n"+
+						"dst.Pix[d+1] = uint8(uint32(%sg) >> 8)\n"+
+						"dst.Pix[d+2] = uint8(uint32(%sb) >> 8)\n"+
+						"dst.Pix[d+3] = 0xff",
+						args[2], args[2], args[2],
+					)
+				}
 			}
 		}
 
 	case "outputf":
-		// TODO: handle op==Over, not just op==Src.
 		args, _ := splitArgs(suffix)
 		if len(args) != 5 {
 			return ""
 		}
 		ret := ""
-		switch d.dType {
-		default:
-			log.Fatalf("bad dType %q", d.dType)
-		case "Image":
-			switch d.sType {
+
+		switch d.op {
+		case "Over":
+			switch d.dType {
 			default:
+				log.Fatalf("bad dType %q", d.dType)
+			case "Image":
 				ret = fmt.Sprintf(""+
-					"dstColorRGBA64.R = %s(%sr * %s)\n"+
-					"dstColorRGBA64.G = %s(%sg * %s)\n"+
-					"dstColorRGBA64.B = %s(%sb * %s)\n"+
-					"dstColorRGBA64.A = %s(%sa * %s)\n"+
+					"qr, qg, qb, qa := dst.At(%s, %s).RGBA()\n"+
+					"%sr0 := uint32(%s(%sr * %s))\n"+
+					"%sg0 := uint32(%s(%sg * %s))\n"+
+					"%sb0 := uint32(%s(%sb * %s))\n"+
+					"%sa0 := uint32(%s(%sa * %s))\n"+
+					"%sa1 := 0xffff - %sa0\n"+
+					"dstColorRGBA64.R = uint16(qr*%sa1/0xffff + %sr0)\n"+
+					"dstColorRGBA64.G = uint16(qg*%sa1/0xffff + %sg0)\n"+
+					"dstColorRGBA64.B = uint16(qb*%sa1/0xffff + %sb0)\n"+
+					"dstColorRGBA64.A = uint16(qa*%sa1/0xffff + %sa0)\n"+
 					"dst.Set(%s, %s, dstColor)",
-					args[2], args[3], args[4],
-					args[2], args[3], args[4],
-					args[2], args[3], args[4],
-					args[2], args[3], args[4],
+					args[0], args[1],
+					args[3], args[2], args[3], args[4],
+					args[3], args[2], args[3], args[4],
+					args[3], args[2], args[3], args[4],
+					args[3], args[2], args[3], args[4],
+					args[3], args[3],
+					args[3], args[3],
+					args[3], args[3],
+					args[3], args[3],
+					args[3], args[3],
 					args[0], args[1],
 				)
-			case "*image.Gray":
+			case "*image.RGBA":
 				ret = fmt.Sprintf(""+
-					"out := %s(%sr * %s)\n"+
-					"dstColorRGBA64.R = out\n"+
-					"dstColorRGBA64.G = out\n"+
-					"dstColorRGBA64.B = out\n"+
-					"dstColorRGBA64.A = 0xffff\n"+
-					"dst.Set(%s, %s, dstColor)",
-					args[2], args[3], args[4],
-					args[0], args[1],
-				)
-			case "*image.YCbCr":
-				ret = fmt.Sprintf(""+
-					"dstColorRGBA64.R = %s(%sr * %s)\n"+
-					"dstColorRGBA64.G = %s(%sg * %s)\n"+
-					"dstColorRGBA64.B = %s(%sb * %s)\n"+
-					"dstColorRGBA64.A = 0xffff\n"+
-					"dst.Set(%s, %s, dstColor)",
-					args[2], args[3], args[4],
-					args[2], args[3], args[4],
-					args[2], args[3], args[4],
-					args[0], args[1],
+					"%sr0 := uint32(%s(%sr * %s))\n"+
+					"%sg0 := uint32(%s(%sg * %s))\n"+
+					"%sb0 := uint32(%s(%sb * %s))\n"+
+					"%sa0 := uint32(%s(%sa * %s))\n"+
+					"%sa1 := (0xffff - uint32(%sa0)) * 0x101\n"+
+					"dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*%sa1/0xffff + %sr0) >> 8)\n"+
+					"dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*%sa1/0xffff + %sg0) >> 8)\n"+
+					"dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*%sa1/0xffff + %sb0) >> 8)\n"+
+					"dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*%sa1/0xffff + %sa0) >> 8)",
+					args[3], args[2], args[3], args[4],
+					args[3], args[2], args[3], args[4],
+					args[3], args[2], args[3], args[4],
+					args[3], args[2], args[3], args[4],
+					args[3], args[3],
+					args[3], args[3],
+					args[3], args[3],
+					args[3], args[3],
+					args[3], args[3],
 				)
 			}
-		case "*image.RGBA":
-			switch d.sType {
+
+		case "Src":
+			switch d.dType {
 			default:
-				ret = fmt.Sprintf(""+
-					"dst.Pix[d+0] = uint8(%s(%sr * %s) >> 8)\n"+
-					"dst.Pix[d+1] = uint8(%s(%sg * %s) >> 8)\n"+
-					"dst.Pix[d+2] = uint8(%s(%sb * %s) >> 8)\n"+
-					"dst.Pix[d+3] = uint8(%s(%sa * %s) >> 8)",
-					args[2], args[3], args[4],
-					args[2], args[3], args[4],
-					args[2], args[3], args[4],
-					args[2], args[3], args[4],
-				)
-			case "*image.Gray":
-				ret = fmt.Sprintf(""+
-					"out := uint8(%s(%sr * %s) >> 8)\n"+
-					"dst.Pix[d+0] = out\n"+
-					"dst.Pix[d+1] = out\n"+
-					"dst.Pix[d+2] = out\n"+
-					"dst.Pix[d+3] = 0xff",
-					args[2], args[3], args[4],
-				)
-			case "*image.YCbCr":
-				ret = fmt.Sprintf(""+
-					"dst.Pix[d+0] = uint8(%s(%sr * %s) >> 8)\n"+
-					"dst.Pix[d+1] = uint8(%s(%sg * %s) >> 8)\n"+
-					"dst.Pix[d+2] = uint8(%s(%sb * %s) >> 8)\n"+
-					"dst.Pix[d+3] = 0xff",
-					args[2], args[3], args[4],
-					args[2], args[3], args[4],
-					args[2], args[3], args[4],
-				)
+				log.Fatalf("bad dType %q", d.dType)
+			case "Image":
+				switch d.sType {
+				default:
+					ret = fmt.Sprintf(""+
+						"dstColorRGBA64.R = %s(%sr * %s)\n"+
+						"dstColorRGBA64.G = %s(%sg * %s)\n"+
+						"dstColorRGBA64.B = %s(%sb * %s)\n"+
+						"dstColorRGBA64.A = %s(%sa * %s)\n"+
+						"dst.Set(%s, %s, dstColor)",
+						args[2], args[3], args[4],
+						args[2], args[3], args[4],
+						args[2], args[3], args[4],
+						args[2], args[3], args[4],
+						args[0], args[1],
+					)
+				case "*image.Gray":
+					ret = fmt.Sprintf(""+
+						"out := %s(%sr * %s)\n"+
+						"dstColorRGBA64.R = out\n"+
+						"dstColorRGBA64.G = out\n"+
+						"dstColorRGBA64.B = out\n"+
+						"dstColorRGBA64.A = 0xffff\n"+
+						"dst.Set(%s, %s, dstColor)",
+						args[2], args[3], args[4],
+						args[0], args[1],
+					)
+				case "*image.YCbCr":
+					ret = fmt.Sprintf(""+
+						"dstColorRGBA64.R = %s(%sr * %s)\n"+
+						"dstColorRGBA64.G = %s(%sg * %s)\n"+
+						"dstColorRGBA64.B = %s(%sb * %s)\n"+
+						"dstColorRGBA64.A = 0xffff\n"+
+						"dst.Set(%s, %s, dstColor)",
+						args[2], args[3], args[4],
+						args[2], args[3], args[4],
+						args[2], args[3], args[4],
+						args[0], args[1],
+					)
+				}
+			case "*image.RGBA":
+				switch d.sType {
+				default:
+					ret = fmt.Sprintf(""+
+						"dst.Pix[d+0] = uint8(%s(%sr * %s) >> 8)\n"+
+						"dst.Pix[d+1] = uint8(%s(%sg * %s) >> 8)\n"+
+						"dst.Pix[d+2] = uint8(%s(%sb * %s) >> 8)\n"+
+						"dst.Pix[d+3] = uint8(%s(%sa * %s) >> 8)",
+						args[2], args[3], args[4],
+						args[2], args[3], args[4],
+						args[2], args[3], args[4],
+						args[2], args[3], args[4],
+					)
+				case "*image.Gray":
+					ret = fmt.Sprintf(""+
+						"out := uint8(%s(%sr * %s) >> 8)\n"+
+						"dst.Pix[d+0] = out\n"+
+						"dst.Pix[d+1] = out\n"+
+						"dst.Pix[d+2] = out\n"+
+						"dst.Pix[d+3] = 0xff",
+						args[2], args[3], args[4],
+					)
+				case "*image.YCbCr":
+					ret = fmt.Sprintf(""+
+						"dst.Pix[d+0] = uint8(%s(%sr * %s) >> 8)\n"+
+						"dst.Pix[d+1] = uint8(%s(%sg * %s) >> 8)\n"+
+						"dst.Pix[d+2] = uint8(%s(%sb * %s) >> 8)\n"+
+						"dst.Pix[d+3] = 0xff",
+						args[2], args[3], args[4],
+						args[2], args[3], args[4],
+						args[2], args[3], args[4],
+					)
+				}
 			}
 		}
+
 		return strings.Replace(ret, " * 1)", ")", -1)
 
 	case "srcf", "srcu":
