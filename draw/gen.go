@@ -286,6 +286,24 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			)
 		}
 
+	case "clampToAlpha":
+		if alwaysOpaque[d.sType] {
+			return ";"
+		}
+		// Go uses alpha-premultiplied color. The naive computation can lead to
+		// invalid colors, e.g. red > alpha, when some weights are negative.
+		return `
+			if pr > pa {
+				pr = pa
+			}
+			if pg > pa {
+				pg = pa
+			}
+			if pb > pa {
+				pb = pa
+			}
+		`
+
 	case "outputu":
 		// TODO: handle op==Over, not just op==Src.
 		args, _ := splitArgs(suffix)
@@ -1118,6 +1136,7 @@ const (
 						pb += p[2] * c.weight
 						pa += p[3] * c.weight
 					}
+					$clampToAlpha
 					$outputf[dr.Min.X + int(dx), dr.Min.Y + int(adr.Min.Y + dy), ftou, p, s.invTotalWeight]
 					$tweakD
 				}
@@ -1215,6 +1234,7 @@ const (
 							}
 						}
 					}
+					$clampToAlpha
 					$outputf[dr.Min.X + int(dx), dr.Min.Y + int(dy), fffftou, p, 1]
 				}
 			}

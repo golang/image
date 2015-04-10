@@ -4494,6 +4494,17 @@ func (z *kernelScaler) scaleY_RGBA_Over(dst *image.RGBA, dr, adr image.Rectangle
 				pb += p[2] * c.weight
 				pa += p[3] * c.weight
 			}
+
+			if pr > pa {
+				pr = pa
+			}
+			if pg > pa {
+				pg = pa
+			}
+			if pb > pa {
+				pb = pa
+			}
+
 			dst.Pix[d+0] = uint8(ftou(pr*s.invTotalWeight) >> 8)
 			dst.Pix[d+1] = uint8(ftou(pg*s.invTotalWeight) >> 8)
 			dst.Pix[d+2] = uint8(ftou(pb*s.invTotalWeight) >> 8)
@@ -4515,6 +4526,17 @@ func (z *kernelScaler) scaleY_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle,
 				pb += p[2] * c.weight
 				pa += p[3] * c.weight
 			}
+
+			if pr > pa {
+				pr = pa
+			}
+			if pg > pa {
+				pg = pa
+			}
+			if pb > pa {
+				pb = pa
+			}
+
 			dst.Pix[d+0] = uint8(ftou(pr*s.invTotalWeight) >> 8)
 			dst.Pix[d+1] = uint8(ftou(pg*s.invTotalWeight) >> 8)
 			dst.Pix[d+2] = uint8(ftou(pb*s.invTotalWeight) >> 8)
@@ -4537,6 +4559,17 @@ func (z *kernelScaler) scaleY_Image_Over(dst Image, dr, adr image.Rectangle, tmp
 				pb += p[2] * c.weight
 				pa += p[3] * c.weight
 			}
+
+			if pr > pa {
+				pr = pa
+			}
+			if pg > pa {
+				pg = pa
+			}
+			if pb > pa {
+				pb = pa
+			}
+
 			dstColorRGBA64.R = ftou(pr * s.invTotalWeight)
 			dstColorRGBA64.G = ftou(pg * s.invTotalWeight)
 			dstColorRGBA64.B = ftou(pb * s.invTotalWeight)
@@ -4559,6 +4592,17 @@ func (z *kernelScaler) scaleY_Image_Src(dst Image, dr, adr image.Rectangle, tmp 
 				pb += p[2] * c.weight
 				pa += p[3] * c.weight
 			}
+
+			if pr > pa {
+				pr = pa
+			}
+			if pg > pa {
+				pg = pa
+			}
+			if pb > pa {
+				pb = pa
+			}
+
 			dstColorRGBA64.R = ftou(pr * s.invTotalWeight)
 			dstColorRGBA64.G = ftou(pg * s.invTotalWeight)
 			dstColorRGBA64.B = ftou(pb * s.invTotalWeight)
@@ -4763,6 +4807,17 @@ func (q *Kernel) transform_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Rectan
 					}
 				}
 			}
+
+			if pr > pa {
+				pr = pa
+			}
+			if pg > pa {
+				pg = pa
+			}
+			if pb > pa {
+				pb = pa
+			}
+
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
 			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
 			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
@@ -4867,6 +4922,17 @@ func (q *Kernel) transform_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Rectang
 					}
 				}
 			}
+
+			if pr > pa {
+				pr = pa
+			}
+			if pg > pa {
+				pg = pa
+			}
+			if pb > pa {
+				pb = pa
+			}
+
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
 			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
 			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
@@ -4971,6 +5037,17 @@ func (q *Kernel) transform_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Rectang
 					}
 				}
 			}
+
+			if pr > pa {
+				pr = pa
+			}
+			if pg > pa {
+				pg = pa
+			}
+			if pb > pa {
+				pb = pa
+			}
+
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
 			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
 			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
@@ -5075,6 +5152,17 @@ func (q *Kernel) transform_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangl
 					}
 				}
 			}
+
+			if pr > pa {
+				pr = pa
+			}
+			if pg > pa {
+				pg = pa
+			}
+			if pb > pa {
+				pb = pa
+			}
+
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
 			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
 			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
@@ -5671,6 +5759,17 @@ func (q *Kernel) transform_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Rectan
 					}
 				}
 			}
+
+			if pr > pa {
+				pr = pa
+			}
+			if pg > pa {
+				pg = pa
+			}
+			if pb > pa {
+				pb = pa
+			}
+
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
 			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
 			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
@@ -5771,6 +5870,17 @@ func (q *Kernel) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Rectang
 					}
 				}
 			}
+
+			if pr > pa {
+				pr = pa
+			}
+			if pg > pa {
+				pg = pa
+			}
+			if pb > pa {
+				pb = pa
+			}
+
 			dst.Pix[d+0] = uint8(fffftou(pr) >> 8)
 			dst.Pix[d+1] = uint8(fffftou(pg) >> 8)
 			dst.Pix[d+2] = uint8(fffftou(pb) >> 8)
@@ -5872,6 +5982,17 @@ func (q *Kernel) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, 
 					}
 				}
 			}
+
+			if pr > pa {
+				pr = pa
+			}
+			if pg > pa {
+				pg = pa
+			}
+			if pb > pa {
+				pb = pa
+			}
+
 			dstColorRGBA64.R = fffftou(pr)
 			dstColorRGBA64.G = fffftou(pg)
 			dstColorRGBA64.B = fffftou(pb)
@@ -5974,6 +6095,17 @@ func (q *Kernel) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d
 					}
 				}
 			}
+
+			if pr > pa {
+				pr = pa
+			}
+			if pg > pa {
+				pg = pa
+			}
+			if pb > pa {
+				pb = pa
+			}
+
 			dstColorRGBA64.R = fffftou(pr)
 			dstColorRGBA64.G = fffftou(pg)
 			dstColorRGBA64.B = fffftou(pb)

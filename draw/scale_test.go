@@ -115,6 +115,43 @@ func TestScaleDown(t *testing.T) { testInterp(t, 100, 100, "down", "280x360.jpeg
 func TestScaleUp(t *testing.T)   { testInterp(t, 75, 100, "up", "14x18.png") }
 func TestTransform(t *testing.T) { testInterp(t, 100, 100, "rotate", "14x18.png") }
 
+// TestNegativeWeights tests that scaling by a kernel that produces negative
+// weights, such as the Catmull-Rom kernel, doesn't produce an invalid color
+// according to Go's alpha-premultiplied model.
+func TestNegativeWeights(t *testing.T) {
+	check := func(m *image.RGBA) error {
+		b := m.Bounds()
+		for y := b.Min.Y; y < b.Max.Y; y++ {
+			for x := b.Min.X; x < b.Max.X; x++ {
+				if c := m.RGBAAt(x, y); c.R > c.A || c.G > c.A || c.B > c.A {
+					return fmt.Errorf("invalid color.RGBA at (%d, %d): %v", x, y, c)
+				}
+			}
+		}
+		return nil
+	}
+
+	src := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			a := y * 0x11
+			src.Set(x, y, color.RGBA{
+				R: uint8(x * 0x11 * a / 0xff),
+				A: uint8(a),
+			})
+		}
+	}
+	if err := check(src); err != nil {
+		t.Fatalf("src image: %v", err)
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, 32, 32))
+	CatmullRom.Scale(dst, dst.Bounds(), src, src.Bounds(), nil)
+	if err := check(dst); err != nil {
+		t.Fatalf("dst image: %v", err)
+	}
+}
+
 func fillPix(r *rand.Rand, pixs ...[]byte) {
 	for _, pix := range pixs {
 		for i := range pix {
