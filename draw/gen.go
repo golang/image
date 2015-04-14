@@ -260,29 +260,21 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		}
 		switch d.sType {
 		default:
-			return fmt.Sprintf(""+
-				"%sr = %s*%sr + %s*%sr\n"+
-				"%sg = %s*%sg + %s*%sg\n"+
-				"%sb = %s*%sb + %s*%sb\n"+
-				"%sa = %s*%sa + %s*%sa",
-				args[3], args[0], args[1], args[2], args[3],
-				args[3], args[0], args[1], args[2], args[3],
-				args[3], args[0], args[1], args[2], args[3],
-				args[3], args[0], args[1], args[2], args[3],
+			return argf(args, ""+
+				"$3r = $0*$1r + $2*$3r\n"+
+				"$3g = $0*$1g + $2*$3g\n"+
+				"$3b = $0*$1b + $2*$3b\n"+
+				"$3a = $0*$1a + $2*$3a",
 			)
 		case "*image.Gray":
-			return fmt.Sprintf(""+
-				"%sr = %s*%sr + %s*%sr",
-				args[3], args[0], args[1], args[2], args[3],
+			return argf(args, ""+
+				"$3r = $0*$1r + $2*$3r",
 			)
 		case "*image.YCbCr":
-			return fmt.Sprintf(""+
-				"%sr = %s*%sr + %s*%sr\n"+
-				"%sg = %s*%sg + %s*%sg\n"+
-				"%sb = %s*%sb + %s*%sb",
-				args[3], args[0], args[1], args[2], args[3],
-				args[3], args[0], args[1], args[2], args[3],
-				args[3], args[0], args[1], args[2], args[3],
+			return argf(args, ""+
+				"$3r = $0*$1r + $2*$3r\n"+
+				"$3g = $0*$1g + $2*$3g\n"+
+				"$3b = $0*$1b + $2*$3b",
 			)
 		}
 
@@ -316,34 +308,22 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			default:
 				log.Fatalf("bad dType %q", d.dType)
 			case "Image":
-				return fmt.Sprintf(""+
-					"qr, qg, qb, qa := dst.At(%s, %s).RGBA()\n"+
-					"%sa1 := 0xffff - uint32(%sa)\n"+
-					"dstColorRGBA64.R = uint16(qr*%sa1/0xffff + uint32(%sr))\n"+
-					"dstColorRGBA64.G = uint16(qg*%sa1/0xffff + uint32(%sg))\n"+
-					"dstColorRGBA64.B = uint16(qb*%sa1/0xffff + uint32(%sb))\n"+
-					"dstColorRGBA64.A = uint16(qa*%sa1/0xffff + uint32(%sa))\n"+
-					"dst.Set(%s, %s, dstColor)",
-					args[0], args[1],
-					args[2], args[2],
-					args[2], args[2],
-					args[2], args[2],
-					args[2], args[2],
-					args[2], args[2],
-					args[0], args[1],
+				return argf(args, ""+
+					"qr, qg, qb, qa := dst.At($0, $1).RGBA()\n"+
+					"$2a1 := 0xffff - uint32($2a)\n"+
+					"dstColorRGBA64.R = uint16(qr*$2a1/0xffff + uint32($2r))\n"+
+					"dstColorRGBA64.G = uint16(qg*$2a1/0xffff + uint32($2g))\n"+
+					"dstColorRGBA64.B = uint16(qb*$2a1/0xffff + uint32($2b))\n"+
+					"dstColorRGBA64.A = uint16(qa*$2a1/0xffff + uint32($2a))\n"+
+					"dst.Set($0, $1, dstColor)",
 				)
 			case "*image.RGBA":
-				return fmt.Sprintf(""+
-					"%sa1 := (0xffff - uint32(%sa)) * 0x101\n"+
-					"dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*%sa1/0xffff + uint32(%sr)) >> 8)\n"+
-					"dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*%sa1/0xffff + uint32(%sg)) >> 8)\n"+
-					"dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*%sa1/0xffff + uint32(%sb)) >> 8)\n"+
-					"dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*%sa1/0xffff + uint32(%sa)) >> 8)",
-					args[2], args[2],
-					args[2], args[2],
-					args[2], args[2],
-					args[2], args[2],
-					args[2], args[2],
+				return argf(args, ""+
+					"$2a1 := (0xffff - uint32($2a)) * 0x101\n"+
+					"dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*$2a1/0xffff + uint32($2r)) >> 8)\n"+
+					"dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*$2a1/0xffff + uint32($2g)) >> 8)\n"+
+					"dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*$2a1/0xffff + uint32($2b)) >> 8)\n"+
+					"dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*$2a1/0xffff + uint32($2a)) >> 8)",
 				)
 			}
 
@@ -354,63 +334,54 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			case "Image":
 				switch d.sType {
 				default:
-					return fmt.Sprintf(""+
-						"dstColorRGBA64.R = uint16(%sr)\n"+
-						"dstColorRGBA64.G = uint16(%sg)\n"+
-						"dstColorRGBA64.B = uint16(%sb)\n"+
-						"dstColorRGBA64.A = uint16(%sa)\n"+
-						"dst.Set(%s, %s, dstColor)",
-						args[2], args[2], args[2], args[2],
-						args[0], args[1],
+					return argf(args, ""+
+						"dstColorRGBA64.R = uint16($2r)\n"+
+						"dstColorRGBA64.G = uint16($2g)\n"+
+						"dstColorRGBA64.B = uint16($2b)\n"+
+						"dstColorRGBA64.A = uint16($2a)\n"+
+						"dst.Set($0, $1, dstColor)",
 					)
 				case "*image.Gray":
-					return fmt.Sprintf(""+
-						"out := uint16(%sr)\n"+
+					return argf(args, ""+
+						"out := uint16($2r)\n"+
 						"dstColorRGBA64.R = out\n"+
 						"dstColorRGBA64.G = out\n"+
 						"dstColorRGBA64.B = out\n"+
 						"dstColorRGBA64.A = 0xffff\n"+
-						"dst.Set(%s, %s, dstColor)",
-						args[2],
-						args[0], args[1],
+						"dst.Set($0, $1, dstColor)",
 					)
 				case "*image.YCbCr":
-					return fmt.Sprintf(""+
-						"dstColorRGBA64.R = uint16(%sr)\n"+
-						"dstColorRGBA64.G = uint16(%sg)\n"+
-						"dstColorRGBA64.B = uint16(%sb)\n"+
+					return argf(args, ""+
+						"dstColorRGBA64.R = uint16($2r)\n"+
+						"dstColorRGBA64.G = uint16($2g)\n"+
+						"dstColorRGBA64.B = uint16($2b)\n"+
 						"dstColorRGBA64.A = 0xffff\n"+
-						"dst.Set(%s, %s, dstColor)",
-						args[2], args[2], args[2],
-						args[0], args[1],
+						"dst.Set($0, $1, dstColor)",
 					)
 				}
 			case "*image.RGBA":
 				switch d.sType {
 				default:
-					return fmt.Sprintf(""+
-						"dst.Pix[d+0] = uint8(uint32(%sr) >> 8)\n"+
-						"dst.Pix[d+1] = uint8(uint32(%sg) >> 8)\n"+
-						"dst.Pix[d+2] = uint8(uint32(%sb) >> 8)\n"+
-						"dst.Pix[d+3] = uint8(uint32(%sa) >> 8)",
-						args[2], args[2], args[2], args[2],
+					return argf(args, ""+
+						"dst.Pix[d+0] = uint8(uint32($2r) >> 8)\n"+
+						"dst.Pix[d+1] = uint8(uint32($2g) >> 8)\n"+
+						"dst.Pix[d+2] = uint8(uint32($2b) >> 8)\n"+
+						"dst.Pix[d+3] = uint8(uint32($2a) >> 8)",
 					)
 				case "*image.Gray":
-					return fmt.Sprintf(""+
-						"out := uint8(uint32(%sr) >> 8)\n"+
+					return argf(args, ""+
+						"out := uint8(uint32($2r) >> 8)\n"+
 						"dst.Pix[d+0] = out\n"+
 						"dst.Pix[d+1] = out\n"+
 						"dst.Pix[d+2] = out\n"+
 						"dst.Pix[d+3] = 0xff",
-						args[2],
 					)
 				case "*image.YCbCr":
-					return fmt.Sprintf(""+
-						"dst.Pix[d+0] = uint8(uint32(%sr) >> 8)\n"+
-						"dst.Pix[d+1] = uint8(uint32(%sg) >> 8)\n"+
-						"dst.Pix[d+2] = uint8(uint32(%sb) >> 8)\n"+
+					return argf(args, ""+
+						"dst.Pix[d+0] = uint8(uint32($2r) >> 8)\n"+
+						"dst.Pix[d+1] = uint8(uint32($2g) >> 8)\n"+
+						"dst.Pix[d+2] = uint8(uint32($2b) >> 8)\n"+
 						"dst.Pix[d+3] = 0xff",
-						args[2], args[2], args[2],
 					)
 				}
 			}
@@ -429,50 +400,30 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			default:
 				log.Fatalf("bad dType %q", d.dType)
 			case "Image":
-				ret = fmt.Sprintf(""+
-					"qr, qg, qb, qa := dst.At(%s, %s).RGBA()\n"+
-					"%sr0 := uint32(%s(%sr * %s))\n"+
-					"%sg0 := uint32(%s(%sg * %s))\n"+
-					"%sb0 := uint32(%s(%sb * %s))\n"+
-					"%sa0 := uint32(%s(%sa * %s))\n"+
-					"%sa1 := 0xffff - %sa0\n"+
-					"dstColorRGBA64.R = uint16(qr*%sa1/0xffff + %sr0)\n"+
-					"dstColorRGBA64.G = uint16(qg*%sa1/0xffff + %sg0)\n"+
-					"dstColorRGBA64.B = uint16(qb*%sa1/0xffff + %sb0)\n"+
-					"dstColorRGBA64.A = uint16(qa*%sa1/0xffff + %sa0)\n"+
-					"dst.Set(%s, %s, dstColor)",
-					args[0], args[1],
-					args[3], args[2], args[3], args[4],
-					args[3], args[2], args[3], args[4],
-					args[3], args[2], args[3], args[4],
-					args[3], args[2], args[3], args[4],
-					args[3], args[3],
-					args[3], args[3],
-					args[3], args[3],
-					args[3], args[3],
-					args[3], args[3],
-					args[0], args[1],
+				ret = argf(args, ""+
+					"qr, qg, qb, qa := dst.At($0, $1).RGBA()\n"+
+					"$3r0 := uint32($2($3r * $4))\n"+
+					"$3g0 := uint32($2($3g * $4))\n"+
+					"$3b0 := uint32($2($3b * $4))\n"+
+					"$3a0 := uint32($2($3a * $4))\n"+
+					"$3a1 := 0xffff - $3a0\n"+
+					"dstColorRGBA64.R = uint16(qr*$3a1/0xffff + $3r0)\n"+
+					"dstColorRGBA64.G = uint16(qg*$3a1/0xffff + $3g0)\n"+
+					"dstColorRGBA64.B = uint16(qb*$3a1/0xffff + $3b0)\n"+
+					"dstColorRGBA64.A = uint16(qa*$3a1/0xffff + $3a0)\n"+
+					"dst.Set($0, $1, dstColor)",
 				)
 			case "*image.RGBA":
-				ret = fmt.Sprintf(""+
-					"%sr0 := uint32(%s(%sr * %s))\n"+
-					"%sg0 := uint32(%s(%sg * %s))\n"+
-					"%sb0 := uint32(%s(%sb * %s))\n"+
-					"%sa0 := uint32(%s(%sa * %s))\n"+
-					"%sa1 := (0xffff - uint32(%sa0)) * 0x101\n"+
-					"dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*%sa1/0xffff + %sr0) >> 8)\n"+
-					"dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*%sa1/0xffff + %sg0) >> 8)\n"+
-					"dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*%sa1/0xffff + %sb0) >> 8)\n"+
-					"dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*%sa1/0xffff + %sa0) >> 8)",
-					args[3], args[2], args[3], args[4],
-					args[3], args[2], args[3], args[4],
-					args[3], args[2], args[3], args[4],
-					args[3], args[2], args[3], args[4],
-					args[3], args[3],
-					args[3], args[3],
-					args[3], args[3],
-					args[3], args[3],
-					args[3], args[3],
+				ret = argf(args, ""+
+					"$3r0 := uint32($2($3r * $4))\n"+
+					"$3g0 := uint32($2($3g * $4))\n"+
+					"$3b0 := uint32($2($3b * $4))\n"+
+					"$3a0 := uint32($2($3a * $4))\n"+
+					"$3a1 := (0xffff - uint32($3a0)) * 0x101\n"+
+					"dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*$3a1/0xffff + $3r0) >> 8)\n"+
+					"dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*$3a1/0xffff + $3g0) >> 8)\n"+
+					"dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*$3a1/0xffff + $3b0) >> 8)\n"+
+					"dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*$3a1/0xffff + $3a0) >> 8)",
 				)
 			}
 
@@ -483,73 +434,54 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			case "Image":
 				switch d.sType {
 				default:
-					ret = fmt.Sprintf(""+
-						"dstColorRGBA64.R = %s(%sr * %s)\n"+
-						"dstColorRGBA64.G = %s(%sg * %s)\n"+
-						"dstColorRGBA64.B = %s(%sb * %s)\n"+
-						"dstColorRGBA64.A = %s(%sa * %s)\n"+
-						"dst.Set(%s, %s, dstColor)",
-						args[2], args[3], args[4],
-						args[2], args[3], args[4],
-						args[2], args[3], args[4],
-						args[2], args[3], args[4],
-						args[0], args[1],
+					ret = argf(args, ""+
+						"dstColorRGBA64.R = $2($3r * $4)\n"+
+						"dstColorRGBA64.G = $2($3g * $4)\n"+
+						"dstColorRGBA64.B = $2($3b * $4)\n"+
+						"dstColorRGBA64.A = $2($3a * $4)\n"+
+						"dst.Set($0, $1, dstColor)",
 					)
 				case "*image.Gray":
-					ret = fmt.Sprintf(""+
-						"out := %s(%sr * %s)\n"+
+					ret = argf(args, ""+
+						"out := $2($3r * $4)\n"+
 						"dstColorRGBA64.R = out\n"+
 						"dstColorRGBA64.G = out\n"+
 						"dstColorRGBA64.B = out\n"+
 						"dstColorRGBA64.A = 0xffff\n"+
-						"dst.Set(%s, %s, dstColor)",
-						args[2], args[3], args[4],
-						args[0], args[1],
+						"dst.Set($0, $1, dstColor)",
 					)
 				case "*image.YCbCr":
-					ret = fmt.Sprintf(""+
-						"dstColorRGBA64.R = %s(%sr * %s)\n"+
-						"dstColorRGBA64.G = %s(%sg * %s)\n"+
-						"dstColorRGBA64.B = %s(%sb * %s)\n"+
+					ret = argf(args, ""+
+						"dstColorRGBA64.R = $2($3r * $4)\n"+
+						"dstColorRGBA64.G = $2($3g * $4)\n"+
+						"dstColorRGBA64.B = $2($3b * $4)\n"+
 						"dstColorRGBA64.A = 0xffff\n"+
-						"dst.Set(%s, %s, dstColor)",
-						args[2], args[3], args[4],
-						args[2], args[3], args[4],
-						args[2], args[3], args[4],
-						args[0], args[1],
+						"dst.Set($0, $1, dstColor)",
 					)
 				}
 			case "*image.RGBA":
 				switch d.sType {
 				default:
-					ret = fmt.Sprintf(""+
-						"dst.Pix[d+0] = uint8(%s(%sr * %s) >> 8)\n"+
-						"dst.Pix[d+1] = uint8(%s(%sg * %s) >> 8)\n"+
-						"dst.Pix[d+2] = uint8(%s(%sb * %s) >> 8)\n"+
-						"dst.Pix[d+3] = uint8(%s(%sa * %s) >> 8)",
-						args[2], args[3], args[4],
-						args[2], args[3], args[4],
-						args[2], args[3], args[4],
-						args[2], args[3], args[4],
+					ret = argf(args, ""+
+						"dst.Pix[d+0] = uint8($2($3r * $4) >> 8)\n"+
+						"dst.Pix[d+1] = uint8($2($3g * $4) >> 8)\n"+
+						"dst.Pix[d+2] = uint8($2($3b * $4) >> 8)\n"+
+						"dst.Pix[d+3] = uint8($2($3a * $4) >> 8)",
 					)
 				case "*image.Gray":
-					ret = fmt.Sprintf(""+
-						"out := uint8(%s(%sr * %s) >> 8)\n"+
+					ret = argf(args, ""+
+						"out := uint8($2($3r * $4) >> 8)\n"+
 						"dst.Pix[d+0] = out\n"+
 						"dst.Pix[d+1] = out\n"+
 						"dst.Pix[d+2] = out\n"+
 						"dst.Pix[d+3] = 0xff",
-						args[2], args[3], args[4],
 					)
 				case "*image.YCbCr":
-					ret = fmt.Sprintf(""+
-						"dst.Pix[d+0] = uint8(%s(%sr * %s) >> 8)\n"+
-						"dst.Pix[d+1] = uint8(%s(%sg * %s) >> 8)\n"+
-						"dst.Pix[d+2] = uint8(%s(%sb * %s) >> 8)\n"+
+					ret = argf(args, ""+
+						"dst.Pix[d+0] = uint8($2($3r * $4) >> 8)\n"+
+						"dst.Pix[d+1] = uint8($2($3g * $4) >> 8)\n"+
+						"dst.Pix[d+2] = uint8($2($3b * $4) >> 8)\n"+
 						"dst.Pix[d+3] = 0xff",
-						args[2], args[3], args[4],
-						args[2], args[3], args[4],
-						args[2], args[3], args[4],
 					)
 				}
 			}
@@ -779,6 +711,17 @@ func expnSwitchYCbCr(op, dType, template string) string {
 	}
 	lines = append(lines, "}")
 	return strings.Join(lines, "\n")
+}
+
+func argf(args []string, s string) string {
+	if len(args) > 9 {
+		panic("too many args")
+	}
+	for i, a := range args {
+		old := fmt.Sprintf("$%d", i)
+		s = strings.Replace(s, old, a, -1)
+	}
+	return s
 }
 
 func pixOffset(m, x, y, xstride, ystride string) string {
