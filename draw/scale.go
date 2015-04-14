@@ -19,12 +19,13 @@ import (
 // the part of the destination image defined by dst and the translation of sr
 // so that sr.Min translates to dp.
 func Copy(dst Image, dp image.Point, src image.Image, sr image.Rectangle, opts *Options) {
-	mask, mp := image.Image(nil), image.Point{}
+	var o Options
 	if opts != nil {
-		// TODO: set mask and mp.
+		o = *opts
 	}
 	dr := sr.Add(dp.Sub(sr.Min))
-	DrawMask(dst, dr, src, sr.Min, mask, mp, opts.op())
+	// TODO: honor o.DstMask and o.SrcMask.
+	DrawMask(dst, dr, src, sr.Min, nil, image.Point{}, o.Op)
 }
 
 // Scaler scales the part of the source image defined by src and sr and writes
@@ -59,15 +60,38 @@ type Options struct {
 	// Op is the compositing operator. The default value is Over.
 	Op Op
 
-	// TODO: add fields a la
-	// https://groups.google.com/forum/#!topic/golang-dev/fgn_xM0aeq4
-}
+	// Masks limit what parts of the dst image are drawn to and what parts of
+	// the src image are drawn from.
+	//
+	// A dst or src mask image having a zero alpha (transparent) pixel value in
+	// the respective coordinate space means that that dst pixel is entirely
+	// unaffected or that src pixel is considered transparent black. A full
+	// alpha (opaque) value means that the dst pixel is maximally affected or
+	// the src pixel contributes maximally. The default values, nil, are
+	// equivalent to fully opaque, infinitely large mask images.
+	//
+	// The DstMask is otherwise known as a clip mask, and its pixels map 1:1 to
+	// the dst image's pixels. DstMaskP in DstMask space corresponds to
+	// image.Point{X:0, Y:0} in dst space. For example, when limiting
+	// repainting to a 'dirty rectangle', use that image.Rectangle and a zero
+	// image.Point as the DstMask and DstMaskP.
+	//
+	// The SrcMask's pixels map 1:1 to the src image's pixels. SrcMaskP in
+	// SrcMask space corresponds to image.Point{X:0, Y:0} in src space. For
+	// example, when drawing font glyphs in a uniform color, use an
+	// *image.Uniform as the src, and use the glyph atlas image and the
+	// per-glyph offset as SrcMask and SrcMaskP:
+	//	Copy(dst, dp, image.NewUniform(color), image.Rect(0, 0, glyphWidth, glyphHeight), &Options{
+	//		SrcMask:  glyphAtlas,
+	//		SrcMaskP: glyphOffset,
+	//	})
+	DstMask  image.Image
+	DstMaskP image.Point
+	SrcMask  image.Image
+	SrcMaskP image.Point
+	// TODO: actually implement DstMask and SrcMask.
 
-func (o *Options) op() Op {
-	if o == nil {
-		return Over
-	}
-	return o.Op
+	// TODO: a smooth vs sharp edges option, for arbitrary rotations?
 }
 
 // Interpolator is an interpolation algorithm, when dst and src pixels don't
@@ -218,7 +242,7 @@ func newDistrib(q *Kernel, dw, sw int32) distrib {
 
 	// Make the sources slice, one source for each column or row, and temporarily
 	// appropriate its elements' fields so that invTotalWeight is the scaled
-	// co-ordinate of the source column or row, and i and j are the lower and
+	// coordinate of the source column or row, and i and j are the lower and
 	// upper bounds of the range of destination columns or rows affected by the
 	// source column or row.
 	n, sources := int32(0), make([]source, dw)
