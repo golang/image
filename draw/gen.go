@@ -644,7 +644,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 
 func expnSwitch(op, dType string, expandBoth bool, template string) string {
 	if op == "" && dType != "anyDType" {
-		lines := []string{"switch op {"}
+		lines := []string{"switch o.Op {"}
 		for _, op = range ops {
 			lines = append(lines,
 				fmt.Sprintf("case %s:", op),
@@ -818,51 +818,65 @@ func relName(s string) string {
 const (
 	codeRoot = `
 		func (z $receiver) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
+			var o Options
+			if opts != nil {
+				o = *opts
+			}
+
 			// adr is the affected destination pixels, relative to dr.Min.
 			adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
+			// TODO: clip adr to o.DstMask.Bounds().
 			if adr.Empty() || sr.Empty() {
 				return
 			}
-			op := opts.op()
-			if op == Over && opaque(src) { // TODO: also check that opts.SrcMask == nil.
-				op = Src
+			if o.Op == Over && o.SrcMask == nil && opaque(src) {
+				o.Op = Src
 			}
+
 			// sr is the source pixels. If it extends beyond the src bounds,
 			// we cannot use the type-specific fast paths, as they access
 			// the Pix fields directly without bounds checking.
-			if !sr.In(src.Bounds()) {
-				switch op {
+			//
+			// Similarly, the fast paths assume that the masks are nil.
+			if o.DstMask != nil || o.SrcMask != nil || !sr.In(src.Bounds()) {
+				switch o.Op {
 				case Over:
 					z.scale_Image_Image_Over(dst, dr, adr, src, sr)
 				case Src:
 					z.scale_Image_Image_Src(dst, dr, adr, src, sr)
 				}
 			} else if _, ok := src.(*image.Uniform); ok {
-				Draw(dst, dr, src, src.Bounds().Min, op)
+				Draw(dst, dr, src, src.Bounds().Min, o.Op)
 			} else {
 				$switch z.scale_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, src, sr)
 			}
 		}
 
 		func (z $receiver) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
+			var o Options
+			if opts != nil {
+				o = *opts
+			}
+
 			dr := transformRect(s2d, &sr)
 			// adr is the affected destination pixels.
 			adr := dst.Bounds().Intersect(dr)
+			// TODO: clip adr to o.DstMask.Bounds().
 			if adr.Empty() || sr.Empty() {
 				return
 			}
-			op := opts.op()
-			if op == Over && opaque(src) { // TODO: also check that opts.SrcMask == nil.
-				op = Src
+			if o.Op == Over && o.SrcMask == nil && opaque(src) {
+				o.Op = Src
 			}
+
 			d2s := invert(s2d)
-			// bias is a translation of the mapping from dst co-ordinates to
-			// src co-ordinates such that the latter temporarily have
-			// non-negative X and Y co-ordinates. This allows us to write
-			// int(f) instead of int(math.Floor(f)), since "round to zero" and
-			// "round down" are equivalent when f >= 0, but the former is much
-			// cheaper. The X-- and Y-- are because the TransformLeaf methods
-			// have a "sx -= 0.5" adjustment.
+			// bias is a translation of the mapping from dst coordinates to src
+			// coordinates such that the latter temporarily have non-negative X
+			// and Y coordinates. This allows us to write int(f) instead of
+			// int(math.Floor(f)), since "round to zero" and "round down" are
+			// equivalent when f >= 0, but the former is much cheaper. The X--
+			// and Y-- are because the TransformLeaf methods have a "sx -= 0.5"
+			// adjustment.
 			bias := transformRect(&d2s, &adr).Min
 			bias.X--
 			bias.Y--
@@ -873,15 +887,17 @@ const (
 			// sr is the source pixels. If it extends beyond the src bounds,
 			// we cannot use the type-specific fast paths, as they access
 			// the Pix fields directly without bounds checking.
-			if !sr.In(src.Bounds()) {
-				switch op {
+			//
+			// Similarly, the fast paths assume that the masks are nil.
+			if o.DstMask != nil || o.SrcMask != nil || !sr.In(src.Bounds()) {
+				switch o.Op {
 				case Over:
 					z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias)
 				case Src:
 					z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias)
 				}
 			} else if u, ok := src.(*image.Uniform); ok {
-				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, op)
+				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, o.Op)
 			} else {
 				$switch z.transform_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, &d2s, src, sr, bias)
 			}
@@ -1042,18 +1058,24 @@ const (
 				z.kernel.Scale(dst, dr, src, sr, opts)
 				return
 			}
+
+			var o Options
+			if opts != nil {
+				o = *opts
+			}
+
 			// adr is the affected destination pixels, relative to dr.Min.
 			adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
+			// TODO: clip adr to o.DstMask.Bounds().
 			if adr.Empty() || sr.Empty() {
 				return
 			}
-			op := opts.op()
-			if op == Over && opaque(src) { // TODO: also check that opts.SrcMask == nil.
-				op = Src
+			if o.Op == Over && o.SrcMask == nil && opaque(src) {
+				o.Op = Src
 			}
 
-			if _, ok := src.(*image.Uniform); ok && sr.In(src.Bounds()) {
-				Draw(dst, dr, src, src.Bounds().Min, op)
+			if _, ok := src.(*image.Uniform); ok && o.DstMask == nil && o.SrcMask == nil && sr.In(src.Bounds()) {
+				Draw(dst, dr, src, src.Bounds().Min, o.Op)
 				return
 			}
 
@@ -1072,34 +1094,42 @@ const (
 			// sr is the source pixels. If it extends beyond the src bounds,
 			// we cannot use the type-specific fast paths, as they access
 			// the Pix fields directly without bounds checking.
-			if !sr.In(src.Bounds()) {
+			//
+			// Similarly, the fast paths assume that the masks are nil.
+			if o.SrcMask != nil || !sr.In(src.Bounds()) {
 				z.scaleX_Image(tmp, src, sr)
 			} else {
 				$switchS z.scaleX_$sTypeRN$sratio(tmp, src, sr)
 			}
 
+			// TODO: honor o.DstMask.
 			$switchD z.scaleY_$dTypeRN_$op(dst, dr, adr, tmp)
 		}
 
 		func (q *Kernel) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
+			var o Options
+			if opts != nil {
+				o = *opts
+			}
+
 			dr := transformRect(s2d, &sr)
 			// adr is the affected destination pixels.
 			adr := dst.Bounds().Intersect(dr)
+			// TODO: clip adr to o.DstMask.Bounds().
 			if adr.Empty() || sr.Empty() {
 				return
 			}
-			op := opts.op()
-			if op == Over && opaque(src) { // TODO: also check that opts.SrcMask == nil.
-				op = Src
+			if o.Op == Over && o.SrcMask == nil && opaque(src) {
+				o.Op = Src
 			}
 			d2s := invert(s2d)
-			// bias is a translation of the mapping from dst co-ordinates to
-			// src co-ordinates such that the latter temporarily have
-			// non-negative X and Y co-ordinates. This allows us to write
-			// int(f) instead of int(math.Floor(f)), since "round to zero" and
-			// "round down" are equivalent when f >= 0, but the former is much
-			// cheaper. The X-- and Y-- are because the TransformLeaf methods
-			// have a "sx -= 0.5" adjustment.
+			// bias is a translation of the mapping from dst coordinates to src
+			// coordinates such that the latter temporarily have non-negative X
+			// and Y coordinates. This allows us to write int(f) instead of
+			// int(math.Floor(f)), since "round to zero" and "round down" are
+			// equivalent when f >= 0, but the former is much cheaper. The X--
+			// and Y-- are because the TransformLeaf methods have a "sx -= 0.5"
+			// adjustment.
 			bias := transformRect(&d2s, &adr).Min
 			bias.X--
 			bias.Y--
@@ -1108,8 +1138,8 @@ const (
 			// Make adr relative to dr.Min.
 			adr = adr.Sub(dr.Min)
 
-			if u, ok := src.(*image.Uniform); ok && sr.In(src.Bounds()) {
-				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, op)
+			if u, ok := src.(*image.Uniform); ok && o.DstMask != nil && o.SrcMask != nil && sr.In(src.Bounds()) {
+				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, o.Op)
 				return
 			}
 
@@ -1125,8 +1155,10 @@ const (
 			// sr is the source pixels. If it extends beyond the src bounds,
 			// we cannot use the type-specific fast paths, as they access
 			// the Pix fields directly without bounds checking.
-			if !sr.In(src.Bounds()) {
-				switch op {
+			//
+			// Similarly, the fast paths assume that the masks are nil.
+			if o.DstMask != nil || o.SrcMask != nil || !sr.In(src.Bounds()) {
+				switch o.Op {
 				case Over:
 					q.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
 				case Src:
