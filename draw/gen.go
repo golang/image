@@ -841,14 +841,14 @@ const (
 			if o.DstMask != nil || o.SrcMask != nil || !sr.In(src.Bounds()) {
 				switch o.Op {
 				case Over:
-					z.scale_Image_Image_Over(dst, dr, adr, src, sr)
+					z.scale_Image_Image_Over(dst, dr, adr, src, sr, &o)
 				case Src:
-					z.scale_Image_Image_Src(dst, dr, adr, src, sr)
+					z.scale_Image_Image_Src(dst, dr, adr, src, sr, &o)
 				}
 			} else if _, ok := src.(*image.Uniform); ok {
 				Draw(dst, dr, src, src.Bounds().Min, o.Op)
 			} else {
-				$switch z.scale_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, src, sr)
+				$switch z.scale_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, src, sr, &o)
 			}
 		}
 
@@ -892,20 +892,20 @@ const (
 			if o.DstMask != nil || o.SrcMask != nil || !sr.In(src.Bounds()) {
 				switch o.Op {
 				case Over:
-					z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, &o)
 				case Src:
-					z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 				}
 			} else if u, ok := src.(*image.Uniform); ok {
 				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, o.Op)
 			} else {
-				$switch z.transform_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, &d2s, src, sr, bias)
+				$switch z.transform_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, &d2s, src, sr, bias, &o)
 			}
 		}
 	`
 
 	codeNNScaleLeaf = `
-		func (nnInterpolator) scale_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, src $sType, sr image.Rectangle) {
+		func (nnInterpolator) scale_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, src $sType, sr image.Rectangle, opts *Options) {
 			dw2 := uint64(dr.Dx()) * 2
 			dh2 := uint64(dr.Dy()) * 2
 			sw := uint64(sr.Dx())
@@ -924,7 +924,7 @@ const (
 	`
 
 	codeNNTransformLeaf = `
-		func (nnInterpolator) transform_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, bias image.Point) {
+		func (nnInterpolator) transform_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, bias image.Point, opts *Options) {
 			$preOuter
 			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 				dyf := float64(dr.Min.Y + int(dy)) + 0.5
@@ -944,7 +944,7 @@ const (
 	`
 
 	codeABLScaleLeaf = `
-		func (ablInterpolator) scale_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, src $sType, sr image.Rectangle) {
+		func (ablInterpolator) scale_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, src $sType, sr image.Rectangle, opts *Options) {
 			sw := int32(sr.Dx())
 			sh := int32(sr.Dy())
 			yscale := float64(sh) / float64(dr.Dy())
@@ -998,7 +998,7 @@ const (
 	`
 
 	codeABLTransformLeaf = `
-		func (ablInterpolator) transform_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, bias image.Point) {
+		func (ablInterpolator) transform_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, bias image.Point, opts *Options) {
 			$preOuter
 			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 				dyf := float64(dr.Min.Y + int(dy)) + 0.5
@@ -1097,13 +1097,13 @@ const (
 			//
 			// Similarly, the fast paths assume that the masks are nil.
 			if o.SrcMask != nil || !sr.In(src.Bounds()) {
-				z.scaleX_Image(tmp, src, sr)
+				z.scaleX_Image(tmp, src, sr, &o)
 			} else {
-				$switchS z.scaleX_$sTypeRN$sratio(tmp, src, sr)
+				$switchS z.scaleX_$sTypeRN$sratio(tmp, src, sr, &o)
 			}
 
 			// TODO: honor o.DstMask.
-			$switchD z.scaleY_$dTypeRN_$op(dst, dr, adr, tmp)
+			$switchD z.scaleY_$dTypeRN_$op(dst, dr, adr, tmp, &o)
 		}
 
 		func (q *Kernel) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
@@ -1160,18 +1160,18 @@ const (
 			if o.DstMask != nil || o.SrcMask != nil || !sr.In(src.Bounds()) {
 				switch o.Op {
 				case Over:
-					q.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+					q.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 				case Src:
-					q.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+					q.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 				}
 			} else {
-				$switch q.transform_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+				$switch q.transform_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 			}
 		}
 	`
 
 	codeKernelScaleLeafX = `
-		func (z *kernelScaler) scaleX_$sTypeRN$sratio(tmp [][4]float64, src $sType, sr image.Rectangle) {
+		func (z *kernelScaler) scaleX_$sTypeRN$sratio(tmp [][4]float64, src $sType, sr image.Rectangle, opts *Options) {
 			t := 0
 			for y := int32(0); y < z.sh; y++ {
 				for _, s := range z.horizontal.sources {
@@ -1193,7 +1193,7 @@ const (
 	`
 
 	codeKernelScaleLeafY = `
-		func (z *kernelScaler) scaleY_$dTypeRN_$op(dst $dType, dr, adr image.Rectangle, tmp [][4]float64) {
+		func (z *kernelScaler) scaleY_$dTypeRN_$op(dst $dType, dr, adr image.Rectangle, tmp [][4]float64, opts *Options) {
 			$preOuter
 			for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 				$preKernelInner
@@ -1215,7 +1215,7 @@ const (
 	`
 
 	codeKernelTransformLeaf = `
-		func (q *Kernel) transform_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+		func (q *Kernel) transform_$dTypeRN_$sTypeRN$sratio_$op(dst $dType, dr, adr image.Rectangle, d2s *f64.Aff3, src $sType, sr image.Rectangle, bias image.Point, xscale, yscale float64, opts *Options) {
 			// When shrinking, broaden the effective kernel support so that we still
 			// visit every source pixel.
 			xHalfWidth, xKernelArgScale := q.Support, 1.0
