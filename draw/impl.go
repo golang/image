@@ -34,9 +34,9 @@ func (z nnInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, sr
 	if o.DstMask != nil || o.SrcMask != nil || !sr.In(src.Bounds()) {
 		switch o.Op {
 		case Over:
-			z.scale_Image_Image_Over(dst, dr, adr, src, sr)
+			z.scale_Image_Image_Over(dst, dr, adr, src, sr, &o)
 		case Src:
-			z.scale_Image_Image_Src(dst, dr, adr, src, sr)
+			z.scale_Image_Image_Src(dst, dr, adr, src, sr, &o)
 		}
 	} else if _, ok := src.(*image.Uniform); ok {
 		Draw(dst, dr, src, src.Bounds().Min, o.Op)
@@ -47,16 +47,16 @@ func (z nnInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, sr
 			case *image.RGBA:
 				switch src := src.(type) {
 				case *image.NRGBA:
-					z.scale_RGBA_NRGBA_Over(dst, dr, adr, src, sr)
+					z.scale_RGBA_NRGBA_Over(dst, dr, adr, src, sr, &o)
 				case *image.RGBA:
-					z.scale_RGBA_RGBA_Over(dst, dr, adr, src, sr)
+					z.scale_RGBA_RGBA_Over(dst, dr, adr, src, sr, &o)
 				default:
-					z.scale_RGBA_Image_Over(dst, dr, adr, src, sr)
+					z.scale_RGBA_Image_Over(dst, dr, adr, src, sr, &o)
 				}
 			default:
 				switch src := src.(type) {
 				default:
-					z.scale_Image_Image_Over(dst, dr, adr, src, sr)
+					z.scale_Image_Image_Over(dst, dr, adr, src, sr, &o)
 				}
 			}
 		case Src:
@@ -64,31 +64,31 @@ func (z nnInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, sr
 			case *image.RGBA:
 				switch src := src.(type) {
 				case *image.Gray:
-					z.scale_RGBA_Gray_Src(dst, dr, adr, src, sr)
+					z.scale_RGBA_Gray_Src(dst, dr, adr, src, sr, &o)
 				case *image.NRGBA:
-					z.scale_RGBA_NRGBA_Src(dst, dr, adr, src, sr)
+					z.scale_RGBA_NRGBA_Src(dst, dr, adr, src, sr, &o)
 				case *image.RGBA:
-					z.scale_RGBA_RGBA_Src(dst, dr, adr, src, sr)
+					z.scale_RGBA_RGBA_Src(dst, dr, adr, src, sr, &o)
 				case *image.YCbCr:
 					switch src.SubsampleRatio {
 					default:
-						z.scale_RGBA_Image_Src(dst, dr, adr, src, sr)
+						z.scale_RGBA_Image_Src(dst, dr, adr, src, sr, &o)
 					case image.YCbCrSubsampleRatio444:
-						z.scale_RGBA_YCbCr444_Src(dst, dr, adr, src, sr)
+						z.scale_RGBA_YCbCr444_Src(dst, dr, adr, src, sr, &o)
 					case image.YCbCrSubsampleRatio422:
-						z.scale_RGBA_YCbCr422_Src(dst, dr, adr, src, sr)
+						z.scale_RGBA_YCbCr422_Src(dst, dr, adr, src, sr, &o)
 					case image.YCbCrSubsampleRatio420:
-						z.scale_RGBA_YCbCr420_Src(dst, dr, adr, src, sr)
+						z.scale_RGBA_YCbCr420_Src(dst, dr, adr, src, sr, &o)
 					case image.YCbCrSubsampleRatio440:
-						z.scale_RGBA_YCbCr440_Src(dst, dr, adr, src, sr)
+						z.scale_RGBA_YCbCr440_Src(dst, dr, adr, src, sr, &o)
 					}
 				default:
-					z.scale_RGBA_Image_Src(dst, dr, adr, src, sr)
+					z.scale_RGBA_Image_Src(dst, dr, adr, src, sr, &o)
 				}
 			default:
 				switch src := src.(type) {
 				default:
-					z.scale_Image_Image_Src(dst, dr, adr, src, sr)
+					z.scale_Image_Image_Src(dst, dr, adr, src, sr, &o)
 				}
 			}
 		}
@@ -135,9 +135,9 @@ func (z nnInterpolator) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr 
 	if o.DstMask != nil || o.SrcMask != nil || !sr.In(src.Bounds()) {
 		switch o.Op {
 		case Over:
-			z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias)
+			z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, &o)
 		case Src:
-			z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias)
+			z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 		}
 	} else if u, ok := src.(*image.Uniform); ok {
 		transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, o.Op)
@@ -148,16 +148,16 @@ func (z nnInterpolator) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr 
 			case *image.RGBA:
 				switch src := src.(type) {
 				case *image.NRGBA:
-					z.transform_RGBA_NRGBA_Over(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_RGBA_NRGBA_Over(dst, dr, adr, &d2s, src, sr, bias, &o)
 				case *image.RGBA:
-					z.transform_RGBA_RGBA_Over(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_RGBA_RGBA_Over(dst, dr, adr, &d2s, src, sr, bias, &o)
 				default:
-					z.transform_RGBA_Image_Over(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_RGBA_Image_Over(dst, dr, adr, &d2s, src, sr, bias, &o)
 				}
 			default:
 				switch src := src.(type) {
 				default:
-					z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, &o)
 				}
 			}
 		case Src:
@@ -165,38 +165,38 @@ func (z nnInterpolator) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr 
 			case *image.RGBA:
 				switch src := src.(type) {
 				case *image.Gray:
-					z.transform_RGBA_Gray_Src(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_RGBA_Gray_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 				case *image.NRGBA:
-					z.transform_RGBA_NRGBA_Src(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_RGBA_NRGBA_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 				case *image.RGBA:
-					z.transform_RGBA_RGBA_Src(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_RGBA_RGBA_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 				case *image.YCbCr:
 					switch src.SubsampleRatio {
 					default:
-						z.transform_RGBA_Image_Src(dst, dr, adr, &d2s, src, sr, bias)
+						z.transform_RGBA_Image_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 					case image.YCbCrSubsampleRatio444:
-						z.transform_RGBA_YCbCr444_Src(dst, dr, adr, &d2s, src, sr, bias)
+						z.transform_RGBA_YCbCr444_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 					case image.YCbCrSubsampleRatio422:
-						z.transform_RGBA_YCbCr422_Src(dst, dr, adr, &d2s, src, sr, bias)
+						z.transform_RGBA_YCbCr422_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 					case image.YCbCrSubsampleRatio420:
-						z.transform_RGBA_YCbCr420_Src(dst, dr, adr, &d2s, src, sr, bias)
+						z.transform_RGBA_YCbCr420_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 					case image.YCbCrSubsampleRatio440:
-						z.transform_RGBA_YCbCr440_Src(dst, dr, adr, &d2s, src, sr, bias)
+						z.transform_RGBA_YCbCr440_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 					}
 				default:
-					z.transform_RGBA_Image_Src(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_RGBA_Image_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 				}
 			default:
 				switch src := src.(type) {
 				default:
-					z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 				}
 			}
 		}
 	}
 }
 
-func (nnInterpolator) scale_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.Gray, sr image.Rectangle) {
+func (nnInterpolator) scale_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.Gray, sr image.Rectangle, opts *Options) {
 	dw2 := uint64(dr.Dx()) * 2
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
@@ -217,7 +217,7 @@ func (nnInterpolator) scale_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectang
 	}
 }
 
-func (nnInterpolator) scale_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, src *image.NRGBA, sr image.Rectangle) {
+func (nnInterpolator) scale_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, src *image.NRGBA, sr image.Rectangle, opts *Options) {
 	dw2 := uint64(dr.Dx()) * 2
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
@@ -241,7 +241,7 @@ func (nnInterpolator) scale_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Recta
 	}
 }
 
-func (nnInterpolator) scale_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.NRGBA, sr image.Rectangle) {
+func (nnInterpolator) scale_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.NRGBA, sr image.Rectangle, opts *Options) {
 	dw2 := uint64(dr.Dx()) * 2
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
@@ -264,7 +264,7 @@ func (nnInterpolator) scale_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Rectan
 	}
 }
 
-func (nnInterpolator) scale_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, src *image.RGBA, sr image.Rectangle) {
+func (nnInterpolator) scale_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, src *image.RGBA, sr image.Rectangle, opts *Options) {
 	dw2 := uint64(dr.Dx()) * 2
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
@@ -288,7 +288,7 @@ func (nnInterpolator) scale_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Rectan
 	}
 }
 
-func (nnInterpolator) scale_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.RGBA, sr image.Rectangle) {
+func (nnInterpolator) scale_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.RGBA, sr image.Rectangle, opts *Options) {
 	dw2 := uint64(dr.Dx()) * 2
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
@@ -311,7 +311,7 @@ func (nnInterpolator) scale_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectang
 	}
 }
 
-func (nnInterpolator) scale_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle) {
+func (nnInterpolator) scale_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle, opts *Options) {
 	dw2 := uint64(dr.Dx()) * 2
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
@@ -354,7 +354,7 @@ func (nnInterpolator) scale_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Rec
 	}
 }
 
-func (nnInterpolator) scale_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle) {
+func (nnInterpolator) scale_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle, opts *Options) {
 	dw2 := uint64(dr.Dx()) * 2
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
@@ -397,7 +397,7 @@ func (nnInterpolator) scale_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Rec
 	}
 }
 
-func (nnInterpolator) scale_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle) {
+func (nnInterpolator) scale_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle, opts *Options) {
 	dw2 := uint64(dr.Dx()) * 2
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
@@ -440,7 +440,7 @@ func (nnInterpolator) scale_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Rec
 	}
 }
 
-func (nnInterpolator) scale_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle) {
+func (nnInterpolator) scale_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle, opts *Options) {
 	dw2 := uint64(dr.Dx()) * 2
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
@@ -483,7 +483,7 @@ func (nnInterpolator) scale_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Rec
 	}
 }
 
-func (nnInterpolator) scale_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Rectangle, src image.Image, sr image.Rectangle) {
+func (nnInterpolator) scale_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
 	dw2 := uint64(dr.Dx()) * 2
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
@@ -503,7 +503,7 @@ func (nnInterpolator) scale_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Recta
 	}
 }
 
-func (nnInterpolator) scale_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Rectangle, src image.Image, sr image.Rectangle) {
+func (nnInterpolator) scale_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
 	dw2 := uint64(dr.Dx()) * 2
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
@@ -522,7 +522,7 @@ func (nnInterpolator) scale_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Rectan
 	}
 }
 
-func (nnInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle, src image.Image, sr image.Rectangle) {
+func (nnInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
 	dw2 := uint64(dr.Dx()) * 2
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
@@ -545,7 +545,7 @@ func (nnInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle,
 	}
 }
 
-func (nnInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle, src image.Image, sr image.Rectangle) {
+func (nnInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
 	dw2 := uint64(dr.Dx()) * 2
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
@@ -566,7 +566,7 @@ func (nnInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle, 
 	}
 }
 
-func (nnInterpolator) transform_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Gray, sr image.Rectangle, bias image.Point) {
+func (nnInterpolator) transform_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Gray, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -588,7 +588,7 @@ func (nnInterpolator) transform_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rec
 	}
 }
 
-func (nnInterpolator) transform_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point) {
+func (nnInterpolator) transform_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -613,7 +613,7 @@ func (nnInterpolator) transform_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.R
 	}
 }
 
-func (nnInterpolator) transform_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point) {
+func (nnInterpolator) transform_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -637,7 +637,7 @@ func (nnInterpolator) transform_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Re
 	}
 }
 
-func (nnInterpolator) transform_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point) {
+func (nnInterpolator) transform_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -662,7 +662,7 @@ func (nnInterpolator) transform_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Re
 	}
 }
 
-func (nnInterpolator) transform_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point) {
+func (nnInterpolator) transform_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -686,7 +686,7 @@ func (nnInterpolator) transform_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rec
 	}
 }
 
-func (nnInterpolator) transform_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
+func (nnInterpolator) transform_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -730,7 +730,7 @@ func (nnInterpolator) transform_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image
 	}
 }
 
-func (nnInterpolator) transform_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
+func (nnInterpolator) transform_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -774,7 +774,7 @@ func (nnInterpolator) transform_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image
 	}
 }
 
-func (nnInterpolator) transform_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
+func (nnInterpolator) transform_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -818,7 +818,7 @@ func (nnInterpolator) transform_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image
 	}
 }
 
-func (nnInterpolator) transform_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
+func (nnInterpolator) transform_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -862,7 +862,7 @@ func (nnInterpolator) transform_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image
 	}
 }
 
-func (nnInterpolator) transform_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point) {
+func (nnInterpolator) transform_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -883,7 +883,7 @@ func (nnInterpolator) transform_RGBA_Image_Over(dst *image.RGBA, dr, adr image.R
 	}
 }
 
-func (nnInterpolator) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point) {
+func (nnInterpolator) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -903,7 +903,7 @@ func (nnInterpolator) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Re
 	}
 }
 
-func (nnInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point) {
+func (nnInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
@@ -927,7 +927,7 @@ func (nnInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Rectan
 	}
 }
 
-func (nnInterpolator) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point) {
+func (nnInterpolator) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
@@ -973,9 +973,9 @@ func (z ablInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, s
 	if o.DstMask != nil || o.SrcMask != nil || !sr.In(src.Bounds()) {
 		switch o.Op {
 		case Over:
-			z.scale_Image_Image_Over(dst, dr, adr, src, sr)
+			z.scale_Image_Image_Over(dst, dr, adr, src, sr, &o)
 		case Src:
-			z.scale_Image_Image_Src(dst, dr, adr, src, sr)
+			z.scale_Image_Image_Src(dst, dr, adr, src, sr, &o)
 		}
 	} else if _, ok := src.(*image.Uniform); ok {
 		Draw(dst, dr, src, src.Bounds().Min, o.Op)
@@ -986,16 +986,16 @@ func (z ablInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, s
 			case *image.RGBA:
 				switch src := src.(type) {
 				case *image.NRGBA:
-					z.scale_RGBA_NRGBA_Over(dst, dr, adr, src, sr)
+					z.scale_RGBA_NRGBA_Over(dst, dr, adr, src, sr, &o)
 				case *image.RGBA:
-					z.scale_RGBA_RGBA_Over(dst, dr, adr, src, sr)
+					z.scale_RGBA_RGBA_Over(dst, dr, adr, src, sr, &o)
 				default:
-					z.scale_RGBA_Image_Over(dst, dr, adr, src, sr)
+					z.scale_RGBA_Image_Over(dst, dr, adr, src, sr, &o)
 				}
 			default:
 				switch src := src.(type) {
 				default:
-					z.scale_Image_Image_Over(dst, dr, adr, src, sr)
+					z.scale_Image_Image_Over(dst, dr, adr, src, sr, &o)
 				}
 			}
 		case Src:
@@ -1003,31 +1003,31 @@ func (z ablInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, s
 			case *image.RGBA:
 				switch src := src.(type) {
 				case *image.Gray:
-					z.scale_RGBA_Gray_Src(dst, dr, adr, src, sr)
+					z.scale_RGBA_Gray_Src(dst, dr, adr, src, sr, &o)
 				case *image.NRGBA:
-					z.scale_RGBA_NRGBA_Src(dst, dr, adr, src, sr)
+					z.scale_RGBA_NRGBA_Src(dst, dr, adr, src, sr, &o)
 				case *image.RGBA:
-					z.scale_RGBA_RGBA_Src(dst, dr, adr, src, sr)
+					z.scale_RGBA_RGBA_Src(dst, dr, adr, src, sr, &o)
 				case *image.YCbCr:
 					switch src.SubsampleRatio {
 					default:
-						z.scale_RGBA_Image_Src(dst, dr, adr, src, sr)
+						z.scale_RGBA_Image_Src(dst, dr, adr, src, sr, &o)
 					case image.YCbCrSubsampleRatio444:
-						z.scale_RGBA_YCbCr444_Src(dst, dr, adr, src, sr)
+						z.scale_RGBA_YCbCr444_Src(dst, dr, adr, src, sr, &o)
 					case image.YCbCrSubsampleRatio422:
-						z.scale_RGBA_YCbCr422_Src(dst, dr, adr, src, sr)
+						z.scale_RGBA_YCbCr422_Src(dst, dr, adr, src, sr, &o)
 					case image.YCbCrSubsampleRatio420:
-						z.scale_RGBA_YCbCr420_Src(dst, dr, adr, src, sr)
+						z.scale_RGBA_YCbCr420_Src(dst, dr, adr, src, sr, &o)
 					case image.YCbCrSubsampleRatio440:
-						z.scale_RGBA_YCbCr440_Src(dst, dr, adr, src, sr)
+						z.scale_RGBA_YCbCr440_Src(dst, dr, adr, src, sr, &o)
 					}
 				default:
-					z.scale_RGBA_Image_Src(dst, dr, adr, src, sr)
+					z.scale_RGBA_Image_Src(dst, dr, adr, src, sr, &o)
 				}
 			default:
 				switch src := src.(type) {
 				default:
-					z.scale_Image_Image_Src(dst, dr, adr, src, sr)
+					z.scale_Image_Image_Src(dst, dr, adr, src, sr, &o)
 				}
 			}
 		}
@@ -1074,9 +1074,9 @@ func (z ablInterpolator) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr
 	if o.DstMask != nil || o.SrcMask != nil || !sr.In(src.Bounds()) {
 		switch o.Op {
 		case Over:
-			z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias)
+			z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, &o)
 		case Src:
-			z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias)
+			z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 		}
 	} else if u, ok := src.(*image.Uniform); ok {
 		transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, o.Op)
@@ -1087,16 +1087,16 @@ func (z ablInterpolator) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr
 			case *image.RGBA:
 				switch src := src.(type) {
 				case *image.NRGBA:
-					z.transform_RGBA_NRGBA_Over(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_RGBA_NRGBA_Over(dst, dr, adr, &d2s, src, sr, bias, &o)
 				case *image.RGBA:
-					z.transform_RGBA_RGBA_Over(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_RGBA_RGBA_Over(dst, dr, adr, &d2s, src, sr, bias, &o)
 				default:
-					z.transform_RGBA_Image_Over(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_RGBA_Image_Over(dst, dr, adr, &d2s, src, sr, bias, &o)
 				}
 			default:
 				switch src := src.(type) {
 				default:
-					z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, &o)
 				}
 			}
 		case Src:
@@ -1104,38 +1104,38 @@ func (z ablInterpolator) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr
 			case *image.RGBA:
 				switch src := src.(type) {
 				case *image.Gray:
-					z.transform_RGBA_Gray_Src(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_RGBA_Gray_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 				case *image.NRGBA:
-					z.transform_RGBA_NRGBA_Src(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_RGBA_NRGBA_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 				case *image.RGBA:
-					z.transform_RGBA_RGBA_Src(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_RGBA_RGBA_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 				case *image.YCbCr:
 					switch src.SubsampleRatio {
 					default:
-						z.transform_RGBA_Image_Src(dst, dr, adr, &d2s, src, sr, bias)
+						z.transform_RGBA_Image_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 					case image.YCbCrSubsampleRatio444:
-						z.transform_RGBA_YCbCr444_Src(dst, dr, adr, &d2s, src, sr, bias)
+						z.transform_RGBA_YCbCr444_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 					case image.YCbCrSubsampleRatio422:
-						z.transform_RGBA_YCbCr422_Src(dst, dr, adr, &d2s, src, sr, bias)
+						z.transform_RGBA_YCbCr422_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 					case image.YCbCrSubsampleRatio420:
-						z.transform_RGBA_YCbCr420_Src(dst, dr, adr, &d2s, src, sr, bias)
+						z.transform_RGBA_YCbCr420_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 					case image.YCbCrSubsampleRatio440:
-						z.transform_RGBA_YCbCr440_Src(dst, dr, adr, &d2s, src, sr, bias)
+						z.transform_RGBA_YCbCr440_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 					}
 				default:
-					z.transform_RGBA_Image_Src(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_RGBA_Image_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 				}
 			default:
 				switch src := src.(type) {
 				default:
-					z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias)
+					z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 				}
 			}
 		}
 	}
 }
 
-func (ablInterpolator) scale_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.Gray, sr image.Rectangle) {
+func (ablInterpolator) scale_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.Gray, sr image.Rectangle, opts *Options) {
 	sw := int32(sr.Dx())
 	sh := int32(sr.Dy())
 	yscale := float64(sh) / float64(dr.Dy())
@@ -1198,7 +1198,7 @@ func (ablInterpolator) scale_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectan
 	}
 }
 
-func (ablInterpolator) scale_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, src *image.NRGBA, sr image.Rectangle) {
+func (ablInterpolator) scale_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, src *image.NRGBA, sr image.Rectangle, opts *Options) {
 	sw := int32(sr.Dx())
 	sh := int32(sr.Dy())
 	yscale := float64(sh) / float64(dr.Dy())
@@ -1294,7 +1294,7 @@ func (ablInterpolator) scale_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Rect
 	}
 }
 
-func (ablInterpolator) scale_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.NRGBA, sr image.Rectangle) {
+func (ablInterpolator) scale_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.NRGBA, sr image.Rectangle, opts *Options) {
 	sw := int32(sr.Dx())
 	sh := int32(sr.Dy())
 	yscale := float64(sh) / float64(dr.Dy())
@@ -1389,7 +1389,7 @@ func (ablInterpolator) scale_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Recta
 	}
 }
 
-func (ablInterpolator) scale_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, src *image.RGBA, sr image.Rectangle) {
+func (ablInterpolator) scale_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, src *image.RGBA, sr image.Rectangle, opts *Options) {
 	sw := int32(sr.Dx())
 	sh := int32(sr.Dy())
 	yscale := float64(sh) / float64(dr.Dy())
@@ -1485,7 +1485,7 @@ func (ablInterpolator) scale_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Recta
 	}
 }
 
-func (ablInterpolator) scale_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.RGBA, sr image.Rectangle) {
+func (ablInterpolator) scale_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.RGBA, sr image.Rectangle, opts *Options) {
 	sw := int32(sr.Dx())
 	sh := int32(sr.Dy())
 	yscale := float64(sh) / float64(dr.Dy())
@@ -1580,7 +1580,7 @@ func (ablInterpolator) scale_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectan
 	}
 }
 
-func (ablInterpolator) scale_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle) {
+func (ablInterpolator) scale_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle, opts *Options) {
 	sw := int32(sr.Dx())
 	sh := int32(sr.Dy())
 	yscale := float64(sh) / float64(dr.Dy())
@@ -1752,7 +1752,7 @@ func (ablInterpolator) scale_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Re
 	}
 }
 
-func (ablInterpolator) scale_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle) {
+func (ablInterpolator) scale_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle, opts *Options) {
 	sw := int32(sr.Dx())
 	sh := int32(sr.Dy())
 	yscale := float64(sh) / float64(dr.Dy())
@@ -1924,7 +1924,7 @@ func (ablInterpolator) scale_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Re
 	}
 }
 
-func (ablInterpolator) scale_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle) {
+func (ablInterpolator) scale_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle, opts *Options) {
 	sw := int32(sr.Dx())
 	sh := int32(sr.Dy())
 	yscale := float64(sh) / float64(dr.Dy())
@@ -2096,7 +2096,7 @@ func (ablInterpolator) scale_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Re
 	}
 }
 
-func (ablInterpolator) scale_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle) {
+func (ablInterpolator) scale_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Rectangle, src *image.YCbCr, sr image.Rectangle, opts *Options) {
 	sw := int32(sr.Dx())
 	sh := int32(sr.Dy())
 	yscale := float64(sh) / float64(dr.Dy())
@@ -2268,7 +2268,7 @@ func (ablInterpolator) scale_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Re
 	}
 }
 
-func (ablInterpolator) scale_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Rectangle, src image.Image, sr image.Rectangle) {
+func (ablInterpolator) scale_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
 	sw := int32(sr.Dx())
 	sh := int32(sr.Dy())
 	yscale := float64(sh) / float64(dr.Dy())
@@ -2348,7 +2348,7 @@ func (ablInterpolator) scale_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Rect
 	}
 }
 
-func (ablInterpolator) scale_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Rectangle, src image.Image, sr image.Rectangle) {
+func (ablInterpolator) scale_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
 	sw := int32(sr.Dx())
 	sh := int32(sr.Dy())
 	yscale := float64(sh) / float64(dr.Dy())
@@ -2427,7 +2427,7 @@ func (ablInterpolator) scale_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Recta
 	}
 }
 
-func (ablInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle, src image.Image, sr image.Rectangle) {
+func (ablInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
 	sw := int32(sr.Dx())
 	sh := int32(sr.Dy())
 	yscale := float64(sh) / float64(dr.Dy())
@@ -2510,7 +2510,7 @@ func (ablInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle
 	}
 }
 
-func (ablInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle, src image.Image, sr image.Rectangle) {
+func (ablInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
 	sw := int32(sr.Dx())
 	sh := int32(sr.Dy())
 	yscale := float64(sh) / float64(dr.Dy())
@@ -2591,7 +2591,7 @@ func (ablInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle,
 	}
 }
 
-func (ablInterpolator) transform_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Gray, sr image.Rectangle, bias image.Point) {
+func (ablInterpolator) transform_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Gray, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -2655,7 +2655,7 @@ func (ablInterpolator) transform_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Re
 	}
 }
 
-func (ablInterpolator) transform_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point) {
+func (ablInterpolator) transform_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -2752,7 +2752,7 @@ func (ablInterpolator) transform_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.
 	}
 }
 
-func (ablInterpolator) transform_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point) {
+func (ablInterpolator) transform_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -2848,7 +2848,7 @@ func (ablInterpolator) transform_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.R
 	}
 }
 
-func (ablInterpolator) transform_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point) {
+func (ablInterpolator) transform_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -2945,7 +2945,7 @@ func (ablInterpolator) transform_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.R
 	}
 }
 
-func (ablInterpolator) transform_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point) {
+func (ablInterpolator) transform_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -3041,7 +3041,7 @@ func (ablInterpolator) transform_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Re
 	}
 }
 
-func (ablInterpolator) transform_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
+func (ablInterpolator) transform_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -3214,7 +3214,7 @@ func (ablInterpolator) transform_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr imag
 	}
 }
 
-func (ablInterpolator) transform_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
+func (ablInterpolator) transform_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -3387,7 +3387,7 @@ func (ablInterpolator) transform_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr imag
 	}
 }
 
-func (ablInterpolator) transform_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
+func (ablInterpolator) transform_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -3560,7 +3560,7 @@ func (ablInterpolator) transform_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr imag
 	}
 }
 
-func (ablInterpolator) transform_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point) {
+func (ablInterpolator) transform_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -3733,7 +3733,7 @@ func (ablInterpolator) transform_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr imag
 	}
 }
 
-func (ablInterpolator) transform_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point) {
+func (ablInterpolator) transform_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -3814,7 +3814,7 @@ func (ablInterpolator) transform_RGBA_Image_Over(dst *image.RGBA, dr, adr image.
 	}
 }
 
-func (ablInterpolator) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point) {
+func (ablInterpolator) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
 		dyf := float64(dr.Min.Y+int(dy)) + 0.5
 		d := (dr.Min.Y+int(dy)-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+adr.Min.X-dst.Rect.Min.X)*4
@@ -3894,7 +3894,7 @@ func (ablInterpolator) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.R
 	}
 }
 
-func (ablInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point) {
+func (ablInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
@@ -3978,7 +3978,7 @@ func (ablInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Recta
 	}
 }
 
-func (ablInterpolator) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point) {
+func (ablInterpolator) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
@@ -4104,30 +4104,30 @@ func (z *kernelScaler) Scale(dst Image, dr image.Rectangle, src image.Image, sr 
 	//
 	// Similarly, the fast paths assume that the masks are nil.
 	if o.SrcMask != nil || !sr.In(src.Bounds()) {
-		z.scaleX_Image(tmp, src, sr)
+		z.scaleX_Image(tmp, src, sr, &o)
 	} else {
 		switch src := src.(type) {
 		case *image.Gray:
-			z.scaleX_Gray(tmp, src, sr)
+			z.scaleX_Gray(tmp, src, sr, &o)
 		case *image.NRGBA:
-			z.scaleX_NRGBA(tmp, src, sr)
+			z.scaleX_NRGBA(tmp, src, sr, &o)
 		case *image.RGBA:
-			z.scaleX_RGBA(tmp, src, sr)
+			z.scaleX_RGBA(tmp, src, sr, &o)
 		case *image.YCbCr:
 			switch src.SubsampleRatio {
 			default:
-				z.scaleX_Image(tmp, src, sr)
+				z.scaleX_Image(tmp, src, sr, &o)
 			case image.YCbCrSubsampleRatio444:
-				z.scaleX_YCbCr444(tmp, src, sr)
+				z.scaleX_YCbCr444(tmp, src, sr, &o)
 			case image.YCbCrSubsampleRatio422:
-				z.scaleX_YCbCr422(tmp, src, sr)
+				z.scaleX_YCbCr422(tmp, src, sr, &o)
 			case image.YCbCrSubsampleRatio420:
-				z.scaleX_YCbCr420(tmp, src, sr)
+				z.scaleX_YCbCr420(tmp, src, sr, &o)
 			case image.YCbCrSubsampleRatio440:
-				z.scaleX_YCbCr440(tmp, src, sr)
+				z.scaleX_YCbCr440(tmp, src, sr, &o)
 			}
 		default:
-			z.scaleX_Image(tmp, src, sr)
+			z.scaleX_Image(tmp, src, sr, &o)
 		}
 	}
 
@@ -4136,16 +4136,16 @@ func (z *kernelScaler) Scale(dst Image, dr image.Rectangle, src image.Image, sr 
 	case Over:
 		switch dst := dst.(type) {
 		case *image.RGBA:
-			z.scaleY_RGBA_Over(dst, dr, adr, tmp)
+			z.scaleY_RGBA_Over(dst, dr, adr, tmp, &o)
 		default:
-			z.scaleY_Image_Over(dst, dr, adr, tmp)
+			z.scaleY_Image_Over(dst, dr, adr, tmp, &o)
 		}
 	case Src:
 		switch dst := dst.(type) {
 		case *image.RGBA:
-			z.scaleY_RGBA_Src(dst, dr, adr, tmp)
+			z.scaleY_RGBA_Src(dst, dr, adr, tmp, &o)
 		default:
-			z.scaleY_Image_Src(dst, dr, adr, tmp)
+			z.scaleY_Image_Src(dst, dr, adr, tmp, &o)
 		}
 	}
 }
@@ -4204,9 +4204,9 @@ func (q *Kernel) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.R
 	if o.DstMask != nil || o.SrcMask != nil || !sr.In(src.Bounds()) {
 		switch o.Op {
 		case Over:
-			q.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+			q.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 		case Src:
-			q.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+			q.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 		}
 	} else {
 		switch o.Op {
@@ -4215,16 +4215,16 @@ func (q *Kernel) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.R
 			case *image.RGBA:
 				switch src := src.(type) {
 				case *image.NRGBA:
-					q.transform_RGBA_NRGBA_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+					q.transform_RGBA_NRGBA_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 				case *image.RGBA:
-					q.transform_RGBA_RGBA_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+					q.transform_RGBA_RGBA_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 				default:
-					q.transform_RGBA_Image_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+					q.transform_RGBA_Image_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 				}
 			default:
 				switch src := src.(type) {
 				default:
-					q.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+					q.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 				}
 			}
 		case Src:
@@ -4232,38 +4232,38 @@ func (q *Kernel) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.R
 			case *image.RGBA:
 				switch src := src.(type) {
 				case *image.Gray:
-					q.transform_RGBA_Gray_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+					q.transform_RGBA_Gray_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 				case *image.NRGBA:
-					q.transform_RGBA_NRGBA_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+					q.transform_RGBA_NRGBA_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 				case *image.RGBA:
-					q.transform_RGBA_RGBA_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+					q.transform_RGBA_RGBA_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 				case *image.YCbCr:
 					switch src.SubsampleRatio {
 					default:
-						q.transform_RGBA_Image_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+						q.transform_RGBA_Image_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 					case image.YCbCrSubsampleRatio444:
-						q.transform_RGBA_YCbCr444_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+						q.transform_RGBA_YCbCr444_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 					case image.YCbCrSubsampleRatio422:
-						q.transform_RGBA_YCbCr422_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+						q.transform_RGBA_YCbCr422_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 					case image.YCbCrSubsampleRatio420:
-						q.transform_RGBA_YCbCr420_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+						q.transform_RGBA_YCbCr420_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 					case image.YCbCrSubsampleRatio440:
-						q.transform_RGBA_YCbCr440_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+						q.transform_RGBA_YCbCr440_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 					}
 				default:
-					q.transform_RGBA_Image_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+					q.transform_RGBA_Image_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 				}
 			default:
 				switch src := src.(type) {
 				default:
-					q.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale)
+					q.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 				}
 			}
 		}
 	}
 }
 
-func (z *kernelScaler) scaleX_Gray(tmp [][4]float64, src *image.Gray, sr image.Rectangle) {
+func (z *kernelScaler) scaleX_Gray(tmp [][4]float64, src *image.Gray, sr image.Rectangle, opts *Options) {
 	t := 0
 	for y := int32(0); y < z.sh; y++ {
 		for _, s := range z.horizontal.sources {
@@ -4285,7 +4285,7 @@ func (z *kernelScaler) scaleX_Gray(tmp [][4]float64, src *image.Gray, sr image.R
 	}
 }
 
-func (z *kernelScaler) scaleX_NRGBA(tmp [][4]float64, src *image.NRGBA, sr image.Rectangle) {
+func (z *kernelScaler) scaleX_NRGBA(tmp [][4]float64, src *image.NRGBA, sr image.Rectangle, opts *Options) {
 	t := 0
 	for y := int32(0); y < z.sh; y++ {
 		for _, s := range z.horizontal.sources {
@@ -4312,7 +4312,7 @@ func (z *kernelScaler) scaleX_NRGBA(tmp [][4]float64, src *image.NRGBA, sr image
 	}
 }
 
-func (z *kernelScaler) scaleX_RGBA(tmp [][4]float64, src *image.RGBA, sr image.Rectangle) {
+func (z *kernelScaler) scaleX_RGBA(tmp [][4]float64, src *image.RGBA, sr image.Rectangle, opts *Options) {
 	t := 0
 	for y := int32(0); y < z.sh; y++ {
 		for _, s := range z.horizontal.sources {
@@ -4339,7 +4339,7 @@ func (z *kernelScaler) scaleX_RGBA(tmp [][4]float64, src *image.RGBA, sr image.R
 	}
 }
 
-func (z *kernelScaler) scaleX_YCbCr444(tmp [][4]float64, src *image.YCbCr, sr image.Rectangle) {
+func (z *kernelScaler) scaleX_YCbCr444(tmp [][4]float64, src *image.YCbCr, sr image.Rectangle, opts *Options) {
 	t := 0
 	for y := int32(0); y < z.sh; y++ {
 		for _, s := range z.horizontal.sources {
@@ -4386,7 +4386,7 @@ func (z *kernelScaler) scaleX_YCbCr444(tmp [][4]float64, src *image.YCbCr, sr im
 	}
 }
 
-func (z *kernelScaler) scaleX_YCbCr422(tmp [][4]float64, src *image.YCbCr, sr image.Rectangle) {
+func (z *kernelScaler) scaleX_YCbCr422(tmp [][4]float64, src *image.YCbCr, sr image.Rectangle, opts *Options) {
 	t := 0
 	for y := int32(0); y < z.sh; y++ {
 		for _, s := range z.horizontal.sources {
@@ -4433,7 +4433,7 @@ func (z *kernelScaler) scaleX_YCbCr422(tmp [][4]float64, src *image.YCbCr, sr im
 	}
 }
 
-func (z *kernelScaler) scaleX_YCbCr420(tmp [][4]float64, src *image.YCbCr, sr image.Rectangle) {
+func (z *kernelScaler) scaleX_YCbCr420(tmp [][4]float64, src *image.YCbCr, sr image.Rectangle, opts *Options) {
 	t := 0
 	for y := int32(0); y < z.sh; y++ {
 		for _, s := range z.horizontal.sources {
@@ -4480,7 +4480,7 @@ func (z *kernelScaler) scaleX_YCbCr420(tmp [][4]float64, src *image.YCbCr, sr im
 	}
 }
 
-func (z *kernelScaler) scaleX_YCbCr440(tmp [][4]float64, src *image.YCbCr, sr image.Rectangle) {
+func (z *kernelScaler) scaleX_YCbCr440(tmp [][4]float64, src *image.YCbCr, sr image.Rectangle, opts *Options) {
 	t := 0
 	for y := int32(0); y < z.sh; y++ {
 		for _, s := range z.horizontal.sources {
@@ -4527,7 +4527,7 @@ func (z *kernelScaler) scaleX_YCbCr440(tmp [][4]float64, src *image.YCbCr, sr im
 	}
 }
 
-func (z *kernelScaler) scaleX_Image(tmp [][4]float64, src image.Image, sr image.Rectangle) {
+func (z *kernelScaler) scaleX_Image(tmp [][4]float64, src image.Image, sr image.Rectangle, opts *Options) {
 	t := 0
 	for y := int32(0); y < z.sh; y++ {
 		for _, s := range z.horizontal.sources {
@@ -4550,7 +4550,7 @@ func (z *kernelScaler) scaleX_Image(tmp [][4]float64, src image.Image, sr image.
 	}
 }
 
-func (z *kernelScaler) scaleY_RGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, tmp [][4]float64) {
+func (z *kernelScaler) scaleY_RGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, tmp [][4]float64, opts *Options) {
 	for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 		d := (dr.Min.Y+adr.Min.Y-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+int(dx)-dst.Rect.Min.X)*4
 		for _, s := range z.vertical.sources[adr.Min.Y:adr.Max.Y] {
@@ -4587,7 +4587,7 @@ func (z *kernelScaler) scaleY_RGBA_Over(dst *image.RGBA, dr, adr image.Rectangle
 	}
 }
 
-func (z *kernelScaler) scaleY_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, tmp [][4]float64) {
+func (z *kernelScaler) scaleY_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, tmp [][4]float64, opts *Options) {
 	for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 		d := (dr.Min.Y+adr.Min.Y-dst.Rect.Min.Y)*dst.Stride + (dr.Min.X+int(dx)-dst.Rect.Min.X)*4
 		for _, s := range z.vertical.sources[adr.Min.Y:adr.Max.Y] {
@@ -4619,7 +4619,7 @@ func (z *kernelScaler) scaleY_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle,
 	}
 }
 
-func (z *kernelScaler) scaleY_Image_Over(dst Image, dr, adr image.Rectangle, tmp [][4]float64) {
+func (z *kernelScaler) scaleY_Image_Over(dst Image, dr, adr image.Rectangle, tmp [][4]float64, opts *Options) {
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
@@ -4658,7 +4658,7 @@ func (z *kernelScaler) scaleY_Image_Over(dst Image, dr, adr image.Rectangle, tmp
 	}
 }
 
-func (z *kernelScaler) scaleY_Image_Src(dst Image, dr, adr image.Rectangle, tmp [][4]float64) {
+func (z *kernelScaler) scaleY_Image_Src(dst Image, dr, adr image.Rectangle, tmp [][4]float64, opts *Options) {
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
@@ -4691,7 +4691,7 @@ func (z *kernelScaler) scaleY_Image_Src(dst Image, dr, adr image.Rectangle, tmp 
 	}
 }
 
-func (q *Kernel) transform_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Gray, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Gray, sr image.Rectangle, bias image.Point, xscale, yscale float64, opts *Options) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -4790,7 +4790,7 @@ func (q *Kernel) transform_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectangl
 	}
 }
 
-func (q *Kernel) transform_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point, xscale, yscale float64, opts *Options) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -4910,7 +4910,7 @@ func (q *Kernel) transform_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Rectan
 	}
 }
 
-func (q *Kernel) transform_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.NRGBA, sr image.Rectangle, bias image.Point, xscale, yscale float64, opts *Options) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -5025,7 +5025,7 @@ func (q *Kernel) transform_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Rectang
 	}
 }
 
-func (q *Kernel) transform_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point, xscale, yscale float64, opts *Options) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -5145,7 +5145,7 @@ func (q *Kernel) transform_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Rectang
 	}
 }
 
-func (q *Kernel) transform_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.RGBA, sr image.Rectangle, bias image.Point, xscale, yscale float64, opts *Options) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -5260,7 +5260,7 @@ func (q *Kernel) transform_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangl
 	}
 }
 
-func (q *Kernel) transform_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, xscale, yscale float64, opts *Options) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -5384,7 +5384,7 @@ func (q *Kernel) transform_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Rect
 	}
 }
 
-func (q *Kernel) transform_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, xscale, yscale float64, opts *Options) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -5508,7 +5508,7 @@ func (q *Kernel) transform_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Rect
 	}
 }
 
-func (q *Kernel) transform_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, xscale, yscale float64, opts *Options) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -5632,7 +5632,7 @@ func (q *Kernel) transform_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Rect
 	}
 }
 
-func (q *Kernel) transform_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.YCbCr, sr image.Rectangle, bias image.Point, xscale, yscale float64, opts *Options) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -5756,7 +5756,7 @@ func (q *Kernel) transform_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Rect
 	}
 }
 
-func (q *Kernel) transform_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, xscale, yscale float64, opts *Options) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -5872,7 +5872,7 @@ func (q *Kernel) transform_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Rectan
 	}
 }
 
-func (q *Kernel) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+func (q *Kernel) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, xscale, yscale float64, opts *Options) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -5983,7 +5983,7 @@ func (q *Kernel) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Rectang
 	}
 }
 
-func (q *Kernel) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+func (q *Kernel) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, xscale, yscale float64, opts *Options) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
@@ -6102,7 +6102,7 @@ func (q *Kernel) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, 
 	}
 }
 
-func (q *Kernel) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, xscale, yscale float64) {
+func (q *Kernel) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, xscale, yscale float64, opts *Options) {
 	// When shrinking, broaden the effective kernel support so that we still
 	// visit every source pixel.
 	xHalfWidth, xKernelArgScale := q.Support, 1.0
