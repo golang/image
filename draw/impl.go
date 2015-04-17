@@ -208,7 +208,7 @@ func (nnInterpolator) scale_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectang
 			sx := (2*uint64(dx) + 1) * sw / dw2
 			pi := (sr.Min.Y+int(sy)-src.Rect.Min.Y)*src.Stride + (sr.Min.X + int(sx) - src.Rect.Min.X)
 			pr := uint32(src.Pix[pi]) * 0x101
-			out := uint8(uint32(pr) >> 8)
+			out := uint8(pr >> 8)
 			dst.Pix[d+0] = out
 			dst.Pix[d+1] = out
 			dst.Pix[d+2] = out
@@ -232,11 +232,11 @@ func (nnInterpolator) scale_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Recta
 			pr := uint32(src.Pix[pi+0]) * pa / 0xff
 			pg := uint32(src.Pix[pi+1]) * pa / 0xff
 			pb := uint32(src.Pix[pi+2]) * pa / 0xff
-			pa1 := (0xffff - uint32(pa)) * 0x101
-			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + uint32(pr)) >> 8)
-			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + uint32(pg)) >> 8)
-			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + uint32(pb)) >> 8)
-			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + uint32(pa)) >> 8)
+			pa1 := (0xffff - pa) * 0x101
+			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + pr) >> 8)
+			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + pg) >> 8)
+			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + pb) >> 8)
+			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + pa) >> 8)
 		}
 	}
 }
@@ -256,10 +256,10 @@ func (nnInterpolator) scale_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Rectan
 			pr := uint32(src.Pix[pi+0]) * pa / 0xff
 			pg := uint32(src.Pix[pi+1]) * pa / 0xff
 			pb := uint32(src.Pix[pi+2]) * pa / 0xff
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
+			dst.Pix[d+3] = uint8(pa >> 8)
 		}
 	}
 }
@@ -279,11 +279,11 @@ func (nnInterpolator) scale_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Rectan
 			pg := uint32(src.Pix[pi+1]) * 0x101
 			pb := uint32(src.Pix[pi+2]) * 0x101
 			pa := uint32(src.Pix[pi+3]) * 0x101
-			pa1 := (0xffff - uint32(pa)) * 0x101
-			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + uint32(pr)) >> 8)
-			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + uint32(pg)) >> 8)
-			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + uint32(pb)) >> 8)
-			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + uint32(pa)) >> 8)
+			pa1 := (0xffff - pa) * 0x101
+			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + pr) >> 8)
+			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + pg) >> 8)
+			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + pb) >> 8)
+			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + pa) >> 8)
 		}
 	}
 }
@@ -303,10 +303,10 @@ func (nnInterpolator) scale_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectang
 			pg := uint32(src.Pix[pi+1]) * 0x101
 			pb := uint32(src.Pix[pi+2]) * 0x101
 			pa := uint32(src.Pix[pi+3]) * 0x101
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
+			dst.Pix[d+3] = uint8(pa >> 8)
 		}
 	}
 }
@@ -346,9 +346,9 @@ func (nnInterpolator) scale_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Rec
 			} else if pb > 0xffff {
 				pb = 0xffff
 			}
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -389,9 +389,9 @@ func (nnInterpolator) scale_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Rec
 			} else if pb > 0xffff {
 				pb = 0xffff
 			}
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -432,9 +432,9 @@ func (nnInterpolator) scale_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Rec
 			} else if pb > 0xffff {
 				pb = 0xffff
 			}
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -475,9 +475,9 @@ func (nnInterpolator) scale_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Rec
 			} else if pb > 0xffff {
 				pb = 0xffff
 			}
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -494,11 +494,11 @@ func (nnInterpolator) scale_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Recta
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			sx := (2*uint64(dx) + 1) * sw / dw2
 			pr, pg, pb, pa := src.At(sr.Min.X+int(sx), sr.Min.Y+int(sy)).RGBA()
-			pa1 := (0xffff - uint32(pa)) * 0x101
-			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + uint32(pr)) >> 8)
-			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + uint32(pg)) >> 8)
-			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + uint32(pb)) >> 8)
-			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + uint32(pa)) >> 8)
+			pa1 := (0xffff - pa) * 0x101
+			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + pr) >> 8)
+			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + pg) >> 8)
+			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + pb) >> 8)
+			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + pa) >> 8)
 		}
 	}
 }
@@ -514,10 +514,10 @@ func (nnInterpolator) scale_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Rectan
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx, d = dx+1, d+4 {
 			sx := (2*uint64(dx) + 1) * sw / dw2
 			pr, pg, pb, pa := src.At(sr.Min.X+int(sx), sr.Min.Y+int(sy)).RGBA()
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
+			dst.Pix[d+3] = uint8(pa >> 8)
 		}
 	}
 }
@@ -535,11 +535,11 @@ func (nnInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle,
 			sx := (2*uint64(dx) + 1) * sw / dw2
 			pr, pg, pb, pa := src.At(sr.Min.X+int(sx), sr.Min.Y+int(sy)).RGBA()
 			qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
-			pa1 := 0xffff - uint32(pa)
-			dstColorRGBA64.R = uint16(qr*pa1/0xffff + uint32(pr))
-			dstColorRGBA64.G = uint16(qg*pa1/0xffff + uint32(pg))
-			dstColorRGBA64.B = uint16(qb*pa1/0xffff + uint32(pb))
-			dstColorRGBA64.A = uint16(qa*pa1/0xffff + uint32(pa))
+			pa1 := 0xffff - pa
+			dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
+			dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
+			dstColorRGBA64.B = uint16(qb*pa1/0xffff + pb)
+			dstColorRGBA64.A = uint16(qa*pa1/0xffff + pa)
 			dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
 		}
 	}
@@ -579,7 +579,7 @@ func (nnInterpolator) transform_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rec
 			}
 			pi := (sy0-src.Rect.Min.Y)*src.Stride + (sx0 - src.Rect.Min.X)
 			pr := uint32(src.Pix[pi]) * 0x101
-			out := uint8(uint32(pr) >> 8)
+			out := uint8(pr >> 8)
 			dst.Pix[d+0] = out
 			dst.Pix[d+1] = out
 			dst.Pix[d+2] = out
@@ -604,11 +604,11 @@ func (nnInterpolator) transform_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.R
 			pr := uint32(src.Pix[pi+0]) * pa / 0xff
 			pg := uint32(src.Pix[pi+1]) * pa / 0xff
 			pb := uint32(src.Pix[pi+2]) * pa / 0xff
-			pa1 := (0xffff - uint32(pa)) * 0x101
-			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + uint32(pr)) >> 8)
-			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + uint32(pg)) >> 8)
-			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + uint32(pb)) >> 8)
-			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + uint32(pa)) >> 8)
+			pa1 := (0xffff - pa) * 0x101
+			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + pr) >> 8)
+			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + pg) >> 8)
+			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + pb) >> 8)
+			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + pa) >> 8)
 		}
 	}
 }
@@ -629,10 +629,10 @@ func (nnInterpolator) transform_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Re
 			pr := uint32(src.Pix[pi+0]) * pa / 0xff
 			pg := uint32(src.Pix[pi+1]) * pa / 0xff
 			pb := uint32(src.Pix[pi+2]) * pa / 0xff
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
+			dst.Pix[d+3] = uint8(pa >> 8)
 		}
 	}
 }
@@ -653,11 +653,11 @@ func (nnInterpolator) transform_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Re
 			pg := uint32(src.Pix[pi+1]) * 0x101
 			pb := uint32(src.Pix[pi+2]) * 0x101
 			pa := uint32(src.Pix[pi+3]) * 0x101
-			pa1 := (0xffff - uint32(pa)) * 0x101
-			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + uint32(pr)) >> 8)
-			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + uint32(pg)) >> 8)
-			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + uint32(pb)) >> 8)
-			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + uint32(pa)) >> 8)
+			pa1 := (0xffff - pa) * 0x101
+			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + pr) >> 8)
+			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + pg) >> 8)
+			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + pb) >> 8)
+			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + pa) >> 8)
 		}
 	}
 }
@@ -678,10 +678,10 @@ func (nnInterpolator) transform_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rec
 			pg := uint32(src.Pix[pi+1]) * 0x101
 			pb := uint32(src.Pix[pi+2]) * 0x101
 			pa := uint32(src.Pix[pi+3]) * 0x101
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
+			dst.Pix[d+3] = uint8(pa >> 8)
 		}
 	}
 }
@@ -722,9 +722,9 @@ func (nnInterpolator) transform_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image
 			} else if pb > 0xffff {
 				pb = 0xffff
 			}
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -766,9 +766,9 @@ func (nnInterpolator) transform_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image
 			} else if pb > 0xffff {
 				pb = 0xffff
 			}
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -810,9 +810,9 @@ func (nnInterpolator) transform_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image
 			} else if pb > 0xffff {
 				pb = 0xffff
 			}
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -854,9 +854,9 @@ func (nnInterpolator) transform_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image
 			} else if pb > 0xffff {
 				pb = 0xffff
 			}
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -874,11 +874,11 @@ func (nnInterpolator) transform_RGBA_Image_Over(dst *image.RGBA, dr, adr image.R
 				continue
 			}
 			pr, pg, pb, pa := src.At(sx0, sy0).RGBA()
-			pa1 := (0xffff - uint32(pa)) * 0x101
-			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + uint32(pr)) >> 8)
-			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + uint32(pg)) >> 8)
-			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + uint32(pb)) >> 8)
-			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + uint32(pa)) >> 8)
+			pa1 := (0xffff - pa) * 0x101
+			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + pr) >> 8)
+			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + pg) >> 8)
+			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + pb) >> 8)
+			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + pa) >> 8)
 		}
 	}
 }
@@ -895,10 +895,10 @@ func (nnInterpolator) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Re
 				continue
 			}
 			pr, pg, pb, pa := src.At(sx0, sy0).RGBA()
-			dst.Pix[d+0] = uint8(uint32(pr) >> 8)
-			dst.Pix[d+1] = uint8(uint32(pg) >> 8)
-			dst.Pix[d+2] = uint8(uint32(pb) >> 8)
-			dst.Pix[d+3] = uint8(uint32(pa) >> 8)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
+			dst.Pix[d+3] = uint8(pa >> 8)
 		}
 	}
 }
@@ -917,11 +917,11 @@ func (nnInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Rectan
 			}
 			pr, pg, pb, pa := src.At(sx0, sy0).RGBA()
 			qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
-			pa1 := 0xffff - uint32(pa)
-			dstColorRGBA64.R = uint16(qr*pa1/0xffff + uint32(pr))
-			dstColorRGBA64.G = uint16(qg*pa1/0xffff + uint32(pg))
-			dstColorRGBA64.B = uint16(qb*pa1/0xffff + uint32(pb))
-			dstColorRGBA64.A = uint16(qa*pa1/0xffff + uint32(pa))
+			pa1 := 0xffff - pa
+			dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
+			dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
+			dstColorRGBA64.B = uint16(qb*pa1/0xffff + pb)
+			dstColorRGBA64.A = uint16(qa*pa1/0xffff + pa)
 			dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
 		}
 	}
@@ -1189,7 +1189,8 @@ func (ablInterpolator) scale_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Rectan
 			s11r := float64(s11ru)
 			s11r = xFrac1*s01r + xFrac0*s11r
 			s11r = yFrac1*s10r + yFrac0*s11r
-			out := uint8(uint32(s11r) >> 8)
+			pr := uint32(s11r)
+			out := uint8(pr >> 8)
 			dst.Pix[d+0] = out
 			dst.Pix[d+1] = out
 			dst.Pix[d+2] = out
@@ -1285,11 +1286,15 @@ func (ablInterpolator) scale_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.Rect
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			s11a1 := (0xffff - uint32(s11a)) * 0x101
-			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*s11a1/0xffff + uint32(s11r)) >> 8)
-			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*s11a1/0xffff + uint32(s11g)) >> 8)
-			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*s11a1/0xffff + uint32(s11b)) >> 8)
-			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*s11a1/0xffff + uint32(s11a)) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
+			pa1 := (0xffff - pa) * 0x101
+			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + pr) >> 8)
+			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + pg) >> 8)
+			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + pb) >> 8)
+			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + pa) >> 8)
 		}
 	}
 }
@@ -1381,10 +1386,14 @@ func (ablInterpolator) scale_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.Recta
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
+			dst.Pix[d+3] = uint8(pa >> 8)
 		}
 	}
 }
@@ -1476,11 +1485,15 @@ func (ablInterpolator) scale_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.Recta
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			s11a1 := (0xffff - uint32(s11a)) * 0x101
-			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*s11a1/0xffff + uint32(s11r)) >> 8)
-			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*s11a1/0xffff + uint32(s11g)) >> 8)
-			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*s11a1/0xffff + uint32(s11b)) >> 8)
-			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*s11a1/0xffff + uint32(s11a)) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
+			pa1 := (0xffff - pa) * 0x101
+			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + pr) >> 8)
+			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + pg) >> 8)
+			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + pb) >> 8)
+			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + pa) >> 8)
 		}
 	}
 }
@@ -1572,10 +1585,14 @@ func (ablInterpolator) scale_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Rectan
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
+			dst.Pix[d+3] = uint8(pa >> 8)
 		}
 	}
 }
@@ -1744,9 +1761,12 @@ func (ablInterpolator) scale_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr image.Re
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -1916,9 +1936,12 @@ func (ablInterpolator) scale_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr image.Re
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -2088,9 +2111,12 @@ func (ablInterpolator) scale_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr image.Re
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -2260,9 +2286,12 @@ func (ablInterpolator) scale_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr image.Re
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -2339,11 +2368,15 @@ func (ablInterpolator) scale_RGBA_Image_Over(dst *image.RGBA, dr, adr image.Rect
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			s11a1 := (0xffff - uint32(s11a)) * 0x101
-			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*s11a1/0xffff + uint32(s11r)) >> 8)
-			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*s11a1/0xffff + uint32(s11g)) >> 8)
-			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*s11a1/0xffff + uint32(s11b)) >> 8)
-			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*s11a1/0xffff + uint32(s11a)) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
+			pa1 := (0xffff - pa) * 0x101
+			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + pr) >> 8)
+			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + pg) >> 8)
+			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + pb) >> 8)
+			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + pa) >> 8)
 		}
 	}
 }
@@ -2419,10 +2452,14 @@ func (ablInterpolator) scale_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Recta
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
+			dst.Pix[d+3] = uint8(pa >> 8)
 		}
 	}
 }
@@ -2499,12 +2536,16 @@ func (ablInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
 			qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
-			s11a1 := 0xffff - uint32(s11a)
-			dstColorRGBA64.R = uint16(qr*s11a1/0xffff + uint32(s11r))
-			dstColorRGBA64.G = uint16(qg*s11a1/0xffff + uint32(s11g))
-			dstColorRGBA64.B = uint16(qb*s11a1/0xffff + uint32(s11b))
-			dstColorRGBA64.A = uint16(qa*s11a1/0xffff + uint32(s11a))
+			pa1 := 0xffff - pa
+			dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
+			dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
+			dstColorRGBA64.B = uint16(qb*pa1/0xffff + pb)
+			dstColorRGBA64.A = uint16(qa*pa1/0xffff + pa)
 			dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
 		}
 	}
@@ -2582,10 +2623,14 @@ func (ablInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle,
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			dstColorRGBA64.R = uint16(s11r)
-			dstColorRGBA64.G = uint16(s11g)
-			dstColorRGBA64.B = uint16(s11b)
-			dstColorRGBA64.A = uint16(s11a)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
+			dstColorRGBA64.R = uint16(pr)
+			dstColorRGBA64.G = uint16(pg)
+			dstColorRGBA64.B = uint16(pb)
+			dstColorRGBA64.A = uint16(pa)
 			dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
 		}
 	}
@@ -2646,7 +2691,8 @@ func (ablInterpolator) transform_RGBA_Gray_Src(dst *image.RGBA, dr, adr image.Re
 			s11r := float64(s11ru)
 			s11r = xFrac1*s01r + xFrac0*s11r
 			s11r = yFrac1*s10r + yFrac0*s11r
-			out := uint8(uint32(s11r) >> 8)
+			pr := uint32(s11r)
+			out := uint8(pr >> 8)
 			dst.Pix[d+0] = out
 			dst.Pix[d+1] = out
 			dst.Pix[d+2] = out
@@ -2743,11 +2789,15 @@ func (ablInterpolator) transform_RGBA_NRGBA_Over(dst *image.RGBA, dr, adr image.
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			s11a1 := (0xffff - uint32(s11a)) * 0x101
-			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*s11a1/0xffff + uint32(s11r)) >> 8)
-			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*s11a1/0xffff + uint32(s11g)) >> 8)
-			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*s11a1/0xffff + uint32(s11b)) >> 8)
-			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*s11a1/0xffff + uint32(s11a)) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
+			pa1 := (0xffff - pa) * 0x101
+			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + pr) >> 8)
+			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + pg) >> 8)
+			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + pb) >> 8)
+			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + pa) >> 8)
 		}
 	}
 }
@@ -2840,10 +2890,14 @@ func (ablInterpolator) transform_RGBA_NRGBA_Src(dst *image.RGBA, dr, adr image.R
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
+			dst.Pix[d+3] = uint8(pa >> 8)
 		}
 	}
 }
@@ -2936,11 +2990,15 @@ func (ablInterpolator) transform_RGBA_RGBA_Over(dst *image.RGBA, dr, adr image.R
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			s11a1 := (0xffff - uint32(s11a)) * 0x101
-			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*s11a1/0xffff + uint32(s11r)) >> 8)
-			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*s11a1/0xffff + uint32(s11g)) >> 8)
-			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*s11a1/0xffff + uint32(s11b)) >> 8)
-			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*s11a1/0xffff + uint32(s11a)) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
+			pa1 := (0xffff - pa) * 0x101
+			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + pr) >> 8)
+			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + pg) >> 8)
+			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + pb) >> 8)
+			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + pa) >> 8)
 		}
 	}
 }
@@ -3033,10 +3091,14 @@ func (ablInterpolator) transform_RGBA_RGBA_Src(dst *image.RGBA, dr, adr image.Re
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
+			dst.Pix[d+3] = uint8(pa >> 8)
 		}
 	}
 }
@@ -3206,9 +3268,12 @@ func (ablInterpolator) transform_RGBA_YCbCr444_Src(dst *image.RGBA, dr, adr imag
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -3379,9 +3444,12 @@ func (ablInterpolator) transform_RGBA_YCbCr422_Src(dst *image.RGBA, dr, adr imag
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -3552,9 +3620,12 @@ func (ablInterpolator) transform_RGBA_YCbCr420_Src(dst *image.RGBA, dr, adr imag
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -3725,9 +3796,12 @@ func (ablInterpolator) transform_RGBA_YCbCr440_Src(dst *image.RGBA, dr, adr imag
 			s11r = yFrac1*s10r + yFrac0*s11r
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
 			dst.Pix[d+3] = 0xff
 		}
 	}
@@ -3805,11 +3879,15 @@ func (ablInterpolator) transform_RGBA_Image_Over(dst *image.RGBA, dr, adr image.
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			s11a1 := (0xffff - uint32(s11a)) * 0x101
-			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*s11a1/0xffff + uint32(s11r)) >> 8)
-			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*s11a1/0xffff + uint32(s11g)) >> 8)
-			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*s11a1/0xffff + uint32(s11b)) >> 8)
-			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*s11a1/0xffff + uint32(s11a)) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
+			pa1 := (0xffff - pa) * 0x101
+			dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*pa1/0xffff + pr) >> 8)
+			dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*pa1/0xffff + pg) >> 8)
+			dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*pa1/0xffff + pb) >> 8)
+			dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*pa1/0xffff + pa) >> 8)
 		}
 	}
 }
@@ -3886,10 +3964,14 @@ func (ablInterpolator) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.R
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			dst.Pix[d+0] = uint8(uint32(s11r) >> 8)
-			dst.Pix[d+1] = uint8(uint32(s11g) >> 8)
-			dst.Pix[d+2] = uint8(uint32(s11b) >> 8)
-			dst.Pix[d+3] = uint8(uint32(s11a) >> 8)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
+			dst.Pix[d+0] = uint8(pr >> 8)
+			dst.Pix[d+1] = uint8(pg >> 8)
+			dst.Pix[d+2] = uint8(pb >> 8)
+			dst.Pix[d+3] = uint8(pa >> 8)
 		}
 	}
 }
@@ -3967,12 +4049,16 @@ func (ablInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Recta
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
 			qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
-			s11a1 := 0xffff - uint32(s11a)
-			dstColorRGBA64.R = uint16(qr*s11a1/0xffff + uint32(s11r))
-			dstColorRGBA64.G = uint16(qg*s11a1/0xffff + uint32(s11g))
-			dstColorRGBA64.B = uint16(qb*s11a1/0xffff + uint32(s11b))
-			dstColorRGBA64.A = uint16(qa*s11a1/0xffff + uint32(s11a))
+			pa1 := 0xffff - pa
+			dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
+			dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
+			dstColorRGBA64.B = uint16(qb*pa1/0xffff + pb)
+			dstColorRGBA64.A = uint16(qa*pa1/0xffff + pa)
 			dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
 		}
 	}
@@ -4051,10 +4137,14 @@ func (ablInterpolator) transform_Image_Image_Src(dst Image, dr, adr image.Rectan
 			s11g = yFrac1*s10g + yFrac0*s11g
 			s11b = yFrac1*s10b + yFrac0*s11b
 			s11a = yFrac1*s10a + yFrac0*s11a
-			dstColorRGBA64.R = uint16(s11r)
-			dstColorRGBA64.G = uint16(s11g)
-			dstColorRGBA64.B = uint16(s11b)
-			dstColorRGBA64.A = uint16(s11a)
+			pr := uint32(s11r)
+			pg := uint32(s11g)
+			pb := uint32(s11b)
+			pa := uint32(s11a)
+			dstColorRGBA64.R = uint16(pr)
+			dstColorRGBA64.G = uint16(pg)
+			dstColorRGBA64.B = uint16(pb)
+			dstColorRGBA64.A = uint16(pa)
 			dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
 		}
 	}
