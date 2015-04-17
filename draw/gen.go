@@ -296,6 +296,32 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			}
 		`
 
+	case "convFtou":
+		args, _ := splitArgs(suffix)
+		if len(args) != 2 {
+			return ""
+		}
+
+		switch d.sType {
+		default:
+			return argf(args, ""+
+				"$0r := uint32($1r)\n"+
+				"$0g := uint32($1g)\n"+
+				"$0b := uint32($1b)\n"+
+				"$0a := uint32($1a)",
+			)
+		case "*image.Gray":
+			return argf(args, ""+
+				"$0r := uint32($1r)",
+			)
+		case "*image.YCbCr":
+			return argf(args, ""+
+				"$0r := uint32($1r)\n"+
+				"$0g := uint32($1g)\n"+
+				"$0b := uint32($1b)",
+			)
+		}
+
 	case "outputu":
 		args, _ := splitArgs(suffix)
 		if len(args) != 3 {
@@ -310,20 +336,20 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			case "Image":
 				return argf(args, ""+
 					"qr, qg, qb, qa := dst.At($0, $1).RGBA()\n"+
-					"$2a1 := 0xffff - uint32($2a)\n"+
-					"dstColorRGBA64.R = uint16(qr*$2a1/0xffff + uint32($2r))\n"+
-					"dstColorRGBA64.G = uint16(qg*$2a1/0xffff + uint32($2g))\n"+
-					"dstColorRGBA64.B = uint16(qb*$2a1/0xffff + uint32($2b))\n"+
-					"dstColorRGBA64.A = uint16(qa*$2a1/0xffff + uint32($2a))\n"+
+					"$2a1 := 0xffff - $2a\n"+
+					"dstColorRGBA64.R = uint16(qr*$2a1/0xffff + $2r)\n"+
+					"dstColorRGBA64.G = uint16(qg*$2a1/0xffff + $2g)\n"+
+					"dstColorRGBA64.B = uint16(qb*$2a1/0xffff + $2b)\n"+
+					"dstColorRGBA64.A = uint16(qa*$2a1/0xffff + $2a)\n"+
 					"dst.Set($0, $1, dstColor)",
 				)
 			case "*image.RGBA":
 				return argf(args, ""+
-					"$2a1 := (0xffff - uint32($2a)) * 0x101\n"+
-					"dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*$2a1/0xffff + uint32($2r)) >> 8)\n"+
-					"dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*$2a1/0xffff + uint32($2g)) >> 8)\n"+
-					"dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*$2a1/0xffff + uint32($2b)) >> 8)\n"+
-					"dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*$2a1/0xffff + uint32($2a)) >> 8)",
+					"$2a1 := (0xffff - $2a) * 0x101\n"+
+					"dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*$2a1/0xffff + $2r) >> 8)\n"+
+					"dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*$2a1/0xffff + $2g) >> 8)\n"+
+					"dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*$2a1/0xffff + $2b) >> 8)\n"+
+					"dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*$2a1/0xffff + $2a) >> 8)",
 				)
 			}
 
@@ -363,14 +389,14 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				switch d.sType {
 				default:
 					return argf(args, ""+
-						"dst.Pix[d+0] = uint8(uint32($2r) >> 8)\n"+
-						"dst.Pix[d+1] = uint8(uint32($2g) >> 8)\n"+
-						"dst.Pix[d+2] = uint8(uint32($2b) >> 8)\n"+
-						"dst.Pix[d+3] = uint8(uint32($2a) >> 8)",
+						"dst.Pix[d+0] = uint8($2r >> 8)\n"+
+						"dst.Pix[d+1] = uint8($2g >> 8)\n"+
+						"dst.Pix[d+2] = uint8($2b >> 8)\n"+
+						"dst.Pix[d+3] = uint8($2a >> 8)",
 					)
 				case "*image.Gray":
 					return argf(args, ""+
-						"out := uint8(uint32($2r) >> 8)\n"+
+						"out := uint8($2r >> 8)\n"+
 						"dst.Pix[d+0] = out\n"+
 						"dst.Pix[d+1] = out\n"+
 						"dst.Pix[d+2] = out\n"+
@@ -378,9 +404,9 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 					)
 				case "*image.YCbCr":
 					return argf(args, ""+
-						"dst.Pix[d+0] = uint8(uint32($2r) >> 8)\n"+
-						"dst.Pix[d+1] = uint8(uint32($2g) >> 8)\n"+
-						"dst.Pix[d+2] = uint8(uint32($2b) >> 8)\n"+
+						"dst.Pix[d+0] = uint8($2r >> 8)\n"+
+						"dst.Pix[d+1] = uint8($2g >> 8)\n"+
+						"dst.Pix[d+2] = uint8($2b >> 8)\n"+
 						"dst.Pix[d+3] = 0xff",
 					)
 				}
@@ -991,7 +1017,8 @@ const (
 					s11 := $srcf[sr.Min.X + int(sx1), sr.Min.Y + int(sy1)]
 					$blend[xFrac1, s01, xFrac0, s11]
 					$blend[yFrac1, s10, yFrac0, s11]
-					$outputu[dr.Min.X + int(dx), dr.Min.Y + int(dy), s11]
+					$convFtou[p, s11]
+					$outputu[dr.Min.X + int(dx), dr.Min.Y + int(dy), p]
 				}
 			}
 		}
@@ -1046,7 +1073,8 @@ const (
 					s11 := $srcf[sx1, sy1]
 					$blend[xFrac1, s01, xFrac0, s11]
 					$blend[yFrac1, s10, yFrac0, s11]
-					$outputu[dr.Min.X + int(dx), dr.Min.Y + int(dy), s11]
+					$convFtou[p, s11]
+					$outputu[dr.Min.X + int(dx), dr.Min.Y + int(dy), p]
 				}
 			}
 		}
