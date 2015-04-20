@@ -488,6 +488,13 @@ func Decode(r io.Reader) (img image.Image, err error) {
 	blocksAcross := 1
 	blocksDown := 1
 
+	if d.config.Width == 0 {
+		blocksAcross = 0
+	}
+	if d.config.Height == 0 {
+		blocksDown = 0
+	}
+
 	var blockOffsets, blockCounts []uint
 
 	if int(d.firstVal(tTileWidth)) != 0 {
@@ -496,8 +503,12 @@ func Decode(r io.Reader) (img image.Image, err error) {
 		blockWidth = int(d.firstVal(tTileWidth))
 		blockHeight = int(d.firstVal(tTileLength))
 
-		blocksAcross = (d.config.Width + blockWidth - 1) / blockWidth
-		blocksDown = (d.config.Height + blockHeight - 1) / blockHeight
+		if blockWidth != 0 {
+			blocksAcross = (d.config.Width + blockWidth - 1) / blockWidth
+		}
+		if blockHeight != 0 {
+			blocksDown = (d.config.Height + blockHeight - 1) / blockHeight
+		}
 
 		blockCounts = d.features[tTileByteCounts]
 		blockOffsets = d.features[tTileOffsets]
@@ -507,7 +518,9 @@ func Decode(r io.Reader) (img image.Image, err error) {
 			blockHeight = int(d.firstVal(tRowsPerStrip))
 		}
 
-		blocksDown = (d.config.Height + blockHeight - 1) / blockHeight
+		if blockHeight != 0 {
+			blocksDown = (d.config.Height + blockHeight - 1) / blockHeight
+		}
 
 		blockOffsets = d.features[tStripOffsets]
 		blockCounts = d.features[tStripByteCounts]

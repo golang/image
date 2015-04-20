@@ -5,6 +5,7 @@
 package tiff
 
 import (
+	"bytes"
 	"image"
 	"io/ioutil"
 	"os"
@@ -159,6 +160,31 @@ func TestDecompress(t *testing.T) {
 			continue
 		}
 		compare(t, img0, img1)
+	}
+}
+
+// Do not panic when image dimensions are zero, return zero-sized
+// image instead.
+// Issue 10393.
+func TestZeroSizedImages(t *testing.T) {
+	testsizes := []struct {
+		w, h int
+	}{
+		{0, 0},
+		{1, 0},
+		{0, 1},
+		{1, 1},
+	}
+	for _, r := range testsizes {
+		img := image.NewRGBA(image.Rect(0, 0, r.w, r.h))
+		var buf bytes.Buffer
+		if err := Encode(&buf, img, nil); err != nil {
+			t.Errorf("encode w=%d h=%d: %v", r.w, r.h, err)
+			continue
+		}
+		if _, err := Decode(&buf); err != nil {
+			t.Errorf("decode w=%d h=%d: %v", r.w, r.h, err)
+		}
 	}
 }
 
