@@ -233,6 +233,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			return ";"
 		case "Image":
 			return "" +
+				"dstMask, dmp := opts.DstMask, opts.DstMaskP\n" +
 				"dstColorRGBA64 := &color.RGBA64{}\n" +
 				"dstColor := color.Color(dstColorRGBA64)"
 		}
@@ -336,6 +337,13 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			case "Image":
 				return argf(args, ""+
 					"qr, qg, qb, qa := dst.At($0, $1).RGBA()\n"+
+					"if dstMask != nil {\n"+
+					"	_, _, _, ma := dstMask.At(dmp.X + $0, dmp.Y + $1).RGBA()\n"+
+					"	$2r = $2r * ma / 0xffff\n"+
+					"	$2g = $2g * ma / 0xffff\n"+
+					"	$2b = $2b * ma / 0xffff\n"+
+					"	$2a = $2a * ma / 0xffff\n"+
+					"}\n"+
 					"$2a1 := 0xffff - $2a\n"+
 					"dstColorRGBA64.R = uint16(qr*$2a1/0xffff + $2r)\n"+
 					"dstColorRGBA64.G = uint16(qg*$2a1/0xffff + $2g)\n"+
@@ -361,11 +369,26 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				switch d.sType {
 				default:
 					return argf(args, ""+
-						"dstColorRGBA64.R = uint16($2r)\n"+
-						"dstColorRGBA64.G = uint16($2g)\n"+
-						"dstColorRGBA64.B = uint16($2b)\n"+
-						"dstColorRGBA64.A = uint16($2a)\n"+
-						"dst.Set($0, $1, dstColor)",
+						"if dstMask != nil {\n"+
+						"	qr, qg, qb, qa := dst.At($0, $1).RGBA()\n"+
+						"	_, _, _, ma := dstMask.At(dmp.X + $0, dmp.Y + $1).RGBA()\n"+
+						"	pr = pr * ma / 0xffff\n"+
+						"	pg = pg * ma / 0xffff\n"+
+						"	pb = pb * ma / 0xffff\n"+
+						"	pa = pa * ma / 0xffff\n"+
+						"	$2a1 := 0xffff - ma\n"+ // Note that this is ma, not $2a.
+						"	dstColorRGBA64.R = uint16(qr*$2a1/0xffff + $2r)\n"+
+						"	dstColorRGBA64.G = uint16(qg*$2a1/0xffff + $2g)\n"+
+						"	dstColorRGBA64.B = uint16(qb*$2a1/0xffff + $2b)\n"+
+						"	dstColorRGBA64.A = uint16(qa*$2a1/0xffff + $2a)\n"+
+						"	dst.Set($0, $1, dstColor)\n"+
+						"} else {\n"+
+						"	dstColorRGBA64.R = uint16($2r)\n"+
+						"	dstColorRGBA64.G = uint16($2g)\n"+
+						"	dstColorRGBA64.B = uint16($2b)\n"+
+						"	dstColorRGBA64.A = uint16($2a)\n"+
+						"	dst.Set($0, $1, dstColor)\n"+
+						"}",
 					)
 				case "*image.Gray":
 					return argf(args, ""+
@@ -432,6 +455,13 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 					"$3g0 := uint32($2($3g * $4))\n"+
 					"$3b0 := uint32($2($3b * $4))\n"+
 					"$3a0 := uint32($2($3a * $4))\n"+
+					"if dstMask != nil {\n"+
+					"	_, _, _, ma := dstMask.At(dmp.X + $0, dmp.Y + $1).RGBA()\n"+
+					"	$3r0 = $3r0 * ma / 0xffff\n"+
+					"	$3g0 = $3g0 * ma / 0xffff\n"+
+					"	$3b0 = $3b0 * ma / 0xffff\n"+
+					"	$3a0 = $3a0 * ma / 0xffff\n"+
+					"}\n"+
 					"$3a1 := 0xffff - $3a0\n"+
 					"dstColorRGBA64.R = uint16(qr*$3a1/0xffff + $3r0)\n"+
 					"dstColorRGBA64.G = uint16(qg*$3a1/0xffff + $3g0)\n"+
@@ -461,11 +491,26 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				switch d.sType {
 				default:
 					ret = argf(args, ""+
-						"dstColorRGBA64.R = $2($3r * $4)\n"+
-						"dstColorRGBA64.G = $2($3g * $4)\n"+
-						"dstColorRGBA64.B = $2($3b * $4)\n"+
-						"dstColorRGBA64.A = $2($3a * $4)\n"+
-						"dst.Set($0, $1, dstColor)",
+						"if dstMask != nil {\n"+
+						"	qr, qg, qb, qa := dst.At($0, $1).RGBA()\n"+
+						"	_, _, _, ma := dstMask.At(dmp.X + $0, dmp.Y + $1).RGBA()\n"+
+						"	pr := uint32($2($3r * $4)) * ma / 0xffff\n"+
+						"	pg := uint32($2($3g * $4)) * ma / 0xffff\n"+
+						"	pb := uint32($2($3b * $4)) * ma / 0xffff\n"+
+						"	pa := uint32($2($3a * $4)) * ma / 0xffff\n"+
+						"	pa1 := 0xffff - ma\n"+ // Note that this is ma, not pa.
+						"	dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)\n"+
+						"	dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)\n"+
+						"	dstColorRGBA64.B = uint16(qb*pa1/0xffff + pb)\n"+
+						"	dstColorRGBA64.A = uint16(qa*pa1/0xffff + pa)\n"+
+						"	dst.Set($0, $1, dstColor)\n"+
+						"} else {\n"+
+						"	dstColorRGBA64.R = $2($3r * $4)\n"+
+						"	dstColorRGBA64.G = $2($3g * $4)\n"+
+						"	dstColorRGBA64.B = $2($3b * $4)\n"+
+						"	dstColorRGBA64.A = $2($3a * $4)\n"+
+						"	dst.Set($0, $1, dstColor)\n"+
+						"}",
 					)
 				case "*image.Gray":
 					ret = argf(args, ""+
@@ -1130,8 +1175,16 @@ const (
 				$switchS z.scaleX_$sTypeRN$sratio(tmp, src, sr, &o)
 			}
 
-			// TODO: honor o.DstMask.
-			$switchD z.scaleY_$dTypeRN_$op(dst, dr, adr, tmp, &o)
+			if o.DstMask != nil {
+				switch o.Op {
+				case Over:
+					z.scaleY_Image_Over(dst, dr, adr, tmp, &o)
+				case Src:
+					z.scaleY_Image_Src(dst, dr, adr, tmp, &o)
+				}
+			} else {
+				$switchD z.scaleY_$dTypeRN_$op(dst, dr, adr, tmp, &o)
+			}
 		}
 
 		func (q *Kernel) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {

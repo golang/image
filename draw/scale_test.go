@@ -316,6 +316,93 @@ func TestSrcTranslationInvariance(t *testing.T) {
 	}
 }
 
+func TestDstMask(t *testing.T) {
+	dstMask := image.NewRGBA(image.Rect(0, 0, 23, 1))
+	dstMask.SetRGBA(19, 0, color.RGBA{0x00, 0x00, 0x00, 0x7f})
+	dstMask.SetRGBA(20, 0, color.RGBA{0x00, 0x00, 0x00, 0xff})
+	dstMask.SetRGBA(21, 0, color.RGBA{0x00, 0x00, 0x00, 0x3f})
+	dstMask.SetRGBA(22, 0, color.RGBA{0x00, 0x00, 0x00, 0x00})
+	red := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	red.SetRGBA(0, 0, color.RGBA{0xff, 0x00, 0x00, 0xff})
+	blue := image.NewUniform(color.RGBA{0x00, 0x00, 0xff, 0xff})
+	qs := []Interpolator{
+		NearestNeighbor,
+		ApproxBiLinear,
+		CatmullRom,
+	}
+	for _, q := range qs {
+		dst := image.NewRGBA(image.Rect(0, 0, 3, 1))
+		Copy(dst, image.Point{}, blue, dst.Bounds(), nil)
+		q.Scale(dst, dst.Bounds(), red, red.Bounds(), &Options{
+			DstMask:  dstMask,
+			DstMaskP: image.Point{20, 0},
+		})
+		got := [3]color.RGBA{
+			dst.RGBAAt(0, 0),
+			dst.RGBAAt(1, 0),
+			dst.RGBAAt(2, 0),
+		}
+		want := [3]color.RGBA{
+			{0xff, 0x00, 0x00, 0xff},
+			{0x3f, 0x00, 0xc0, 0xff},
+			{0x00, 0x00, 0xff, 0xff},
+		}
+		if got != want {
+			t.Errorf("q=%T:\ngot  %v\nwant %v", q, got, want)
+		}
+	}
+}
+
+func TestRectDstMask(t *testing.T) {
+	f, err := os.Open("../testdata/testpattern.png")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer f.Close()
+	src, _, err := image.Decode(f)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+	m00 := transformMatrix(1, 0, 0)
+
+	bounds := image.Rect(0, 0, 50, 50)
+	dstOutside := image.NewRGBA(bounds)
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			dstOutside.SetRGBA(x, y, color.RGBA{uint8(5 * x), uint8(5 * y), 0x00, 0xff})
+		}
+	}
+
+	mk := func(q Transformer, dstMask image.Image) *image.RGBA {
+		m := image.NewRGBA(bounds)
+		Copy(m, bounds.Min, dstOutside, bounds, nil)
+		q.Transform(m, m00, src, src.Bounds(), &Options{DstMask: dstMask})
+		return m
+	}
+
+	rect := image.Rect(20, 10, 30, 40)
+	qs := []Interpolator{
+		NearestNeighbor,
+		ApproxBiLinear,
+		CatmullRom,
+	}
+	for _, q := range qs {
+		dstInside := mk(q, nil)
+		dst := mk(q, rect)
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				which := dstOutside
+				if (image.Point{x, y}).In(rect) {
+					which = dstInside
+				}
+				if got, want := dst.RGBAAt(x, y), which.RGBAAt(x, y); got != want {
+					t.Errorf("x=%3d y=%3d: got %v, want %v", x, y, got, want)
+				}
+			}
+		}
+	}
+}
+
 // The fooWrapper types wrap the dst or src image to avoid triggering the
 // type-specific fast path implementations.
 type (

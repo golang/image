@@ -527,6 +527,7 @@ func (nnInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle,
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
 	sh := uint64(sr.Dy())
+	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
@@ -535,6 +536,13 @@ func (nnInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle,
 			sx := (2*uint64(dx) + 1) * sw / dw2
 			pr, pg, pb, pa := src.At(sr.Min.X+int(sx), sr.Min.Y+int(sy)).RGBA()
 			qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
+			if dstMask != nil {
+				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(dy)).RGBA()
+				pr = pr * ma / 0xffff
+				pg = pg * ma / 0xffff
+				pb = pb * ma / 0xffff
+				pa = pa * ma / 0xffff
+			}
 			pa1 := 0xffff - pa
 			dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
 			dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
@@ -550,6 +558,7 @@ func (nnInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle, 
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
 	sh := uint64(sr.Dy())
+	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
@@ -557,11 +566,26 @@ func (nnInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle, 
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 			sx := (2*uint64(dx) + 1) * sw / dw2
 			pr, pg, pb, pa := src.At(sr.Min.X+int(sx), sr.Min.Y+int(sy)).RGBA()
-			dstColorRGBA64.R = uint16(pr)
-			dstColorRGBA64.G = uint16(pg)
-			dstColorRGBA64.B = uint16(pb)
-			dstColorRGBA64.A = uint16(pa)
-			dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			if dstMask != nil {
+				qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
+				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(dy)).RGBA()
+				pr = pr * ma / 0xffff
+				pg = pg * ma / 0xffff
+				pb = pb * ma / 0xffff
+				pa = pa * ma / 0xffff
+				pa1 := 0xffff - ma
+				dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
+				dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
+				dstColorRGBA64.B = uint16(qb*pa1/0xffff + pb)
+				dstColorRGBA64.A = uint16(qa*pa1/0xffff + pa)
+				dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			} else {
+				dstColorRGBA64.R = uint16(pr)
+				dstColorRGBA64.G = uint16(pg)
+				dstColorRGBA64.B = uint16(pb)
+				dstColorRGBA64.A = uint16(pa)
+				dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			}
 		}
 	}
 }
@@ -904,6 +928,7 @@ func (nnInterpolator) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Re
 }
 
 func (nnInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
+	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
@@ -917,6 +942,13 @@ func (nnInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Rectan
 			}
 			pr, pg, pb, pa := src.At(sx0, sy0).RGBA()
 			qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
+			if dstMask != nil {
+				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(dy)).RGBA()
+				pr = pr * ma / 0xffff
+				pg = pg * ma / 0xffff
+				pb = pb * ma / 0xffff
+				pa = pa * ma / 0xffff
+			}
 			pa1 := 0xffff - pa
 			dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
 			dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
@@ -928,6 +960,7 @@ func (nnInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Rectan
 }
 
 func (nnInterpolator) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
+	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
@@ -940,11 +973,26 @@ func (nnInterpolator) transform_Image_Image_Src(dst Image, dr, adr image.Rectang
 				continue
 			}
 			pr, pg, pb, pa := src.At(sx0, sy0).RGBA()
-			dstColorRGBA64.R = uint16(pr)
-			dstColorRGBA64.G = uint16(pg)
-			dstColorRGBA64.B = uint16(pb)
-			dstColorRGBA64.A = uint16(pa)
-			dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			if dstMask != nil {
+				qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
+				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(dy)).RGBA()
+				pr = pr * ma / 0xffff
+				pg = pg * ma / 0xffff
+				pb = pb * ma / 0xffff
+				pa = pa * ma / 0xffff
+				pa1 := 0xffff - ma
+				dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
+				dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
+				dstColorRGBA64.B = uint16(qb*pa1/0xffff + pb)
+				dstColorRGBA64.A = uint16(qa*pa1/0xffff + pa)
+				dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			} else {
+				dstColorRGBA64.R = uint16(pr)
+				dstColorRGBA64.G = uint16(pg)
+				dstColorRGBA64.B = uint16(pb)
+				dstColorRGBA64.A = uint16(pa)
+				dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			}
 		}
 	}
 }
@@ -2470,6 +2518,7 @@ func (ablInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle
 	yscale := float64(sh) / float64(dr.Dy())
 	xscale := float64(sw) / float64(dr.Dx())
 	swMinus1, shMinus1 := sw-1, sh-1
+	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 
@@ -2541,6 +2590,13 @@ func (ablInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle
 			pb := uint32(s11b)
 			pa := uint32(s11a)
 			qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
+			if dstMask != nil {
+				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(dy)).RGBA()
+				pr = pr * ma / 0xffff
+				pg = pg * ma / 0xffff
+				pb = pb * ma / 0xffff
+				pa = pa * ma / 0xffff
+			}
 			pa1 := 0xffff - pa
 			dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
 			dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
@@ -2557,6 +2613,7 @@ func (ablInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle,
 	yscale := float64(sh) / float64(dr.Dy())
 	xscale := float64(sw) / float64(dr.Dx())
 	swMinus1, shMinus1 := sw-1, sh-1
+	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 
@@ -2627,11 +2684,26 @@ func (ablInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle,
 			pg := uint32(s11g)
 			pb := uint32(s11b)
 			pa := uint32(s11a)
-			dstColorRGBA64.R = uint16(pr)
-			dstColorRGBA64.G = uint16(pg)
-			dstColorRGBA64.B = uint16(pb)
-			dstColorRGBA64.A = uint16(pa)
-			dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			if dstMask != nil {
+				qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
+				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(dy)).RGBA()
+				pr = pr * ma / 0xffff
+				pg = pg * ma / 0xffff
+				pb = pb * ma / 0xffff
+				pa = pa * ma / 0xffff
+				pa1 := 0xffff - ma
+				dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
+				dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
+				dstColorRGBA64.B = uint16(qb*pa1/0xffff + pb)
+				dstColorRGBA64.A = uint16(qa*pa1/0xffff + pa)
+				dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			} else {
+				dstColorRGBA64.R = uint16(pr)
+				dstColorRGBA64.G = uint16(pg)
+				dstColorRGBA64.B = uint16(pb)
+				dstColorRGBA64.A = uint16(pa)
+				dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			}
 		}
 	}
 }
@@ -3977,6 +4049,7 @@ func (ablInterpolator) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.R
 }
 
 func (ablInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
+	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
@@ -4054,6 +4127,13 @@ func (ablInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Recta
 			pb := uint32(s11b)
 			pa := uint32(s11a)
 			qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
+			if dstMask != nil {
+				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(dy)).RGBA()
+				pr = pr * ma / 0xffff
+				pg = pg * ma / 0xffff
+				pb = pb * ma / 0xffff
+				pa = pa * ma / 0xffff
+			}
 			pa1 := 0xffff - pa
 			dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
 			dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
@@ -4065,6 +4145,7 @@ func (ablInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Recta
 }
 
 func (ablInterpolator) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
+	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
@@ -4141,11 +4222,26 @@ func (ablInterpolator) transform_Image_Image_Src(dst Image, dr, adr image.Rectan
 			pg := uint32(s11g)
 			pb := uint32(s11b)
 			pa := uint32(s11a)
-			dstColorRGBA64.R = uint16(pr)
-			dstColorRGBA64.G = uint16(pg)
-			dstColorRGBA64.B = uint16(pb)
-			dstColorRGBA64.A = uint16(pa)
-			dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			if dstMask != nil {
+				qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
+				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(dy)).RGBA()
+				pr = pr * ma / 0xffff
+				pg = pg * ma / 0xffff
+				pb = pb * ma / 0xffff
+				pa = pa * ma / 0xffff
+				pa1 := 0xffff - ma
+				dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
+				dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
+				dstColorRGBA64.B = uint16(qb*pa1/0xffff + pb)
+				dstColorRGBA64.A = uint16(qa*pa1/0xffff + pa)
+				dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			} else {
+				dstColorRGBA64.R = uint16(pr)
+				dstColorRGBA64.G = uint16(pg)
+				dstColorRGBA64.B = uint16(pb)
+				dstColorRGBA64.A = uint16(pa)
+				dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			}
 		}
 	}
 }
@@ -4221,21 +4317,29 @@ func (z *kernelScaler) Scale(dst Image, dr image.Rectangle, src image.Image, sr 
 		}
 	}
 
-	// TODO: honor o.DstMask.
-	switch o.Op {
-	case Over:
-		switch dst := dst.(type) {
-		case *image.RGBA:
-			z.scaleY_RGBA_Over(dst, dr, adr, tmp, &o)
-		default:
+	if o.DstMask != nil {
+		switch o.Op {
+		case Over:
 			z.scaleY_Image_Over(dst, dr, adr, tmp, &o)
-		}
-	case Src:
-		switch dst := dst.(type) {
-		case *image.RGBA:
-			z.scaleY_RGBA_Src(dst, dr, adr, tmp, &o)
-		default:
+		case Src:
 			z.scaleY_Image_Src(dst, dr, adr, tmp, &o)
+		}
+	} else {
+		switch o.Op {
+		case Over:
+			switch dst := dst.(type) {
+			case *image.RGBA:
+				z.scaleY_RGBA_Over(dst, dr, adr, tmp, &o)
+			default:
+				z.scaleY_Image_Over(dst, dr, adr, tmp, &o)
+			}
+		case Src:
+			switch dst := dst.(type) {
+			case *image.RGBA:
+				z.scaleY_RGBA_Src(dst, dr, adr, tmp, &o)
+			default:
+				z.scaleY_Image_Src(dst, dr, adr, tmp, &o)
+			}
 		}
 	}
 }
@@ -4710,6 +4814,7 @@ func (z *kernelScaler) scaleY_RGBA_Src(dst *image.RGBA, dr, adr image.Rectangle,
 }
 
 func (z *kernelScaler) scaleY_Image_Over(dst Image, dr, adr image.Rectangle, tmp [][4]float64, opts *Options) {
+	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
@@ -4738,6 +4843,13 @@ func (z *kernelScaler) scaleY_Image_Over(dst Image, dr, adr image.Rectangle, tmp
 			pg0 := uint32(ftou(pg * s.invTotalWeight))
 			pb0 := uint32(ftou(pb * s.invTotalWeight))
 			pa0 := uint32(ftou(pa * s.invTotalWeight))
+			if dstMask != nil {
+				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(adr.Min.Y+dy)).RGBA()
+				pr0 = pr0 * ma / 0xffff
+				pg0 = pg0 * ma / 0xffff
+				pb0 = pb0 * ma / 0xffff
+				pa0 = pa0 * ma / 0xffff
+			}
 			pa1 := 0xffff - pa0
 			dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr0)
 			dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg0)
@@ -4749,6 +4861,7 @@ func (z *kernelScaler) scaleY_Image_Over(dst Image, dr, adr image.Rectangle, tmp
 }
 
 func (z *kernelScaler) scaleY_Image_Src(dst Image, dr, adr image.Rectangle, tmp [][4]float64, opts *Options) {
+	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
@@ -4772,11 +4885,26 @@ func (z *kernelScaler) scaleY_Image_Src(dst Image, dr, adr image.Rectangle, tmp 
 				pb = pa
 			}
 
-			dstColorRGBA64.R = ftou(pr * s.invTotalWeight)
-			dstColorRGBA64.G = ftou(pg * s.invTotalWeight)
-			dstColorRGBA64.B = ftou(pb * s.invTotalWeight)
-			dstColorRGBA64.A = ftou(pa * s.invTotalWeight)
-			dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(adr.Min.Y+dy), dstColor)
+			if dstMask != nil {
+				qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(adr.Min.Y+dy)).RGBA()
+				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(adr.Min.Y+dy)).RGBA()
+				pr := uint32(ftou(pr*s.invTotalWeight)) * ma / 0xffff
+				pg := uint32(ftou(pg*s.invTotalWeight)) * ma / 0xffff
+				pb := uint32(ftou(pb*s.invTotalWeight)) * ma / 0xffff
+				pa := uint32(ftou(pa*s.invTotalWeight)) * ma / 0xffff
+				pa1 := 0xffff - ma
+				dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
+				dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
+				dstColorRGBA64.B = uint16(qb*pa1/0xffff + pb)
+				dstColorRGBA64.A = uint16(qa*pa1/0xffff + pa)
+				dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(adr.Min.Y+dy), dstColor)
+			} else {
+				dstColorRGBA64.R = ftou(pr * s.invTotalWeight)
+				dstColorRGBA64.G = ftou(pg * s.invTotalWeight)
+				dstColorRGBA64.B = ftou(pb * s.invTotalWeight)
+				dstColorRGBA64.A = ftou(pa * s.invTotalWeight)
+				dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(adr.Min.Y+dy), dstColor)
+			}
 		}
 	}
 }
@@ -6090,6 +6218,7 @@ func (q *Kernel) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, 
 	xWeights := make([]float64, 1+2*int(math.Ceil(xHalfWidth)))
 	yWeights := make([]float64, 1+2*int(math.Ceil(yHalfWidth)))
 
+	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
@@ -6182,6 +6311,13 @@ func (q *Kernel) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, 
 			pg0 := uint32(fffftou(pg))
 			pb0 := uint32(fffftou(pb))
 			pa0 := uint32(fffftou(pa))
+			if dstMask != nil {
+				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(dy)).RGBA()
+				pr0 = pr0 * ma / 0xffff
+				pg0 = pg0 * ma / 0xffff
+				pb0 = pb0 * ma / 0xffff
+				pa0 = pa0 * ma / 0xffff
+			}
 			pa1 := 0xffff - pa0
 			dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr0)
 			dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg0)
@@ -6209,6 +6345,7 @@ func (q *Kernel) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d
 	xWeights := make([]float64, 1+2*int(math.Ceil(xHalfWidth)))
 	yWeights := make([]float64, 1+2*int(math.Ceil(yHalfWidth)))
 
+	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
 	for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
@@ -6296,11 +6433,26 @@ func (q *Kernel) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d
 				pb = pa
 			}
 
-			dstColorRGBA64.R = fffftou(pr)
-			dstColorRGBA64.G = fffftou(pg)
-			dstColorRGBA64.B = fffftou(pb)
-			dstColorRGBA64.A = fffftou(pa)
-			dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			if dstMask != nil {
+				qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
+				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(dy)).RGBA()
+				pr := uint32(fffftou(pr)) * ma / 0xffff
+				pg := uint32(fffftou(pg)) * ma / 0xffff
+				pb := uint32(fffftou(pb)) * ma / 0xffff
+				pa := uint32(fffftou(pa)) * ma / 0xffff
+				pa1 := 0xffff - ma
+				dstColorRGBA64.R = uint16(qr*pa1/0xffff + pr)
+				dstColorRGBA64.G = uint16(qg*pa1/0xffff + pg)
+				dstColorRGBA64.B = uint16(qb*pa1/0xffff + pb)
+				dstColorRGBA64.A = uint16(qa*pa1/0xffff + pa)
+				dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			} else {
+				dstColorRGBA64.R = fffftou(pr)
+				dstColorRGBA64.G = fffftou(pg)
+				dstColorRGBA64.B = fffftou(pb)
+				dstColorRGBA64.A = fffftou(pa)
+				dst.Set(dr.Min.X+int(dx), dr.Min.Y+int(dy), dstColor)
+			}
 		}
 	}
 }
