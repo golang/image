@@ -373,30 +373,55 @@ func TestRectDstMask(t *testing.T) {
 		}
 	}
 
-	mk := func(q Transformer, dstMask image.Image) *image.RGBA {
+	mk := func(q Transformer, dstMask image.Image, dstMaskP image.Point) *image.RGBA {
 		m := image.NewRGBA(bounds)
 		Copy(m, bounds.Min, dstOutside, bounds, nil)
-		q.Transform(m, m00, src, src.Bounds(), &Options{DstMask: dstMask})
+		q.Transform(m, m00, src, src.Bounds(), &Options{
+			DstMask:  dstMask,
+			DstMaskP: dstMaskP,
+		})
 		return m
 	}
 
-	rect := image.Rect(20, 10, 30, 40)
 	qs := []Interpolator{
 		NearestNeighbor,
 		ApproxBiLinear,
 		CatmullRom,
 	}
+	dstMaskPs := []image.Point{
+		{0, 0},
+		{5, 7},
+		{-3, 0},
+	}
+	rect := image.Rect(10, 10, 30, 40)
 	for _, q := range qs {
-		dstInside := mk(q, nil)
-		dst := mk(q, rect)
-		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-			for x := bounds.Min.X; x < bounds.Max.X; x++ {
-				which := dstOutside
-				if (image.Point{x, y}).In(rect) {
-					which = dstInside
+		for _, dstMaskP := range dstMaskPs {
+			dstInside := mk(q, nil, image.Point{})
+			for _, wrap := range []bool{false, true} {
+				dstMask := image.Image(rect)
+				if wrap {
+					dstMask = srcWrapper{dstMask}
 				}
-				if got, want := dst.RGBAAt(x, y), which.RGBAAt(x, y); got != want {
-					t.Errorf("x=%3d y=%3d: got %v, want %v", x, y, got, want)
+				dst := mk(q, dstMask, dstMaskP)
+
+				nError := 0
+			loop:
+				for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+					for x := bounds.Min.X; x < bounds.Max.X; x++ {
+						which := dstOutside
+						if (image.Point{x, y}).Add(dstMaskP).In(rect) {
+							which = dstInside
+						}
+						if got, want := dst.RGBAAt(x, y), which.RGBAAt(x, y); got != want {
+							if nError == 10 {
+								t.Errorf("q=%T dmp=%v wrap=%v: ...and more errors", q, dstMaskP, wrap)
+								break loop
+							}
+							nError++
+							t.Errorf("q=%T dmp=%v wrap=%v: x=%3d y=%3d: got %v, want %v",
+								q, dstMaskP, wrap, x, y, got, want)
+						}
+					}
 				}
 			}
 		}

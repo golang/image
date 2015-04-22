@@ -854,12 +854,14 @@ const (
 				o = *opts
 			}
 
-			// adr is the affected destination pixels, relative to dr.Min.
-			adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
-			// TODO: clip adr to o.DstMask.Bounds().
+			// adr is the affected destination pixels.
+			adr := dst.Bounds().Intersect(dr)
+			adr, o.DstMask = clipAffectedDestRect(adr, o.DstMask, o.DstMaskP)
 			if adr.Empty() || sr.Empty() {
 				return
 			}
+			// Make adr relative to dr.Min.
+			adr = adr.Sub(dr.Min)
 			if o.Op == Over && o.SrcMask == nil && opaque(src) {
 				o.Op = Src
 			}
@@ -892,7 +894,7 @@ const (
 			dr := transformRect(s2d, &sr)
 			// adr is the affected destination pixels.
 			adr := dst.Bounds().Intersect(dr)
-			// TODO: clip adr to o.DstMask.Bounds().
+			adr, o.DstMask = clipAffectedDestRect(adr, o.DstMask, o.DstMaskP)
 			if adr.Empty() || sr.Empty() {
 				return
 			}
@@ -1097,12 +1099,14 @@ const (
 				o = *opts
 			}
 
-			// adr is the affected destination pixels, relative to dr.Min.
-			adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
-			// TODO: clip adr to o.DstMask.Bounds().
+			// adr is the affected destination pixels.
+			adr := dst.Bounds().Intersect(dr)
+			adr, o.DstMask = clipAffectedDestRect(adr, o.DstMask, o.DstMaskP)
 			if adr.Empty() || sr.Empty() {
 				return
 			}
+			// Make adr relative to dr.Min.
+			adr = adr.Sub(dr.Min)
 			if o.Op == Over && o.SrcMask == nil && opaque(src) {
 				o.Op = Src
 			}
@@ -1156,7 +1160,7 @@ const (
 			dr := transformRect(s2d, &sr)
 			// adr is the affected destination pixels.
 			adr := dst.Bounds().Intersect(dr)
-			// TODO: clip adr to o.DstMask.Bounds().
+			adr, o.DstMask = clipAffectedDestRect(adr, o.DstMask, o.DstMaskP)
 			if adr.Empty() || sr.Empty() {
 				return
 			}
