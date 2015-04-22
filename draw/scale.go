@@ -408,6 +408,17 @@ func transformRect(s2d *f64.Aff3, sr *image.Rectangle) (dr image.Rectangle) {
 	return dr
 }
 
+func clipAffectedDestRect(adr image.Rectangle, dstMask image.Image, dstMaskP image.Point) (image.Rectangle, image.Image) {
+	if dstMask == nil {
+		return adr, nil
+	}
+	if r, ok := dstMask.(image.Rectangle); ok {
+		return adr.Intersect(r.Sub(dstMaskP)), nil
+	}
+	// TODO: clip to dstMask.Bounds() if the color model implies that out-of-bounds means 0 alpha?
+	return adr, dstMask
+}
+
 func transform_Uniform(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src *image.Uniform, sr image.Rectangle, bias image.Point, op Op) {
 	switch op {
 	case Over:

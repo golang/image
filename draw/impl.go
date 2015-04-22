@@ -16,12 +16,14 @@ func (z nnInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, sr
 		o = *opts
 	}
 
-	// adr is the affected destination pixels, relative to dr.Min.
-	adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
-	// TODO: clip adr to o.DstMask.Bounds().
+	// adr is the affected destination pixels.
+	adr := dst.Bounds().Intersect(dr)
+	adr, o.DstMask = clipAffectedDestRect(adr, o.DstMask, o.DstMaskP)
 	if adr.Empty() || sr.Empty() {
 		return
 	}
+	// Make adr relative to dr.Min.
+	adr = adr.Sub(dr.Min)
 	if o.Op == Over && o.SrcMask == nil && opaque(src) {
 		o.Op = Src
 	}
@@ -104,7 +106,7 @@ func (z nnInterpolator) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr 
 	dr := transformRect(s2d, &sr)
 	// adr is the affected destination pixels.
 	adr := dst.Bounds().Intersect(dr)
-	// TODO: clip adr to o.DstMask.Bounds().
+	adr, o.DstMask = clipAffectedDestRect(adr, o.DstMask, o.DstMaskP)
 	if adr.Empty() || sr.Empty() {
 		return
 	}
@@ -1003,12 +1005,14 @@ func (z ablInterpolator) Scale(dst Image, dr image.Rectangle, src image.Image, s
 		o = *opts
 	}
 
-	// adr is the affected destination pixels, relative to dr.Min.
-	adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
-	// TODO: clip adr to o.DstMask.Bounds().
+	// adr is the affected destination pixels.
+	adr := dst.Bounds().Intersect(dr)
+	adr, o.DstMask = clipAffectedDestRect(adr, o.DstMask, o.DstMaskP)
 	if adr.Empty() || sr.Empty() {
 		return
 	}
+	// Make adr relative to dr.Min.
+	adr = adr.Sub(dr.Min)
 	if o.Op == Over && o.SrcMask == nil && opaque(src) {
 		o.Op = Src
 	}
@@ -1091,7 +1095,7 @@ func (z ablInterpolator) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr
 	dr := transformRect(s2d, &sr)
 	// adr is the affected destination pixels.
 	adr := dst.Bounds().Intersect(dr)
-	// TODO: clip adr to o.DstMask.Bounds().
+	adr, o.DstMask = clipAffectedDestRect(adr, o.DstMask, o.DstMaskP)
 	if adr.Empty() || sr.Empty() {
 		return
 	}
@@ -4257,12 +4261,14 @@ func (z *kernelScaler) Scale(dst Image, dr image.Rectangle, src image.Image, sr 
 		o = *opts
 	}
 
-	// adr is the affected destination pixels, relative to dr.Min.
-	adr := dst.Bounds().Intersect(dr).Sub(dr.Min)
-	// TODO: clip adr to o.DstMask.Bounds().
+	// adr is the affected destination pixels.
+	adr := dst.Bounds().Intersect(dr)
+	adr, o.DstMask = clipAffectedDestRect(adr, o.DstMask, o.DstMaskP)
 	if adr.Empty() || sr.Empty() {
 		return
 	}
+	// Make adr relative to dr.Min.
+	adr = adr.Sub(dr.Min)
 	if o.Op == Over && o.SrcMask == nil && opaque(src) {
 		o.Op = Src
 	}
@@ -4353,7 +4359,7 @@ func (q *Kernel) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.R
 	dr := transformRect(s2d, &sr)
 	// adr is the affected destination pixels.
 	adr := dst.Bounds().Intersect(dr)
-	// TODO: clip adr to o.DstMask.Bounds().
+	adr, o.DstMask = clipAffectedDestRect(adr, o.DstMask, o.DstMaskP)
 	if adr.Empty() || sr.Empty() {
 		return
 	}
