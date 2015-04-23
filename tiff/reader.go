@@ -571,7 +571,8 @@ func Decode(r io.Reader) (img image.Image, err error) {
 				d.buf, err = ioutil.ReadAll(r)
 				r.Close()
 			case cDeflate, cDeflateOld:
-				r, err := zlib.NewReader(io.NewSectionReader(d.r, offset, n))
+				var r io.ReadCloser
+				r, err = zlib.NewReader(io.NewSectionReader(d.r, offset, n))
 				if err != nil {
 					return nil, err
 				}
