@@ -1,3 +1,12 @@
+// Copyright 2014 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// +build ignore
+//
+// This build tag means that "go install golang.org/x/image/..." doesn't
+// install this manual test. Use "go run main.go" to explicitly run it.
+
 // Program webp-manual-test checks that the Go WEBP library's decodings match
 // the C WEBP library's.
 package main // import "golang.org/x/image/cmd/webp-manual-test"
