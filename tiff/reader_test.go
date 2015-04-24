@@ -75,6 +75,32 @@ func TestUnpackBits(t *testing.T) {
 	}
 }
 
+func TestShortBlockData(t *testing.T) {
+	b, err := ioutil.ReadFile("../testdata/bw-uncompressed.tiff")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The bw-uncompressed.tiff image is a 153x55 bi-level image. This is 1 bit
+	// per pixel, or 20 bytes per row, times 55 rows, or 1100 bytes of pixel
+	// data. 1100 in hex is 0x44c, or "\x4c\x04" in little-endian. We replace
+	// that byte count (StripByteCounts-tagged data) by something less than
+	// that, so that there is not enough pixel data.
+	old := []byte{0x4c, 0x04}
+	new := []byte{0x01, 0x01}
+	i := bytes.Index(b, old)
+	if i < 0 {
+		t.Fatal(`could not find "\x4c\x04" byte count`)
+	}
+	if bytes.Contains(b[i+len(old):], old) {
+		t.Fatal(`too many occurrences of "\x4c\x04"`)
+	}
+	b[i+0] = new[0]
+	b[i+1] = new[1]
+	if _, err = Decode(bytes.NewReader(b)); err == nil {
+		t.Fatal("got nil error, want non-nil")
+	}
+}
+
 func compare(t *testing.T, img0, img1 image.Image) {
 	b0 := img0.Bounds()
 	b1 := img1.Bounds()
