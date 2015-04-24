@@ -25,8 +25,7 @@ func Copy(dst Image, dp image.Point, src image.Image, sr image.Rectangle, opts *
 	}
 	dr := sr.Add(dp.Sub(sr.Min))
 	if o.DstMask == nil {
-		// TODO: honor o.SrcMask.
-		DrawMask(dst, dr, src, sr.Min, nil, image.Point{}, o.Op)
+		DrawMask(dst, dr, src, sr.Min, o.SrcMask, o.SrcMaskP.Add(sr.Min), o.Op)
 	} else {
 		NearestNeighbor.Scale(dst, dr, src, sr, opts)
 	}
@@ -93,7 +92,6 @@ type Options struct {
 	DstMaskP image.Point
 	SrcMask  image.Image
 	SrcMaskP image.Point
-	// TODO: actually implement SrcMask.
 
 	// TODO: a smooth vs sharp edges option, for arbitrary rotations?
 }

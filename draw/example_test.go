@@ -10,6 +10,7 @@ import (
 	"image/color"
 	"image/png"
 	"log"
+	"math"
 	"os"
 
 	"golang.org/x/image/draw"
@@ -27,7 +28,6 @@ func ExampleDraw() {
 		log.Fatal(err)
 	}
 
-	sr := src.Bounds()
 	dst := image.NewRGBA(image.Rect(0, 0, 400, 300))
 	green := image.NewUniform(color.RGBA{0x00, 0x1f, 0x00, 0xff})
 	draw.Copy(dst, image.Point{}, green, dst.Bounds(), nil)
@@ -42,11 +42,11 @@ func ExampleDraw() {
 		+2 * sin60, +2 * cos60, 100,
 	}
 
-	draw.Copy(dst, image.Point{20, 30}, src, sr, nil)
+	draw.Copy(dst, image.Point{20, 30}, src, src.Bounds(), nil)
 	for i, q := range qs {
-		q.Scale(dst, image.Rect(200+10*i, 100*i, 600+10*i, 150+100*i), src, sr, nil)
+		q.Scale(dst, image.Rect(200+10*i, 100*i, 600+10*i, 150+100*i), src, src.Bounds(), nil)
 	}
-	draw.NearestNeighbor.Transform(dst, t, src, sr, nil)
+	draw.NearestNeighbor.Transform(dst, t, src, src.Bounds(), nil)
 
 	red := image.NewNRGBA(image.Rect(0, 0, 16, 16))
 	for y := 0; y < 16; y++ {
@@ -74,6 +74,31 @@ func ExampleDraw() {
 		}
 		q.Transform(dst, t, red, red.Bounds(), opts)
 	}
+
+	dr := image.Rect(0, 0, 128, 128)
+	checkerboard := image.NewAlpha(dr)
+	for y := dr.Min.Y; y < dr.Max.Y; y++ {
+		for x := dr.Min.X; x < dr.Max.X; x++ {
+			if (x/20)%2 == (y/20)%2 {
+				checkerboard.SetAlpha(x, y, color.Alpha{0xff})
+			}
+		}
+	}
+	sr := image.Rect(0, 0, 16, 16)
+	circle := image.NewAlpha(sr)
+	for y := sr.Min.Y; y < sr.Max.Y; y++ {
+		for x := sr.Min.X; x < sr.Max.X; x++ {
+			dx, dy := x-10, y-8
+			if d := 32 * math.Sqrt(float64(dx*dx)+float64(dy*dy)); d < 0xff {
+				circle.SetAlpha(x, y, color.Alpha{0xff - uint8(d)})
+			}
+		}
+	}
+	cyan := image.NewUniform(color.RGBA{0x00, 0xff, 0xff, 0xff})
+	draw.NearestNeighbor.Scale(dst, dr, cyan, sr, &draw.Options{
+		DstMask: checkerboard,
+		SrcMask: circle,
+	})
 
 	// Change false to true to write the resultant image to disk.
 	if false {
