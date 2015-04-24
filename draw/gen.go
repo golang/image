@@ -232,7 +232,11 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		default:
 			return ";"
 		case "Image":
-			return "" +
+			s := ""
+			if d.sType == "image.Image" {
+				s = "srcMask, smp := opts.SrcMask, opts.SrcMaskP\n"
+			}
+			return s +
 				"dstMask, dmp := opts.DstMask, opts.DstMaskP\n" +
 				"dstColorRGBA64 := &color.RGBA64{}\n" +
 				"dstColor := color.Color(dstColorRGBA64)"
@@ -244,6 +248,14 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			return ";"
 		case "*image.RGBA":
 			return "d := " + pixOffset("dst", "dr.Min.X+adr.Min.X", "dr.Min.Y+int(dy)", "*4", "*dst.Stride")
+		}
+
+	case "preKernelOuter":
+		switch d.sType {
+		default:
+			return ";"
+		case "image.Image":
+			return "srcMask, smp := opts.SrcMask, opts.SrcMaskP"
 		}
 
 	case "preKernelInner":
@@ -547,6 +559,22 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				"%sr%s, %sg%s, %sb%s, %sa%s := src.At(%s, %s).RGBA()\n",
 				lhs, tmp, lhs, tmp, lhs, tmp, lhs, tmp, args[0], args[1],
 			)
+			if d.dType == "" || d.dType == "Image" {
+				fmt.Fprintf(buf, ""+
+					"if srcMask != nil {\n"+
+					"	_, _, _, ma := srcMask.At(smp.X+%s, smp.Y+%s).RGBA()\n"+
+					"	%sr%s = %sr%s * ma / 0xffff\n"+
+					"	%sg%s = %sg%s * ma / 0xffff\n"+
+					"	%sb%s = %sb%s * ma / 0xffff\n"+
+					"	%sa%s = %sa%s * ma / 0xffff\n"+
+					"}\n",
+					args[0], args[1],
+					lhs, tmp, lhs, tmp,
+					lhs, tmp, lhs, tmp,
+					lhs, tmp, lhs, tmp,
+					lhs, tmp, lhs, tmp,
+				)
+			}
 		case "*image.Gray":
 			fmt.Fprintf(buf, ""+
 				"%si := %s\n"+
@@ -1218,6 +1246,7 @@ const (
 	codeKernelScaleLeafX = `
 		func (z *kernelScaler) scaleX_$sTypeRN$sratio(tmp [][4]float64, src $sType, sr image.Rectangle, opts *Options) {
 			t := 0
+			$preKernelOuter
 			for y := int32(0); y < z.sh; y++ {
 				for _, s := range z.horizontal.sources {
 					var pr, pg, pb, pa float64 $tweakVarP

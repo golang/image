@@ -316,6 +316,41 @@ func TestSrcTranslationInvariance(t *testing.T) {
 	}
 }
 
+func TestSrcMask(t *testing.T) {
+	srcMask := image.NewRGBA(image.Rect(0, 0, 23, 1))
+	srcMask.SetRGBA(19, 0, color.RGBA{0x00, 0x00, 0x00, 0x7f})
+	srcMask.SetRGBA(20, 0, color.RGBA{0x00, 0x00, 0x00, 0xff})
+	srcMask.SetRGBA(21, 0, color.RGBA{0x00, 0x00, 0x00, 0x3f})
+	srcMask.SetRGBA(22, 0, color.RGBA{0x00, 0x00, 0x00, 0x00})
+	red := image.NewUniform(color.RGBA{0xff, 0x00, 0x00, 0xff})
+	blue := image.NewUniform(color.RGBA{0x00, 0x00, 0xff, 0xff})
+	dst := image.NewRGBA(image.Rect(0, 0, 6, 1))
+	Copy(dst, image.Point{}, blue, dst.Bounds(), nil)
+	NearestNeighbor.Scale(dst, dst.Bounds(), red, image.Rect(0, 0, 3, 1), &Options{
+		SrcMask:  srcMask,
+		SrcMaskP: image.Point{20, 0},
+	})
+	got := [6]color.RGBA{
+		dst.RGBAAt(0, 0),
+		dst.RGBAAt(1, 0),
+		dst.RGBAAt(2, 0),
+		dst.RGBAAt(3, 0),
+		dst.RGBAAt(4, 0),
+		dst.RGBAAt(5, 0),
+	}
+	want := [6]color.RGBA{
+		{0xff, 0x00, 0x00, 0xff},
+		{0xff, 0x00, 0x00, 0xff},
+		{0x3f, 0x00, 0xc0, 0xff},
+		{0x3f, 0x00, 0xc0, 0xff},
+		{0x00, 0x00, 0xff, 0xff},
+		{0x00, 0x00, 0xff, 0xff},
+	}
+	if got != want {
+		t.Errorf("\ngot  %v\nwant %v", got, want)
+	}
+}
+
 func TestDstMask(t *testing.T) {
 	dstMask := image.NewRGBA(image.Rect(0, 0, 23, 1))
 	dstMask.SetRGBA(19, 0, color.RGBA{0x00, 0x00, 0x00, 0x7f})

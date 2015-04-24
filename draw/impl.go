@@ -529,6 +529,7 @@ func (nnInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle,
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
 	sh := uint64(sr.Dy())
+	srcMask, smp := opts.SrcMask, opts.SrcMaskP
 	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
@@ -537,6 +538,13 @@ func (nnInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle,
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 			sx := (2*uint64(dx) + 1) * sw / dw2
 			pr, pg, pb, pa := src.At(sr.Min.X+int(sx), sr.Min.Y+int(sy)).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sr.Min.X+int(sx), smp.Y+sr.Min.Y+int(sy)).RGBA()
+				pr = pr * ma / 0xffff
+				pg = pg * ma / 0xffff
+				pb = pb * ma / 0xffff
+				pa = pa * ma / 0xffff
+			}
 			qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
 			if dstMask != nil {
 				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(dy)).RGBA()
@@ -560,6 +568,7 @@ func (nnInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle, 
 	dh2 := uint64(dr.Dy()) * 2
 	sw := uint64(sr.Dx())
 	sh := uint64(sr.Dy())
+	srcMask, smp := opts.SrcMask, opts.SrcMaskP
 	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
@@ -568,6 +577,13 @@ func (nnInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle, 
 		for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ {
 			sx := (2*uint64(dx) + 1) * sw / dw2
 			pr, pg, pb, pa := src.At(sr.Min.X+int(sx), sr.Min.Y+int(sy)).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sr.Min.X+int(sx), smp.Y+sr.Min.Y+int(sy)).RGBA()
+				pr = pr * ma / 0xffff
+				pg = pg * ma / 0xffff
+				pb = pb * ma / 0xffff
+				pa = pa * ma / 0xffff
+			}
 			if dstMask != nil {
 				qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
 				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(dy)).RGBA()
@@ -930,6 +946,7 @@ func (nnInterpolator) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.Re
 }
 
 func (nnInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
+	srcMask, smp := opts.SrcMask, opts.SrcMaskP
 	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
@@ -943,6 +960,13 @@ func (nnInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Rectan
 				continue
 			}
 			pr, pg, pb, pa := src.At(sx0, sy0).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sx0, smp.Y+sy0).RGBA()
+				pr = pr * ma / 0xffff
+				pg = pg * ma / 0xffff
+				pb = pb * ma / 0xffff
+				pa = pa * ma / 0xffff
+			}
 			qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
 			if dstMask != nil {
 				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(dy)).RGBA()
@@ -962,6 +986,7 @@ func (nnInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Rectan
 }
 
 func (nnInterpolator) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
+	srcMask, smp := opts.SrcMask, opts.SrcMaskP
 	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
@@ -975,6 +1000,13 @@ func (nnInterpolator) transform_Image_Image_Src(dst Image, dr, adr image.Rectang
 				continue
 			}
 			pr, pg, pb, pa := src.At(sx0, sy0).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sx0, smp.Y+sy0).RGBA()
+				pr = pr * ma / 0xffff
+				pg = pg * ma / 0xffff
+				pb = pb * ma / 0xffff
+				pa = pa * ma / 0xffff
+			}
 			if dstMask != nil {
 				qr, qg, qb, qa := dst.At(dr.Min.X+int(dx), dr.Min.Y+int(dy)).RGBA()
 				_, _, _, ma := dstMask.At(dmp.X+dr.Min.X+int(dx), dmp.Y+dr.Min.Y+int(dy)).RGBA()
@@ -2522,6 +2554,7 @@ func (ablInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle
 	yscale := float64(sh) / float64(dr.Dy())
 	xscale := float64(sw) / float64(dr.Dx())
 	swMinus1, shMinus1 := sw-1, sh-1
+	srcMask, smp := opts.SrcMask, opts.SrcMaskP
 	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
@@ -2558,11 +2591,25 @@ func (ablInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle
 			}
 
 			s00ru, s00gu, s00bu, s00au := src.At(sr.Min.X+int(sx0), sr.Min.Y+int(sy0)).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sr.Min.X+int(sx0), smp.Y+sr.Min.Y+int(sy0)).RGBA()
+				s00ru = s00ru * ma / 0xffff
+				s00gu = s00gu * ma / 0xffff
+				s00bu = s00bu * ma / 0xffff
+				s00au = s00au * ma / 0xffff
+			}
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
 			s00a := float64(s00au)
 			s10ru, s10gu, s10bu, s10au := src.At(sr.Min.X+int(sx1), sr.Min.Y+int(sy0)).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sr.Min.X+int(sx1), smp.Y+sr.Min.Y+int(sy0)).RGBA()
+				s10ru = s10ru * ma / 0xffff
+				s10gu = s10gu * ma / 0xffff
+				s10bu = s10bu * ma / 0xffff
+				s10au = s10au * ma / 0xffff
+			}
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
@@ -2572,11 +2619,25 @@ func (ablInterpolator) scale_Image_Image_Over(dst Image, dr, adr image.Rectangle
 			s10b = xFrac1*s00b + xFrac0*s10b
 			s10a = xFrac1*s00a + xFrac0*s10a
 			s01ru, s01gu, s01bu, s01au := src.At(sr.Min.X+int(sx0), sr.Min.Y+int(sy1)).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sr.Min.X+int(sx0), smp.Y+sr.Min.Y+int(sy1)).RGBA()
+				s01ru = s01ru * ma / 0xffff
+				s01gu = s01gu * ma / 0xffff
+				s01bu = s01bu * ma / 0xffff
+				s01au = s01au * ma / 0xffff
+			}
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
 			s01a := float64(s01au)
 			s11ru, s11gu, s11bu, s11au := src.At(sr.Min.X+int(sx1), sr.Min.Y+int(sy1)).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sr.Min.X+int(sx1), smp.Y+sr.Min.Y+int(sy1)).RGBA()
+				s11ru = s11ru * ma / 0xffff
+				s11gu = s11gu * ma / 0xffff
+				s11bu = s11bu * ma / 0xffff
+				s11au = s11au * ma / 0xffff
+			}
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
@@ -2617,6 +2678,7 @@ func (ablInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle,
 	yscale := float64(sh) / float64(dr.Dy())
 	xscale := float64(sw) / float64(dr.Dx())
 	swMinus1, shMinus1 := sw-1, sh-1
+	srcMask, smp := opts.SrcMask, opts.SrcMaskP
 	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
@@ -2653,11 +2715,25 @@ func (ablInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle,
 			}
 
 			s00ru, s00gu, s00bu, s00au := src.At(sr.Min.X+int(sx0), sr.Min.Y+int(sy0)).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sr.Min.X+int(sx0), smp.Y+sr.Min.Y+int(sy0)).RGBA()
+				s00ru = s00ru * ma / 0xffff
+				s00gu = s00gu * ma / 0xffff
+				s00bu = s00bu * ma / 0xffff
+				s00au = s00au * ma / 0xffff
+			}
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
 			s00a := float64(s00au)
 			s10ru, s10gu, s10bu, s10au := src.At(sr.Min.X+int(sx1), sr.Min.Y+int(sy0)).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sr.Min.X+int(sx1), smp.Y+sr.Min.Y+int(sy0)).RGBA()
+				s10ru = s10ru * ma / 0xffff
+				s10gu = s10gu * ma / 0xffff
+				s10bu = s10bu * ma / 0xffff
+				s10au = s10au * ma / 0xffff
+			}
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
@@ -2667,11 +2743,25 @@ func (ablInterpolator) scale_Image_Image_Src(dst Image, dr, adr image.Rectangle,
 			s10b = xFrac1*s00b + xFrac0*s10b
 			s10a = xFrac1*s00a + xFrac0*s10a
 			s01ru, s01gu, s01bu, s01au := src.At(sr.Min.X+int(sx0), sr.Min.Y+int(sy1)).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sr.Min.X+int(sx0), smp.Y+sr.Min.Y+int(sy1)).RGBA()
+				s01ru = s01ru * ma / 0xffff
+				s01gu = s01gu * ma / 0xffff
+				s01bu = s01bu * ma / 0xffff
+				s01au = s01au * ma / 0xffff
+			}
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
 			s01a := float64(s01au)
 			s11ru, s11gu, s11bu, s11au := src.At(sr.Min.X+int(sx1), sr.Min.Y+int(sy1)).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sr.Min.X+int(sx1), smp.Y+sr.Min.Y+int(sy1)).RGBA()
+				s11ru = s11ru * ma / 0xffff
+				s11gu = s11gu * ma / 0xffff
+				s11bu = s11bu * ma / 0xffff
+				s11au = s11au * ma / 0xffff
+			}
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
@@ -4053,6 +4143,7 @@ func (ablInterpolator) transform_RGBA_Image_Src(dst *image.RGBA, dr, adr image.R
 }
 
 func (ablInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
+	srcMask, smp := opts.SrcMask, opts.SrcMaskP
 	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
@@ -4095,11 +4186,25 @@ func (ablInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Recta
 			}
 
 			s00ru, s00gu, s00bu, s00au := src.At(sx0, sy0).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sx0, smp.Y+sy0).RGBA()
+				s00ru = s00ru * ma / 0xffff
+				s00gu = s00gu * ma / 0xffff
+				s00bu = s00bu * ma / 0xffff
+				s00au = s00au * ma / 0xffff
+			}
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
 			s00a := float64(s00au)
 			s10ru, s10gu, s10bu, s10au := src.At(sx1, sy0).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sx1, smp.Y+sy0).RGBA()
+				s10ru = s10ru * ma / 0xffff
+				s10gu = s10gu * ma / 0xffff
+				s10bu = s10bu * ma / 0xffff
+				s10au = s10au * ma / 0xffff
+			}
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
@@ -4109,11 +4214,25 @@ func (ablInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Recta
 			s10b = xFrac1*s00b + xFrac0*s10b
 			s10a = xFrac1*s00a + xFrac0*s10a
 			s01ru, s01gu, s01bu, s01au := src.At(sx0, sy1).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sx0, smp.Y+sy1).RGBA()
+				s01ru = s01ru * ma / 0xffff
+				s01gu = s01gu * ma / 0xffff
+				s01bu = s01bu * ma / 0xffff
+				s01au = s01au * ma / 0xffff
+			}
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
 			s01a := float64(s01au)
 			s11ru, s11gu, s11bu, s11au := src.At(sx1, sy1).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sx1, smp.Y+sy1).RGBA()
+				s11ru = s11ru * ma / 0xffff
+				s11gu = s11gu * ma / 0xffff
+				s11bu = s11bu * ma / 0xffff
+				s11au = s11au * ma / 0xffff
+			}
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
@@ -4149,6 +4268,7 @@ func (ablInterpolator) transform_Image_Image_Over(dst Image, dr, adr image.Recta
 }
 
 func (ablInterpolator) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d2s *f64.Aff3, src image.Image, sr image.Rectangle, bias image.Point, opts *Options) {
+	srcMask, smp := opts.SrcMask, opts.SrcMaskP
 	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
@@ -4191,11 +4311,25 @@ func (ablInterpolator) transform_Image_Image_Src(dst Image, dr, adr image.Rectan
 			}
 
 			s00ru, s00gu, s00bu, s00au := src.At(sx0, sy0).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sx0, smp.Y+sy0).RGBA()
+				s00ru = s00ru * ma / 0xffff
+				s00gu = s00gu * ma / 0xffff
+				s00bu = s00bu * ma / 0xffff
+				s00au = s00au * ma / 0xffff
+			}
 			s00r := float64(s00ru)
 			s00g := float64(s00gu)
 			s00b := float64(s00bu)
 			s00a := float64(s00au)
 			s10ru, s10gu, s10bu, s10au := src.At(sx1, sy0).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sx1, smp.Y+sy0).RGBA()
+				s10ru = s10ru * ma / 0xffff
+				s10gu = s10gu * ma / 0xffff
+				s10bu = s10bu * ma / 0xffff
+				s10au = s10au * ma / 0xffff
+			}
 			s10r := float64(s10ru)
 			s10g := float64(s10gu)
 			s10b := float64(s10bu)
@@ -4205,11 +4339,25 @@ func (ablInterpolator) transform_Image_Image_Src(dst Image, dr, adr image.Rectan
 			s10b = xFrac1*s00b + xFrac0*s10b
 			s10a = xFrac1*s00a + xFrac0*s10a
 			s01ru, s01gu, s01bu, s01au := src.At(sx0, sy1).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sx0, smp.Y+sy1).RGBA()
+				s01ru = s01ru * ma / 0xffff
+				s01gu = s01gu * ma / 0xffff
+				s01bu = s01bu * ma / 0xffff
+				s01au = s01au * ma / 0xffff
+			}
 			s01r := float64(s01ru)
 			s01g := float64(s01gu)
 			s01b := float64(s01bu)
 			s01a := float64(s01au)
 			s11ru, s11gu, s11bu, s11au := src.At(sx1, sy1).RGBA()
+			if srcMask != nil {
+				_, _, _, ma := srcMask.At(smp.X+sx1, smp.Y+sy1).RGBA()
+				s11ru = s11ru * ma / 0xffff
+				s11gu = s11gu * ma / 0xffff
+				s11bu = s11bu * ma / 0xffff
+				s11au = s11au * ma / 0xffff
+			}
 			s11r := float64(s11ru)
 			s11g := float64(s11gu)
 			s11b := float64(s11bu)
@@ -4729,11 +4877,19 @@ func (z *kernelScaler) scaleX_YCbCr440(tmp [][4]float64, src *image.YCbCr, sr im
 
 func (z *kernelScaler) scaleX_Image(tmp [][4]float64, src image.Image, sr image.Rectangle, opts *Options) {
 	t := 0
+	srcMask, smp := opts.SrcMask, opts.SrcMaskP
 	for y := int32(0); y < z.sh; y++ {
 		for _, s := range z.horizontal.sources {
 			var pr, pg, pb, pa float64
 			for _, c := range z.horizontal.contribs[s.i:s.j] {
 				pru, pgu, pbu, pau := src.At(sr.Min.X+int(c.coord), sr.Min.Y+int(y)).RGBA()
+				if srcMask != nil {
+					_, _, _, ma := srcMask.At(smp.X+sr.Min.X+int(c.coord), smp.Y+sr.Min.Y+int(y)).RGBA()
+					pru = pru * ma / 0xffff
+					pgu = pgu * ma / 0xffff
+					pbu = pbu * ma / 0xffff
+					pau = pau * ma / 0xffff
+				}
 				pr += float64(pru) * c.weight
 				pg += float64(pgu) * c.weight
 				pb += float64(pbu) * c.weight
@@ -6224,6 +6380,7 @@ func (q *Kernel) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, 
 	xWeights := make([]float64, 1+2*int(math.Ceil(xHalfWidth)))
 	yWeights := make([]float64, 1+2*int(math.Ceil(yHalfWidth)))
 
+	srcMask, smp := opts.SrcMask, opts.SrcMaskP
 	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
@@ -6293,6 +6450,13 @@ func (q *Kernel) transform_Image_Image_Over(dst Image, dr, adr image.Rectangle, 
 					for kx := ix; kx < jx; kx++ {
 						if w := xWeights[kx-ix] * yWeight; w != 0 {
 							pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+							if srcMask != nil {
+								_, _, _, ma := srcMask.At(smp.X+kx, smp.Y+ky).RGBA()
+								pru = pru * ma / 0xffff
+								pgu = pgu * ma / 0xffff
+								pbu = pbu * ma / 0xffff
+								pau = pau * ma / 0xffff
+							}
 							pr += float64(pru) * w
 							pg += float64(pgu) * w
 							pb += float64(pbu) * w
@@ -6351,6 +6515,7 @@ func (q *Kernel) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d
 	xWeights := make([]float64, 1+2*int(math.Ceil(xHalfWidth)))
 	yWeights := make([]float64, 1+2*int(math.Ceil(yHalfWidth)))
 
+	srcMask, smp := opts.SrcMask, opts.SrcMaskP
 	dstMask, dmp := opts.DstMask, opts.DstMaskP
 	dstColorRGBA64 := &color.RGBA64{}
 	dstColor := color.Color(dstColorRGBA64)
@@ -6420,6 +6585,13 @@ func (q *Kernel) transform_Image_Image_Src(dst Image, dr, adr image.Rectangle, d
 					for kx := ix; kx < jx; kx++ {
 						if w := xWeights[kx-ix] * yWeight; w != 0 {
 							pru, pgu, pbu, pau := src.At(kx, ky).RGBA()
+							if srcMask != nil {
+								_, _, _, ma := srcMask.At(smp.X+kx, smp.Y+ky).RGBA()
+								pru = pru * ma / 0xffff
+								pgu = pgu * ma / 0xffff
+								pbu = pbu * ma / 0xffff
+								pau = pau * ma / 0xffff
+							}
 							pr += float64(pru) * w
 							pg += float64(pgu) * w
 							pb += float64(pbu) * w
