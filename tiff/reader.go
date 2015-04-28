@@ -15,6 +15,7 @@ import (
 	"image/color"
 	"io"
 	"io/ioutil"
+	"math"
 
 	"golang.org/x/image/tiff/lzw"
 )
@@ -72,6 +73,9 @@ func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
 	var raw []byte
 	datatype := d.byteOrder.Uint16(p[2:4])
 	count := d.byteOrder.Uint32(p[4:8])
+	if count > math.MaxInt32/lengths[datatype] {
+		return nil, FormatError("IFD data too large")
+	}
 	if datalen := lengths[datatype] * count; datalen > 4 {
 		// The IFD contains a pointer to the real value.
 		raw = make([]byte, datalen)
