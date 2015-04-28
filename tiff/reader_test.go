@@ -214,6 +214,25 @@ func TestZeroSizedImages(t *testing.T) {
 	}
 }
 
+// TestLargeIFDEntry verifies that a large IFD entry does not cause Decode
+// to panic.
+// Issue 10596.
+func TestLargeIFDEntry(t *testing.T) {
+	testdata := "II*\x00\x08\x00\x00\x00\f\x000000000000" +
+		"00000000000000000000" +
+		"00000000000000000000" +
+		"00000000000000000000" +
+		"00000000000000\x17\x01\x04\x00\x01\x00" +
+		"\x00\xc0000000000000000000" +
+		"00000000000000000000" +
+		"00000000000000000000" +
+		"000000"
+	_, err := Decode(strings.NewReader(testdata))
+	if err == nil {
+		t.Fatal("Decode with large IFD entry: got nil error, want non-nil")
+	}
+}
+
 // benchmarkDecode benchmarks the decoding of an image.
 func benchmarkDecode(b *testing.B, filename string) {
 	b.StopTimer()
