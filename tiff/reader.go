@@ -71,7 +71,15 @@ func (d *decoder) firstVal(tag int) uint {
 // or Long type, and returns the decoded uint values.
 func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
 	var raw []byte
+	if len(p) < ifdLen {
+		return nil, FormatError("bad IFD entry")
+	}
+
 	datatype := d.byteOrder.Uint16(p[2:4])
+	if dt := int(datatype); dt <= 0 || dt >= len(lengths) {
+		return nil, UnsupportedError("IFD entry datatype")
+	}
+
 	count := d.byteOrder.Uint32(p[4:8])
 	if count > math.MaxInt32/lengths[datatype] {
 		return nil, FormatError("IFD data too large")

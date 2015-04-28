@@ -6,6 +6,7 @@ package tiff
 
 import (
 	"bytes"
+	"encoding/binary"
 	"image"
 	"io/ioutil"
 	"os"
@@ -96,6 +97,27 @@ func TestShortBlockData(t *testing.T) {
 	}
 	b[i+0] = new[0]
 	b[i+1] = new[1]
+	if _, err = Decode(bytes.NewReader(b)); err == nil {
+		t.Fatal("got nil error, want non-nil")
+	}
+}
+
+func TestDecodeInvalidDataType(t *testing.T) {
+	b, err := ioutil.ReadFile("../testdata/bw-uncompressed.tiff")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// off is the offset of the ImageWidth tag. It is the offset of the overall
+	// IFD block (0x00000454), plus 2 for the uint16 number of IFD entries, plus 12
+	// to skip the first entry.
+	const off = 0x00000454 + 2 + 12*1
+
+	if v := binary.LittleEndian.Uint16(b[off : off+2]); v != tImageWidth {
+		t.Fatal(`could not find ImageWidth tag`)
+	}
+	binary.LittleEndian.PutUint16(b[off+2:], uint16(len(lengths))) // invalid datatype
+
 	if _, err = Decode(bytes.NewReader(b)); err == nil {
 		t.Fatal("got nil error, want non-nil")
 	}
