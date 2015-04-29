@@ -15,33 +15,34 @@ import (
 	"golang.org/x/image/math/f64"
 )
 
-// Copy copies the part of the source image defined by src and sr and writes to
-// the part of the destination image defined by dst and the translation of sr
-// so that sr.Min translates to dp.
-func Copy(dst Image, dp image.Point, src image.Image, sr image.Rectangle, opts *Options) {
+// Copy copies the part of the source image defined by src and sr and writes
+// the result of a Porter-Duff composition to the part of the destination image
+// defined by dst and the translation of sr so that sr.Min translates to dp.
+func Copy(dst Image, dp image.Point, src image.Image, sr image.Rectangle, op Op, opts *Options) {
 	var o Options
 	if opts != nil {
 		o = *opts
 	}
 	dr := sr.Add(dp.Sub(sr.Min))
 	if o.DstMask == nil {
-		DrawMask(dst, dr, src, sr.Min, o.SrcMask, o.SrcMaskP.Add(sr.Min), o.Op)
+		DrawMask(dst, dr, src, sr.Min, o.SrcMask, o.SrcMaskP.Add(sr.Min), op)
 	} else {
-		NearestNeighbor.Scale(dst, dr, src, sr, opts)
+		NearestNeighbor.Scale(dst, dr, src, sr, op, opts)
 	}
 }
 
 // Scaler scales the part of the source image defined by src and sr and writes
-// to the part of the destination image defined by dst and dr.
+// the result of a Porter-Duff composition to the part of the destination image
+// defined by dst and dr.
 //
 // A Scaler is safe to use concurrently.
 type Scaler interface {
-	Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options)
+	Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, op Op, opts *Options)
 }
 
 // Transformer transforms the part of the source image defined by src and sr
-// and writes to the part of the destination image defined by dst and the
-// affine transform m applied to sr.
+// and writes the result of a Porter-Duff composition to the part of the
+// destination image defined by dst and the affine transform m applied to sr.
 //
 // For example, if m is the matrix
 //
@@ -53,16 +54,13 @@ type Scaler interface {
 //
 // A Transformer is safe to use concurrently.
 type Transformer interface {
-	Transform(dst Image, m *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options)
+	Transform(dst Image, m *f64.Aff3, src image.Image, sr image.Rectangle, op Op, opts *Options)
 }
 
 // Options are optional parameters to Copy, Scale and Transform.
 //
 // A nil *Options means to use the default (zero) values of each field.
 type Options struct {
-	// Op is the compositing operator. The default value is Over.
-	Op Op
-
 	// Masks limit what parts of the dst image are drawn to and what parts of
 	// the src image are drawn from.
 	//
@@ -124,8 +122,8 @@ type Kernel struct {
 }
 
 // Scale implements the Scaler interface.
-func (q *Kernel) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
-	q.newScaler(dr.Dx(), dr.Dy(), sr.Dx(), sr.Dy(), false).Scale(dst, dr, src, sr, opts)
+func (q *Kernel) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, op Op, opts *Options) {
+	q.newScaler(dr.Dx(), dr.Dy(), sr.Dx(), sr.Dy(), false).Scale(dst, dr, src, sr, op, opts)
 }
 
 // NewScaler returns a Scaler that is optimized for scaling multiple times with
