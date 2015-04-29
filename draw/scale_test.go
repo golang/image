@@ -64,9 +64,6 @@ func testInterp(t *testing.T, w int, h int, direction, prefix, suffix string) {
 	if prefix == "tux" {
 		op, scale = Over, 0.125
 	}
-	opts := &Options{
-		Op: op,
-	}
 	green := image.NewUniform(color.RGBA{0x00, 0x22, 0x11, 0xff})
 
 	testCases := map[string]Interpolator{
@@ -79,11 +76,11 @@ func testInterp(t *testing.T, w int, h int, direction, prefix, suffix string) {
 		goldenFilename := fmt.Sprintf("../testdata/%s-%s-%s.png", prefix, direction, name)
 
 		got := image.NewRGBA(image.Rect(0, 0, w, h))
-		Copy(got, image.Point{}, green, got.Bounds(), nil)
+		Copy(got, image.Point{}, green, got.Bounds(), Src, nil)
 		if direction == "rotate" {
-			q.Transform(got, transformMatrix(scale, 40, 10), src, src.Bounds(), opts)
+			q.Transform(got, transformMatrix(scale, 40, 10), src, src.Bounds(), op, nil)
 		} else {
-			q.Scale(got, got.Bounds(), src, src.Bounds(), opts)
+			q.Scale(got, got.Bounds(), src, src.Bounds(), op, nil)
 		}
 
 		if *genGoldenFiles {
@@ -132,12 +129,12 @@ func TestOps(t *testing.T) {
 	}
 	for op, want := range testCases {
 		dst := image.NewRGBA(image.Rect(0, 0, 2, 2))
-		Copy(dst, image.Point{}, blue, dst.Bounds(), nil)
+		Copy(dst, image.Point{}, blue, dst.Bounds(), Src, nil)
 
 		src := image.NewRGBA(image.Rect(0, 0, 1, 1))
 		src.SetRGBA(0, 0, color.RGBA{0x7f, 0x00, 0x00, 0x7f})
 
-		NearestNeighbor.Scale(dst, dst.Bounds(), src, src.Bounds(), &Options{Op: op})
+		NearestNeighbor.Scale(dst, dst.Bounds(), src, src.Bounds(), op, nil)
 
 		if got := dst.RGBAAt(0, 0); got != want {
 			t.Errorf("op=%v: got %v, want %v", op, got, want)
@@ -176,7 +173,7 @@ func TestNegativeWeights(t *testing.T) {
 	}
 
 	dst := image.NewRGBA(image.Rect(0, 0, 32, 32))
-	CatmullRom.Scale(dst, dst.Bounds(), src, src.Bounds(), nil)
+	CatmullRom.Scale(dst, dst.Bounds(), src, src.Bounds(), Over, nil)
 	if err := check(dst); err != nil {
 		t.Fatalf("dst image: %v", err)
 	}
@@ -213,11 +210,11 @@ func TestInterpClipCommute(t *testing.T) {
 			var interp func(dst *image.RGBA)
 			if transform {
 				interp = func(dst *image.RGBA) {
-					q.Transform(dst, transformMatrix(3.75, 2, 1), src, src.Bounds(), nil)
+					q.Transform(dst, transformMatrix(3.75, 2, 1), src, src.Bounds(), Over, nil)
 				}
 			} else {
 				interp = func(dst *image.RGBA) {
-					q.Scale(dst, outer, src, src.Bounds(), nil)
+					q.Scale(dst, outer, src, src.Bounds(), Over, nil)
 				}
 			}
 
@@ -292,9 +289,9 @@ func TestSrcTranslationInvariance(t *testing.T) {
 		for _, q := range qs {
 			want := image.NewRGBA(image.Rect(0, 0, 20, 20))
 			if transform {
-				q.Transform(want, m00, src, sr, nil)
+				q.Transform(want, m00, src, sr, Over, nil)
 			} else {
-				q.Scale(want, want.Bounds(), src, sr, nil)
+				q.Scale(want, want.Bounds(), src, sr, Over, nil)
 			}
 			for _, delta := range deltas {
 				tsrc := &translatedImage{src, delta}
@@ -304,9 +301,9 @@ func TestSrcTranslationInvariance(t *testing.T) {
 						1, 0, -float64(delta.X),
 						0, 1, -float64(delta.Y),
 					})
-					q.Transform(got, &m, tsrc, sr.Add(delta), nil)
+					q.Transform(got, &m, tsrc, sr.Add(delta), Over, nil)
 				} else {
-					q.Scale(got, got.Bounds(), tsrc, sr.Add(delta), nil)
+					q.Scale(got, got.Bounds(), tsrc, sr.Add(delta), Over, nil)
 				}
 				if !bytes.Equal(got.Pix, want.Pix) {
 					t.Errorf("pix differ for delta=%v, transform=%t, q=%T", delta, transform, q)
@@ -325,8 +322,8 @@ func TestSrcMask(t *testing.T) {
 	red := image.NewUniform(color.RGBA{0xff, 0x00, 0x00, 0xff})
 	blue := image.NewUniform(color.RGBA{0x00, 0x00, 0xff, 0xff})
 	dst := image.NewRGBA(image.Rect(0, 0, 6, 1))
-	Copy(dst, image.Point{}, blue, dst.Bounds(), nil)
-	NearestNeighbor.Scale(dst, dst.Bounds(), red, image.Rect(0, 0, 3, 1), &Options{
+	Copy(dst, image.Point{}, blue, dst.Bounds(), Src, nil)
+	NearestNeighbor.Scale(dst, dst.Bounds(), red, image.Rect(0, 0, 3, 1), Over, &Options{
 		SrcMask:  srcMask,
 		SrcMaskP: image.Point{20, 0},
 	})
@@ -367,8 +364,8 @@ func TestDstMask(t *testing.T) {
 	}
 	for _, q := range qs {
 		dst := image.NewRGBA(image.Rect(0, 0, 3, 1))
-		Copy(dst, image.Point{}, blue, dst.Bounds(), nil)
-		q.Scale(dst, dst.Bounds(), red, red.Bounds(), &Options{
+		Copy(dst, image.Point{}, blue, dst.Bounds(), Src, nil)
+		q.Scale(dst, dst.Bounds(), red, red.Bounds(), Over, &Options{
 			DstMask:  dstMask,
 			DstMaskP: image.Point{20, 0},
 		})
@@ -410,8 +407,8 @@ func TestRectDstMask(t *testing.T) {
 
 	mk := func(q Transformer, dstMask image.Image, dstMaskP image.Point) *image.RGBA {
 		m := image.NewRGBA(bounds)
-		Copy(m, bounds.Min, dstOutside, bounds, nil)
-		q.Transform(m, m00, src, src.Bounds(), &Options{
+		Copy(m, bounds.Min, dstOutside, bounds, Src, nil)
+		q.Transform(m, m00, src, src.Bounds(), Over, &Options{
 			DstMask:  dstMask,
 			DstMaskP: dstMaskP,
 		})
@@ -536,7 +533,6 @@ func TestFastPaths(t *testing.T) {
 				for _, transform := range []bool{false, true} {
 					for _, q := range qs {
 						for _, op := range ops {
-							opts := &Options{Op: op}
 							dst0 := image.NewRGBA(drs[0])
 							dst1 := image.NewRGBA(drs[0])
 							Draw(dst0, dst0.Bounds(), blue, image.Point{}, Src)
@@ -544,11 +540,11 @@ func TestFastPaths(t *testing.T) {
 
 							if transform {
 								m := transformMatrix(3.75, 2, 1)
-								q.Transform(dst0, m, src, sr, opts)
-								q.Transform(dstWrapper{dst1}, m, srcWrapper{src}, sr, opts)
+								q.Transform(dst0, m, src, sr, op, nil)
+								q.Transform(dstWrapper{dst1}, m, srcWrapper{src}, sr, op, nil)
 							} else {
-								q.Scale(dst0, dr, src, sr, opts)
-								q.Scale(dstWrapper{dst1}, dr, srcWrapper{src}, sr, opts)
+								q.Scale(dst0, dr, src, sr, op, nil)
+								q.Scale(dstWrapper{dst1}, dr, srcWrapper{src}, sr, op, nil)
 							}
 
 							if !bytes.Equal(dst0.Pix, dst1.Pix) {
@@ -631,14 +627,11 @@ func benchScale(b *testing.B, w int, h int, op Op, srcf func(image.Rectangle) (i
 	}); ok {
 		scaler = n.NewScaler(dr.Dx(), dr.Dy(), sr.Dx(), sr.Dy())
 	}
-	opts := &Options{
-		Op: op,
-	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		scaler.Scale(dst, dr, src, sr, opts)
+		scaler.Scale(dst, dr, src, sr, op, nil)
 	}
 }
 
@@ -650,14 +643,11 @@ func benchTform(b *testing.B, w int, h int, op Op, srcf func(image.Rectangle) (i
 	}
 	sr := src.Bounds()
 	m := transformMatrix(3.75, 40, 10)
-	opts := &Options{
-		Op: op,
-	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		q.Transform(dst, m, src, sr, opts)
+		q.Transform(dst, m, src, sr, op, nil)
 	}
 }
 

@@ -703,7 +703,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 
 func expnSwitch(op, dType string, expandBoth bool, template string) string {
 	if op == "" && dType != "anyDType" {
-		lines := []string{"switch o.Op {"}
+		lines := []string{"switch op {"}
 		for _, op = range ops {
 			lines = append(lines,
 				fmt.Sprintf("case %s:", op),
@@ -876,7 +876,7 @@ func relName(s string) string {
 
 const (
 	codeRoot = `
-		func (z $receiver) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
+		func (z $receiver) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, op Op, opts *Options) {
 			var o Options
 			if opts != nil {
 				o = *opts
@@ -890,8 +890,8 @@ const (
 			}
 			// Make adr relative to dr.Min.
 			adr = adr.Sub(dr.Min)
-			if o.Op == Over && o.SrcMask == nil && opaque(src) {
-				o.Op = Src
+			if op == Over && o.SrcMask == nil && opaque(src) {
+				op = Src
 			}
 
 			// sr is the source pixels. If it extends beyond the src bounds,
@@ -900,20 +900,20 @@ const (
 			//
 			// Similarly, the fast paths assume that the masks are nil.
 			if o.DstMask != nil || o.SrcMask != nil || !sr.In(src.Bounds()) {
-				switch o.Op {
+				switch op {
 				case Over:
 					z.scale_Image_Image_Over(dst, dr, adr, src, sr, &o)
 				case Src:
 					z.scale_Image_Image_Src(dst, dr, adr, src, sr, &o)
 				}
 			} else if _, ok := src.(*image.Uniform); ok {
-				Draw(dst, dr, src, src.Bounds().Min, o.Op)
+				Draw(dst, dr, src, src.Bounds().Min, op)
 			} else {
 				$switch z.scale_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, src, sr, &o)
 			}
 		}
 
-		func (z $receiver) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
+		func (z $receiver) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, op Op, opts *Options) {
 			var o Options
 			if opts != nil {
 				o = *opts
@@ -926,8 +926,8 @@ const (
 			if adr.Empty() || sr.Empty() {
 				return
 			}
-			if o.Op == Over && o.SrcMask == nil && opaque(src) {
-				o.Op = Src
+			if op == Over && o.SrcMask == nil && opaque(src) {
+				op = Src
 			}
 
 			d2s := invert(s2d)
@@ -951,14 +951,14 @@ const (
 			//
 			// Similarly, the fast paths assume that the masks are nil.
 			if o.DstMask != nil || o.SrcMask != nil || !sr.In(src.Bounds()) {
-				switch o.Op {
+				switch op {
 				case Over:
 					z.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, &o)
 				case Src:
 					z.transform_Image_Image_Src(dst, dr, adr, &d2s, src, sr, bias, &o)
 				}
 			} else if u, ok := src.(*image.Uniform); ok {
-				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, o.Op)
+				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, op)
 			} else {
 				$switch z.transform_$dTypeRN_$sTypeRN$sratio_$op(dst, dr, adr, &d2s, src, sr, bias, &o)
 			}
@@ -1116,9 +1116,9 @@ const (
 	`
 
 	codeKernelRoot = `
-		func (z *kernelScaler) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, opts *Options) {
+		func (z *kernelScaler) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, op Op, opts *Options) {
 			if z.dw != int32(dr.Dx()) || z.dh != int32(dr.Dy()) || z.sw != int32(sr.Dx()) || z.sh != int32(sr.Dy()) {
-				z.kernel.Scale(dst, dr, src, sr, opts)
+				z.kernel.Scale(dst, dr, src, sr, op, opts)
 				return
 			}
 
@@ -1135,12 +1135,12 @@ const (
 			}
 			// Make adr relative to dr.Min.
 			adr = adr.Sub(dr.Min)
-			if o.Op == Over && o.SrcMask == nil && opaque(src) {
-				o.Op = Src
+			if op == Over && o.SrcMask == nil && opaque(src) {
+				op = Src
 			}
 
 			if _, ok := src.(*image.Uniform); ok && o.DstMask == nil && o.SrcMask == nil && sr.In(src.Bounds()) {
-				Draw(dst, dr, src, src.Bounds().Min, o.Op)
+				Draw(dst, dr, src, src.Bounds().Min, op)
 				return
 			}
 
@@ -1168,7 +1168,7 @@ const (
 			}
 
 			if o.DstMask != nil {
-				switch o.Op {
+				switch op {
 				case Over:
 					z.scaleY_Image_Over(dst, dr, adr, tmp, &o)
 				case Src:
@@ -1179,7 +1179,7 @@ const (
 			}
 		}
 
-		func (q *Kernel) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, opts *Options) {
+		func (q *Kernel) Transform(dst Image, s2d *f64.Aff3, src image.Image, sr image.Rectangle, op Op, opts *Options) {
 			var o Options
 			if opts != nil {
 				o = *opts
@@ -1192,8 +1192,8 @@ const (
 			if adr.Empty() || sr.Empty() {
 				return
 			}
-			if o.Op == Over && o.SrcMask == nil && opaque(src) {
-				o.Op = Src
+			if op == Over && o.SrcMask == nil && opaque(src) {
+				op = Src
 			}
 			d2s := invert(s2d)
 			// bias is a translation of the mapping from dst coordinates to src
@@ -1212,7 +1212,7 @@ const (
 			adr = adr.Sub(dr.Min)
 
 			if u, ok := src.(*image.Uniform); ok && o.DstMask != nil && o.SrcMask != nil && sr.In(src.Bounds()) {
-				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, o.Op)
+				transform_Uniform(dst, dr, adr, &d2s, u, sr, bias, op)
 				return
 			}
 
@@ -1231,7 +1231,7 @@ const (
 			//
 			// Similarly, the fast paths assume that the masks are nil.
 			if o.DstMask != nil || o.SrcMask != nil || !sr.In(src.Bounds()) {
-				switch o.Op {
+				switch op {
 				case Over:
 					q.transform_Image_Image_Over(dst, dr, adr, &d2s, src, sr, bias, xscale, yscale, &o)
 				case Src:

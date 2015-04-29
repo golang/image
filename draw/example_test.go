@@ -30,7 +30,7 @@ func ExampleDraw() {
 
 	dst := image.NewRGBA(image.Rect(0, 0, 400, 300))
 	green := image.NewUniform(color.RGBA{0x00, 0x1f, 0x00, 0xff})
-	draw.Copy(dst, image.Point{}, green, dst.Bounds(), nil)
+	draw.Copy(dst, image.Point{}, green, dst.Bounds(), draw.Src, nil)
 	qs := []draw.Interpolator{
 		draw.NearestNeighbor,
 		draw.ApproxBiLinear,
@@ -42,11 +42,11 @@ func ExampleDraw() {
 		+2 * sin60, +2 * cos60, 100,
 	}
 
-	draw.Copy(dst, image.Point{20, 30}, src, src.Bounds(), nil)
+	draw.Copy(dst, image.Point{20, 30}, src, src.Bounds(), draw.Over, nil)
 	for i, q := range qs {
-		q.Scale(dst, image.Rect(200+10*i, 100*i, 600+10*i, 150+100*i), src, src.Bounds(), nil)
+		q.Scale(dst, image.Rect(200+10*i, 100*i, 600+10*i, 150+100*i), src, src.Bounds(), draw.Over, nil)
 	}
-	draw.NearestNeighbor.Transform(dst, t, src, src.Bounds(), nil)
+	draw.NearestNeighbor.Transform(dst, t, src, src.Bounds(), draw.Over, nil)
 
 	red := image.NewNRGBA(image.Rect(0, 0, 16, 16))
 	for y := 0; y < 16; y++ {
@@ -65,14 +65,13 @@ func ExampleDraw() {
 		draw.Src,
 	}
 	for i, op := range ops {
-		q, opts := draw.NearestNeighbor, &draw.Options{Op: op}
 		dr := image.Rect(120+10*i, 150+60*i, 170+10*i, 200+60*i)
-		q.Scale(dst, dr, red, red.Bounds(), opts)
+		draw.NearestNeighbor.Scale(dst, dr, red, red.Bounds(), op, nil)
 		t := &f64.Aff3{
 			+cos60, -sin60, float64(190 + 10*i),
 			+sin60, +cos60, float64(140 + 50*i),
 		}
-		q.Transform(dst, t, red, red.Bounds(), opts)
+		draw.NearestNeighbor.Transform(dst, t, red, red.Bounds(), op, nil)
 	}
 
 	dr := image.Rect(0, 0, 128, 128)
@@ -95,7 +94,7 @@ func ExampleDraw() {
 		}
 	}
 	cyan := image.NewUniform(color.RGBA{0x00, 0xff, 0xff, 0xff})
-	draw.NearestNeighbor.Scale(dst, dr, cyan, sr, &draw.Options{
+	draw.NearestNeighbor.Scale(dst, dr, cyan, sr, draw.Over, &draw.Options{
 		DstMask: checkerboard,
 		SrcMask: circle,
 	})
