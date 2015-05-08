@@ -6,10 +6,12 @@ package bmp
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 )
 
 func openImage(filename string) (image.Image, error) {
@@ -39,6 +41,39 @@ func TestEncode(t *testing.T) {
 	}
 
 	compare(t, img0, img1)
+}
+
+// TestZeroWidthVeryLargeHeight tests that encoding and decoding a degenerate
+// image with zero width but over one billion pixels in height is faster than
+// naively calling an io.Reader or io.Writer method once per row.
+func TestZeroWidthVeryLargeHeight(t *testing.T) {
+	c := make(chan error, 1)
+	go func() {
+		b := image.Rect(0, 0, 0, 0x3fffffff)
+		var buf bytes.Buffer
+		if err := Encode(&buf, image.NewRGBA(b)); err != nil {
+			c <- err
+			return
+		}
+		m, err := Decode(&buf)
+		if err != nil {
+			c <- err
+			return
+		}
+		if got := m.Bounds(); got != b {
+			c <- fmt.Errorf("bounds: got %v, want %v", got, b)
+			return
+		}
+		c <- nil
+	}()
+	select {
+	case err := <-c:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatalf("timed out")
+	}
 }
 
 // BenchmarkEncode benchmarks the encoding of an image.
