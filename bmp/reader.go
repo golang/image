@@ -29,8 +29,11 @@ func readUint32(b []byte) uint32 {
 // decodePaletted reads an 8 bit-per-pixel BMP image from r.
 // If topDown is false, the image rows will be read bottom-up.
 func decodePaletted(r io.Reader, c image.Config, topDown bool) (image.Image, error) {
-	var tmp [4]byte
 	paletted := image.NewPaletted(image.Rect(0, 0, c.Width, c.Height), c.ColorModel.(color.Palette))
+	if c.Width == 0 || c.Height == 0 {
+		return paletted, nil
+	}
+	var tmp [4]byte
 	y0, y1, yDelta := c.Height-1, -1, -1
 	if topDown {
 		y0, y1, yDelta = 0, c.Height, +1
@@ -55,6 +58,9 @@ func decodePaletted(r io.Reader, c image.Config, topDown bool) (image.Image, err
 // If topDown is false, the image rows will be read bottom-up.
 func decodeRGB(r io.Reader, c image.Config, topDown bool) (image.Image, error) {
 	rgba := image.NewRGBA(image.Rect(0, 0, c.Width, c.Height))
+	if c.Width == 0 || c.Height == 0 {
+		return rgba, nil
+	}
 	// There are 3 bytes per pixel, and each row is 4-byte aligned.
 	b := make([]byte, (3*c.Width+3)&^3)
 	y0, y1, yDelta := c.Height-1, -1, -1
@@ -81,6 +87,9 @@ func decodeRGB(r io.Reader, c image.Config, topDown bool) (image.Image, error) {
 // If topDown is false, the image rows will be read bottom-up.
 func decodeNRGBA(r io.Reader, c image.Config, topDown bool) (image.Image, error) {
 	rgba := image.NewNRGBA(image.Rect(0, 0, c.Width, c.Height))
+	if c.Width == 0 || c.Height == 0 {
+		return rgba, nil
+	}
 	y0, y1, yDelta := c.Height-1, -1, -1
 	if topDown {
 		y0, y1, yDelta = 0, c.Height, +1

@@ -6,6 +6,7 @@ package bmp
 
 import (
 	"encoding/binary"
+	"errors"
 	"image"
 	"io"
 )
@@ -89,6 +90,9 @@ func encode(w io.Writer, m image.Image, step int) error {
 // Encode writes the image m to w in BMP format.
 func Encode(w io.Writer, m image.Image) error {
 	d := m.Bounds().Size()
+	if d.X < 0 || d.Y < 0 {
+		return errors.New("bmp: negative bounds")
+	}
 	h := &header{
 		sigBM:         [2]byte{'B', 'M'},
 		fileSize:      14 + 40,
@@ -144,6 +148,10 @@ func Encode(w io.Writer, m image.Image) error {
 		if err := binary.Write(w, binary.LittleEndian, palette); err != nil {
 			return err
 		}
+	}
+
+	if d.X == 0 || d.Y == 0 {
+		return nil
 	}
 
 	switch m := m.(type) {
