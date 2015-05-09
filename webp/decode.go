@@ -144,6 +144,9 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 				}, nil
 			}
 			wantAlpha = true
+
+		default:
+			return nil, image.Config{}, errInvalidFormat
 		}
 	}
 }
