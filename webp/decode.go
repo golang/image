@@ -77,7 +77,7 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 			unfilterAlpha(alpha, alphaStride, (buf[0]>>2)&0x03)
 
 		case fccVP8:
-			if wantAlpha {
+			if wantAlpha || int32(chunkLen) < 0 {
 				return nil, image.Config{}, errInvalidFormat
 			}
 			d := vp8.NewDecoder()

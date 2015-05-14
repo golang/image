@@ -254,6 +254,25 @@ loop:
 	}
 }
 
+// TestDecodePartitionTooLarge tests that decoding a malformed WEBP image
+// doesn't try to allocate an unreasonable amount of memory. This WEBP image
+// claims a RIFF chunk length of 0x12345678 bytes (291 MiB) compressed,
+// independent of the actual image size (0 pixels wide * 0 pixels high).
+//
+// This is based on golang.org/issue/10790.
+func TestDecodePartitionTooLarge(t *testing.T) {
+	data := "RIFF\xff\xff\xff\x7fWEBPVP8 " +
+		"\x78\x56\x34\x12" + // RIFF chunk length.
+		"\xbd\x01\x00\x14\x00\x00\xb2\x34\x0a\x9d\x01\x2a\x96\x00\x67\x00"
+	_, err := Decode(strings.NewReader(data))
+	if err == nil {
+		t.Fatal("got nil error, want non-nil")
+	}
+	if got, want := err.Error(), "too much data"; !strings.Contains(got, want) {
+		t.Fatalf("got error %q, want something containing %q", got, want)
+	}
+}
+
 func benchmarkDecode(b *testing.B, filename string) {
 	data, err := ioutil.ReadFile("../testdata/blue-purple-pink-large." + filename + ".webp")
 	if err != nil {
