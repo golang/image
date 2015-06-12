@@ -255,12 +255,35 @@ func TestLargeIFDEntry(t *testing.T) {
 	}
 }
 
+// TestZeroBitsPerSample verifies that an IFD with a bitsPerSample of 0 does not cause a crash.
+// Issue 10711.
+func TestZeroBitsPerSample(t *testing.T) {
+	contents, err := ioutil.ReadFile(testdataDir + "bw-deflate.tiff")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Mutate the loaded image to have the problem.
+	// 02 01: tag number (tBitsPerSample)
+	// 03 00: data type (short, or uint16)
+	// 01 00 00 00: count
+	// ?? 00 00 00: value (1 -> 0)
+	find := []byte{2, 1, 3, 0, 1, 0, 0, 0, 1, 0, 0, 0}
+	repl := []byte{2, 1, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0}
+	contents = bytes.Replace(contents, find, repl, 1)
+
+	_, err = Decode(bytes.NewReader(contents))
+	if err == nil {
+		t.Fatal("Decode with 0 bits per sample: got nil error, want non-nil")
+	}
+}
+
 // benchmarkDecode benchmarks the decoding of an image.
 func benchmarkDecode(b *testing.B, filename string) {
 	b.StopTimer()
 	contents, err := ioutil.ReadFile(testdataDir + filename)
 	if err != nil {
-		panic(err)
+		b.Fatal(err)
 	}
 	r := &buffer{buf: contents}
 	b.StartTimer()

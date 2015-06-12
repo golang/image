@@ -231,7 +231,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 					off += 2
 				}
 			}
-		} else if d.bpp == 8 {
+		} else {
 			var off int
 			n := 1 * len(d.features[tBitsPerSample]) // bytes per sample times samples per pixel
 			for y := ymin; y < ymax; y++ {
@@ -436,6 +436,14 @@ func newDecoder(r io.Reader) (*decoder, error) {
 		return nil, FormatError("BitsPerSample tag missing")
 	}
 	d.bpp = d.firstVal(tBitsPerSample)
+	switch d.bpp {
+	case 0:
+		return nil, FormatError("BitsPerSample must not be 0")
+	case 1, 8, 16:
+		// Nothing to do, these are accepted by this implementation.
+	default:
+		return nil, UnsupportedError(fmt.Sprintf("BitsPerSample of %v", d.bpp))
+	}
 
 	// Determine the image mode.
 	switch d.firstVal(tPhotometricInterpretation) {
