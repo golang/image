@@ -321,7 +321,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 				max := img.PixOffset(rMaxX, y)
 				off := (y - ymin) * (xmax - xmin) * 3
 				for i := min; i < max; i += 4 {
-					if d.off+3 > len(d.buf) {
+					if off+3 > len(d.buf) {
 						return FormatError("not enough pixel data")
 					}
 					img.Pix[i+0] = d.buf[off+0]

@@ -211,6 +211,45 @@ func TestDecompress(t *testing.T) {
 	}
 }
 
+// TestTileTooBig checks that we do not panic when a tile is too big compared
+// to the data available.
+// Issue 10712
+func TestTileTooBig(t *testing.T) {
+	contents, err := ioutil.ReadFile(testdataDir + "video-001-tile-64x64.tiff")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Mutate the loaded image to have the problem.
+	//
+	// 0x42 01: tag number (tTileWidth)
+	// 03 00: data type (short, or uint16)
+	// 01 00 00 00: count
+	// xx 00 00 00: value (0x40 -> 0x44: a wider tile consumes more data
+	// than is available)
+	find := []byte{0x42, 0x01, 3, 0, 1, 0, 0, 0, 0x40, 0, 0, 0}
+	repl := []byte{0x42, 0x01, 3, 0, 1, 0, 0, 0, 0x44, 0, 0, 0}
+	contents = bytes.Replace(contents, find, repl, 1)
+
+	// Turn off the predictor, which makes it possible to hit the
+	// place with the defect. Without this patch to the image, we run
+	// out of data too early, and do not hit the part of the code where
+	// the original panic was.
+	//
+	// 42 01: tag number (tPredictor)
+	// 03 00: data type (short, or uint16)
+	// 01 00 00 00: count
+	// xx 00 00 00: value (2 -> 1: 2 = horizontal, 1 = none)
+	find = []byte{0x3d, 0x01, 3, 0, 1, 0, 0, 0, 2, 0, 0, 0}
+	repl = []byte{0x3d, 0x01, 3, 0, 1, 0, 0, 0, 1, 0, 0, 0}
+	contents = bytes.Replace(contents, find, repl, 1)
+
+	_, err = Decode(bytes.NewReader(contents))
+	if err == nil {
+		t.Fatal("did not expect nil error")
+	}
+}
+
 // Do not panic when image dimensions are zero, return zero-sized
 // image instead.
 // Issue 10393.
