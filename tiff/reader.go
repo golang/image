@@ -42,6 +42,8 @@ func (e InternalError) Error() string {
 	return "tiff: internal error: " + string(e)
 }
 
+var errNoPixels = FormatError("not enough pixel data")
+
 type decoder struct {
 	r         io.ReaderAt
 	byteOrder binary.ByteOrder
@@ -224,7 +226,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 				off += n
 				for x := 0; x < (xmax-xmin-1)*n; x += 2 {
 					if off+2 > len(d.buf) {
-						return FormatError("not enough pixel data")
+						return errNoPixels
 					}
 					v0 := d.byteOrder.Uint16(d.buf[off-n : off-n+2])
 					v1 := d.byteOrder.Uint16(d.buf[off : off+2])
@@ -239,7 +241,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 				off += n
 				for x := 0; x < (xmax-xmin-1)*n; x++ {
 					if off >= len(d.buf) {
-						return FormatError("not enough pixel data")
+						return errNoPixels
 					}
 					d.buf[off] += d.buf[off-n]
 					off++
@@ -259,7 +261,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 			for y := ymin; y < rMaxY; y++ {
 				for x := xmin; x < rMaxX; x++ {
 					if d.off+2 > len(d.buf) {
-						return FormatError("not enough pixel data")
+						return errNoPixels
 					}
 					v := d.byteOrder.Uint16(d.buf[d.off : d.off+2])
 					d.off += 2
@@ -276,7 +278,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 				for x := xmin; x < rMaxX; x++ {
 					v, ok := d.readBits(d.bpp)
 					if !ok {
-						return FormatError("not enough pixel data")
+						return errNoPixels
 					}
 					v = v * 0xff / max
 					if d.mode == mGrayInvert {
@@ -293,7 +295,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 			for x := xmin; x < rMaxX; x++ {
 				v, ok := d.readBits(d.bpp)
 				if !ok {
-					return FormatError("not enough pixel data")
+					return errNoPixels
 				}
 				img.SetColorIndex(x, y, uint8(v))
 			}
@@ -305,7 +307,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 			for y := ymin; y < rMaxY; y++ {
 				for x := xmin; x < rMaxX; x++ {
 					if d.off+6 > len(d.buf) {
-						return FormatError("not enough pixel data")
+						return errNoPixels
 					}
 					r := d.byteOrder.Uint16(d.buf[d.off+0 : d.off+2])
 					g := d.byteOrder.Uint16(d.buf[d.off+2 : d.off+4])
@@ -322,7 +324,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 				off := (y - ymin) * (xmax - xmin) * 3
 				for i := min; i < max; i += 4 {
 					if off+3 > len(d.buf) {
-						return FormatError("not enough pixel data")
+						return errNoPixels
 					}
 					img.Pix[i+0] = d.buf[off+0]
 					img.Pix[i+1] = d.buf[off+1]
@@ -338,7 +340,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 			for y := ymin; y < rMaxY; y++ {
 				for x := xmin; x < rMaxX; x++ {
 					if d.off+8 > len(d.buf) {
-						return FormatError("not enough pixel data")
+						return errNoPixels
 					}
 					r := d.byteOrder.Uint16(d.buf[d.off+0 : d.off+2])
 					g := d.byteOrder.Uint16(d.buf[d.off+2 : d.off+4])
@@ -355,7 +357,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 				max := img.PixOffset(rMaxX, y)
 				i0, i1 := (y-ymin)*(xmax-xmin)*4, (y-ymin+1)*(xmax-xmin)*4
 				if i1 > len(d.buf) {
-					return FormatError("not enough pixel data")
+					return errNoPixels
 				}
 				copy(img.Pix[min:max], d.buf[i0:i1])
 			}
@@ -366,7 +368,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 			for y := ymin; y < rMaxY; y++ {
 				for x := xmin; x < rMaxX; x++ {
 					if d.off+8 > len(d.buf) {
-						return FormatError("not enough pixel data")
+						return errNoPixels
 					}
 					r := d.byteOrder.Uint16(d.buf[d.off+0 : d.off+2])
 					g := d.byteOrder.Uint16(d.buf[d.off+2 : d.off+4])
@@ -383,7 +385,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 				max := img.PixOffset(rMaxX, y)
 				i0, i1 := (y-ymin)*(xmax-xmin)*4, (y-ymin+1)*(xmax-xmin)*4
 				if i1 > len(d.buf) {
-					return FormatError("not enough pixel data")
+					return errNoPixels
 				}
 				copy(img.Pix[min:max], d.buf[i0:i1])
 			}
