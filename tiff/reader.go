@@ -216,7 +216,8 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 	// In this case, p contains the color difference to the preceding pixel.
 	// See page 64-65 of the spec.
 	if d.firstVal(tPredictor) == prHorizontal {
-		if d.bpp == 16 {
+		switch d.bpp {
+		case 16:
 			var off int
 			n := 2 * len(d.features[tBitsPerSample]) // bytes per sample times samples per pixel
 			for y := ymin; y < ymax; y++ {
@@ -231,7 +232,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 					off += 2
 				}
 			}
-		} else {
+		case 8:
 			var off int
 			n := 1 * len(d.features[tBitsPerSample]) // bytes per sample times samples per pixel
 			for y := ymin; y < ymax; y++ {
@@ -244,6 +245,8 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 					off++
 				}
 			}
+		case 1:
+			return UnsupportedError("horizontal predictor with 1 BitsPerSample")
 		}
 	}
 
