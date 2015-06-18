@@ -7,6 +7,8 @@ package tiff
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
+	"errors"
 	"image"
 	"io/ioutil"
 	"os"
@@ -211,40 +213,71 @@ func TestDecompress(t *testing.T) {
 	}
 }
 
+func replace(src []byte, find, repl string) ([]byte, error) {
+	removeSpaces := func(r rune) rune {
+		if r != ' ' {
+			return r
+		}
+		return -1
+	}
+
+	f, err := hex.DecodeString(strings.Map(removeSpaces, find))
+	if err != nil {
+		return nil, err
+	}
+	r, err := hex.DecodeString(strings.Map(removeSpaces, repl))
+	if err != nil {
+		return nil, err
+	}
+	dst := bytes.Replace(src, f, r, 1)
+	if bytes.Equal(dst, src) {
+		return nil, errors.New("replacement failed")
+	}
+	return dst, nil
+}
+
 // TestTileTooBig checks that we do not panic when a tile is too big compared
 // to the data available.
 // Issue 10712
 func TestTileTooBig(t *testing.T) {
-	contents, err := ioutil.ReadFile(testdataDir + "video-001-tile-64x64.tiff")
+	b0, err := ioutil.ReadFile(testdataDir + "video-001-tile-64x64.tiff")
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Mutate the loaded image to have the problem.
 	//
-	// 0x42 01: tag number (tTileWidth)
+	// 42 01: tag number (tTileWidth)
 	// 03 00: data type (short, or uint16)
 	// 01 00 00 00: count
 	// xx 00 00 00: value (0x40 -> 0x44: a wider tile consumes more data
 	// than is available)
-	find := []byte{0x42, 0x01, 3, 0, 1, 0, 0, 0, 0x40, 0, 0, 0}
-	repl := []byte{0x42, 0x01, 3, 0, 1, 0, 0, 0, 0x44, 0, 0, 0}
-	contents = bytes.Replace(contents, find, repl, 1)
+	b1, err := replace(b0,
+		"42 01 03 00 01 00 00 00 40 00 00 00",
+		"42 01 03 00 01 00 00 00 44 00 00 00",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Turn off the predictor, which makes it possible to hit the
 	// place with the defect. Without this patch to the image, we run
 	// out of data too early, and do not hit the part of the code where
 	// the original panic was.
 	//
-	// 42 01: tag number (tPredictor)
+	// 3d 01: tag number (tPredictor)
 	// 03 00: data type (short, or uint16)
 	// 01 00 00 00: count
 	// xx 00 00 00: value (2 -> 1: 2 = horizontal, 1 = none)
-	find = []byte{0x3d, 0x01, 3, 0, 1, 0, 0, 0, 2, 0, 0, 0}
-	repl = []byte{0x3d, 0x01, 3, 0, 1, 0, 0, 0, 1, 0, 0, 0}
-	contents = bytes.Replace(contents, find, repl, 1)
+	b2, err := replace(b1,
+		"3d 01 03 00 01 00 00 00 02 00 00 00",
+		"3d 01 03 00 01 00 00 00 01 00 00 00",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	_, err = Decode(bytes.NewReader(contents))
+	_, err = Decode(bytes.NewReader(b2))
 	if err == nil {
 		t.Fatal("did not expect nil error")
 	}
@@ -297,7 +330,7 @@ func TestLargeIFDEntry(t *testing.T) {
 // TestZeroBitsPerSample verifies that an IFD with a bitsPerSample of 0 does not cause a crash.
 // Issue 10711.
 func TestZeroBitsPerSample(t *testing.T) {
-	contents, err := ioutil.ReadFile(testdataDir + "bw-deflate.tiff")
+	b0, err := ioutil.ReadFile(testdataDir + "bw-deflate.tiff")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,11 +340,15 @@ func TestZeroBitsPerSample(t *testing.T) {
 	// 03 00: data type (short, or uint16)
 	// 01 00 00 00: count
 	// ?? 00 00 00: value (1 -> 0)
-	find := []byte{2, 1, 3, 0, 1, 0, 0, 0, 1, 0, 0, 0}
-	repl := []byte{2, 1, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0}
-	contents = bytes.Replace(contents, find, repl, 1)
+	b1, err := replace(b0,
+		"02 01 03 00 01 00 00 00 01 00 00 00",
+		"02 01 03 00 01 00 00 00 00 00 00 00",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	_, err = Decode(bytes.NewReader(contents))
+	_, err = Decode(bytes.NewReader(b1))
 	if err == nil {
 		t.Fatal("Decode with 0 bits per sample: got nil error, want non-nil")
 	}
