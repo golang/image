@@ -154,6 +154,7 @@ func (d *decoder) decode() {
 				err = io.ErrUnexpectedEOF
 			}
 			d.err = err
+			d.flush()
 			return
 		}
 		switch {
@@ -205,6 +206,7 @@ func (d *decoder) decode() {
 			}
 		default:
 			d.err = errors.New("lzw: invalid code")
+			d.flush()
 			return
 		}
 		d.last, d.hi = code, d.hi+1
