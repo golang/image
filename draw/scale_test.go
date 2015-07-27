@@ -23,9 +23,9 @@ import (
 
 var genGoldenFiles = flag.Bool("gen_golden_files", false, "whether to generate the TestXxx golden files.")
 
-var transformMatrix = func(scale, tx, ty float64) *f64.Aff3 {
+var transformMatrix = func(scale, tx, ty float64) f64.Aff3 {
 	const cos30, sin30 = 0.866025404, 0.5
-	return &f64.Aff3{
+	return f64.Aff3{
 		+scale * cos30, -scale * sin30, tx,
 		+scale * sin30, +scale * cos30, ty,
 	}
@@ -297,11 +297,11 @@ func TestSrcTranslationInvariance(t *testing.T) {
 				tsrc := &translatedImage{src, delta}
 				got := image.NewRGBA(image.Rect(0, 0, 20, 20))
 				if transform {
-					m := matMul(m00, &f64.Aff3{
+					m := matMul(&m00, &f64.Aff3{
 						1, 0, -float64(delta.X),
 						0, 1, -float64(delta.Y),
 					})
-					q.Transform(got, &m, tsrc, sr.Add(delta), Over, nil)
+					q.Transform(got, m, tsrc, sr.Add(delta), Over, nil)
 				} else {
 					q.Scale(got, got.Bounds(), tsrc, sr.Add(delta), Over, nil)
 				}
