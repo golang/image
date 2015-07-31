@@ -121,6 +121,95 @@ func TestScaleUp(t *testing.T)   { testInterp(t, 75, 100, "up", "go-turns-two", 
 func TestTformSrc(t *testing.T)  { testInterp(t, 100, 100, "rotate", "go-turns-two", "-14x18.png") }
 func TestTformOver(t *testing.T) { testInterp(t, 100, 100, "rotate", "tux", ".png") }
 
+// TestSimpleTransforms tests Scale and Transform calls that simplify to Copy
+// or Scale calls.
+func TestSimpleTransforms(t *testing.T) {
+	f, err := os.Open("../testdata/testpattern.png") // A 100x100 image.
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer f.Close()
+	src, _, err := image.Decode(f)
+	if err != nil {
+		t.Fatalf("Decode: %v", err)
+	}
+
+	dst0 := image.NewRGBA(image.Rect(0, 0, 120, 150))
+	dst1 := image.NewRGBA(image.Rect(0, 0, 120, 150))
+	for _, op := range []string{"scale/copy", "tform/copy", "tform/scale"} {
+		for _, epsilon := range []float64{0, 1e-50, 1e-1} {
+			Copy(dst0, image.Point{}, image.Transparent, dst0.Bounds(), Src, nil)
+			Copy(dst1, image.Point{}, image.Transparent, dst1.Bounds(), Src, nil)
+
+			switch op {
+			case "scale/copy":
+				dr := image.Rect(10, 30, 10+100, 30+100)
+				if epsilon > 1e-10 {
+					dr.Max.X++
+				}
+				Copy(dst0, image.Point{10, 30}, src, src.Bounds(), Src, nil)
+				ApproxBiLinear.Scale(dst1, dr, src, src.Bounds(), Src, nil)
+			case "tform/copy":
+				Copy(dst0, image.Point{10, 30}, src, src.Bounds(), Src, nil)
+				ApproxBiLinear.Transform(dst1, f64.Aff3{
+					1, 0 + epsilon, 10,
+					0, 1, 30,
+				}, src, src.Bounds(), Src, nil)
+			case "tform/scale":
+				ApproxBiLinear.Scale(dst0, image.Rect(10, 50, 10+50, 50+50), src, src.Bounds(), Src, nil)
+				ApproxBiLinear.Transform(dst1, f64.Aff3{
+					0.5, 0.0 + epsilon, 10,
+					0.0, 0.5, 50,
+				}, src, src.Bounds(), Src, nil)
+			}
+
+			differ := !bytes.Equal(dst0.Pix, dst1.Pix)
+			if epsilon > 1e-10 {
+				if !differ {
+					t.Errorf("%s yielded same pixels, want different pixels: epsilon=%v", op, epsilon)
+				}
+			} else {
+				if differ {
+					t.Errorf("%s yielded different pixels, want same pixels: epsilon=%v", op, epsilon)
+				}
+			}
+		}
+	}
+}
+
+func BenchmarkSimpleScaleCopy(b *testing.B) {
+	dst := image.NewRGBA(image.Rect(0, 0, 640, 480))
+	src := image.NewRGBA(image.Rect(0, 0, 400, 300))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ApproxBiLinear.Scale(dst, image.Rect(10, 20, 10+400, 20+300), src, src.Bounds(), Src, nil)
+	}
+}
+
+func BenchmarkSimpleTransformCopy(b *testing.B) {
+	dst := image.NewRGBA(image.Rect(0, 0, 640, 480))
+	src := image.NewRGBA(image.Rect(0, 0, 400, 300))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ApproxBiLinear.Transform(dst, f64.Aff3{
+			1, 0, 10,
+			0, 1, 20,
+		}, src, src.Bounds(), Src, nil)
+	}
+}
+
+func BenchmarkSimpleTransformScale(b *testing.B) {
+	dst := image.NewRGBA(image.Rect(0, 0, 640, 480))
+	src := image.NewRGBA(image.Rect(0, 0, 400, 300))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ApproxBiLinear.Transform(dst, f64.Aff3{
+			0.5, 0.0, 10,
+			0.0, 0.5, 20,
+		}, src, src.Bounds(), Src, nil)
+	}
+}
+
 func TestOps(t *testing.T) {
 	blue := image.NewUniform(color.RGBA{0x00, 0x00, 0xff, 0xff})
 	testCases := map[Op]color.RGBA{
