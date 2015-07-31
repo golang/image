@@ -877,6 +877,12 @@ func relName(s string) string {
 const (
 	codeRoot = `
 		func (z $receiver) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, op Op, opts *Options) {
+			// Try to simplify a Scale to a Copy.
+			if dr.Size() == sr.Size() {
+				Copy(dst, dr.Min, src, sr, op, opts)
+				return
+			}
+
 			var o Options
 			if opts != nil {
 				o = *opts
@@ -914,6 +920,16 @@ const (
 		}
 
 		func (z $receiver) Transform(dst Image, s2d f64.Aff3, src image.Image, sr image.Rectangle, op Op, opts *Options) {
+			// Try to simplify a Transform to a Copy.
+			if s2d[0] == 1 && s2d[1] == 0 && s2d[3] == 0 && s2d[4] == 1 {
+				dx := int(s2d[2])
+				dy := int(s2d[5])
+				if float64(dx) == s2d[2] && float64(dy) == s2d[5] {
+					Copy(dst, image.Point{X: sr.Min.X + dx, Y: sr.Min.X + dy}, src, sr, op, opts)
+					return
+				}
+			}
+
 			var o Options
 			if opts != nil {
 				o = *opts
