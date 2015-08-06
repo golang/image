@@ -57,3 +57,13 @@ func (x Int52_12) String() string {
 	}
 	return "-2251799813685248:0000" // The minimum value is -(1<<51).
 }
+
+// Point26_6 is a 26.6 fixed-point coordinate pair.
+type Point26_6 struct {
+	X, Y Int26_6
+}
+
+// Point52_12 is a 52.12 fixed-point coordinate pair.
+type Point52_12 struct {
+	X, Y Int52_12
+}
