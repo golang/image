@@ -63,7 +63,47 @@ type Point26_6 struct {
 	X, Y Int26_6
 }
 
+// Add returns the vector p+q.
+func (p Point26_6) Add(q Point26_6) Point26_6 {
+	return Point26_6{p.X + q.X, p.Y + q.Y}
+}
+
+// Sub returns the vector p-q.
+func (p Point26_6) Sub(q Point26_6) Point26_6 {
+	return Point26_6{p.X - q.X, p.Y - q.Y}
+}
+
+// Mul returns the vector p*k.
+func (p Point26_6) Mul(k Int26_6) Point26_6 {
+	return Point26_6{p.X * k / 64, p.Y * k / 64}
+}
+
+// Div returns the vector p/k.
+func (p Point26_6) Div(k Int26_6) Point26_6 {
+	return Point26_6{p.X * 64 / k, p.Y * 64 / k}
+}
+
 // Point52_12 is a 52.12 fixed-point coordinate pair.
 type Point52_12 struct {
 	X, Y Int52_12
+}
+
+// Add returns the vector p+q.
+func (p Point52_12) Add(q Point52_12) Point52_12 {
+	return Point52_12{p.X + q.X, p.Y + q.Y}
+}
+
+// Sub returns the vector p-q.
+func (p Point52_12) Sub(q Point52_12) Point52_12 {
+	return Point52_12{p.X - q.X, p.Y - q.Y}
+}
+
+// Mul returns the vector p*k.
+func (p Point52_12) Mul(k Int52_12) Point52_12 {
+	return Point52_12{p.X * k / 4096, p.Y * k / 4096}
+}
+
+// Div returns the vector p/k.
+func (p Point52_12) Div(k Int52_12) Point52_12 {
+	return Point52_12{p.X * 4096 / k, p.Y * 4096 / k}
 }
