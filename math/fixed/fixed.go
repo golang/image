@@ -11,6 +11,13 @@ import (
 
 // TODO: implement fmt.Formatter for %f and %g.
 
+// I returns the integer value i as an Int26_6.
+//
+// For example, the integer value 2 is the Int26_6 128.
+func I(i int) Int26_6 {
+	return Int26_6(i << 6)
+}
+
 // Int26_6 is a signed 26.6 fixed-point number.
 //
 // The integer part ranges from -33554432 to 33554431, inclusive. The
@@ -56,6 +63,13 @@ func (x Int52_12) String() string {
 		return fmt.Sprintf("-%d:%04d", int64(x>>shift), int64(x&mask))
 	}
 	return "-2251799813685248:0000" // The minimum value is -(1<<51).
+}
+
+// P returns the integer values x and y as a Point26_6.
+//
+// For example, the integer value pair (2, -3) is the Point26_6 (128, -192).
+func P(x, y int) Point26_6 {
+	return Point26_6{Int26_6(x << 6), Int26_6(y << 6)}
 }
 
 // Point26_6 is a 26.6 fixed-point coordinate pair.
