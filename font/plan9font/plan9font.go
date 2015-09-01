@@ -5,7 +5,7 @@
 // Package plan9font implements font faces for the Plan 9 font and subfont file
 // formats. These formats are described at
 // http://plan9.bell-labs.com/magic/man2html/6/font
-package plan9font
+package plan9font // import "golang.org/x/image/font/plan9font"
 
 // TODO: have a subface use an *image.Alpha instead of plan9Image implementing
 // the image.Image interface? The image/draw code has a fast path for
@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/exp/shiny/font"
+	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )
 
