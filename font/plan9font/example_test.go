@@ -13,8 +13,8 @@ import (
 	"path"
 	"path/filepath"
 
-	"golang.org/x/exp/shiny/font"
-	"golang.org/x/exp/shiny/font/plan9font"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/plan9font"
 	"golang.org/x/image/math/fixed"
 )
 

@@ -4,7 +4,7 @@
 
 // +build ignore
 //
-// This build tag means that "go install golang.org/x/exp/shiny/..." doesn't
+// This build tag means that "go install golang.org/x/image/..." doesn't
 // install this example program. Use "go run main.go" to run it.
 
 // Font is a basic example of using fonts.
@@ -22,8 +22,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"golang.org/x/exp/shiny/font"
-	"golang.org/x/exp/shiny/font/plan9font"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/plan9font"
 	"golang.org/x/image/math/fixed"
 )
 
