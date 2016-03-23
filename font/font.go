@@ -64,9 +64,21 @@ type Face interface {
 	// positive kern means to move the glyphs further apart.
 	Kern(r0, r1 rune) fixed.Int26_6
 
-	// TODO: per-font Metrics.
+	// Metrics returns the metrics for this Face.
+	Metrics() Metrics
+
 	// TODO: ColoredGlyph for various emoji?
 	// TODO: Ligatures? Shaping?
+}
+
+// Metrics holds the metrics for a Face. A visual depiction is at
+// https://developer.apple.com/library/mac/documentation/TextFonts/Conceptual/CocoaTextArchitecture/Art/glyph_metrics_2x.png
+type Metrics struct {
+	// Ascent is the distance from the top of a line to its baseline.
+	Ascent fixed.Int26_6
+
+	// Height is the recommended amount of vertical space between two lines of text.
+	Height fixed.Int26_6
 }
 
 // TODO: Drawer.Layout or Drawer.Measure methods to measure text without

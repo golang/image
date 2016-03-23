@@ -10,6 +10,7 @@ package basicfont // import "golang.org/x/image/font/basicfont"
 import (
 	"image"
 
+	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -69,6 +70,13 @@ type Face struct {
 
 func (f *Face) Close() error                   { return nil }
 func (f *Face) Kern(r0, r1 rune) fixed.Int26_6 { return 0 }
+
+func (f *Face) Metrics() font.Metrics {
+	return font.Metrics{
+		Height: fixed.I(f.Height),
+		Ascent: fixed.I(f.Ascent),
+	}
+}
 
 func (f *Face) Glyph(dot fixed.Point26_6, r rune) (
 	dr image.Rectangle, mask image.Image, maskp image.Point, advance fixed.Int26_6, ok bool) {
