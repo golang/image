@@ -73,8 +73,9 @@ func (f *Face) Kern(r0, r1 rune) fixed.Int26_6 { return 0 }
 
 func (f *Face) Metrics() font.Metrics {
 	return font.Metrics{
-		Height: fixed.I(f.Height),
-		Ascent: fixed.I(f.Ascent),
+		Height:  fixed.I(f.Height),
+		Ascent:  fixed.I(f.Ascent),
+		Descent: fixed.I(f.Height - f.Ascent),
 	}
 }
 
