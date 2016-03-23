@@ -65,6 +65,13 @@ type subface struct {
 func (f *subface) Close() error                   { return nil }
 func (f *subface) Kern(r0, r1 rune) fixed.Int26_6 { return 0 }
 
+func (f *subface) Metrics() font.Metrics {
+	return font.Metrics{
+		Height: fixed.I(f.height),
+		Ascent: fixed.I(f.ascent),
+	}
+}
+
 func (f *subface) Glyph(dot fixed.Point26_6, r rune) (
 	dr image.Rectangle, mask image.Image, maskp image.Point, advance fixed.Int26_6, ok bool) {
 
@@ -138,6 +145,13 @@ type face struct {
 
 func (f *face) Close() error                   { return nil }
 func (f *face) Kern(r0, r1 rune) fixed.Int26_6 { return 0 }
+
+func (f *face) Metrics() font.Metrics {
+	return font.Metrics{
+		Height: fixed.I(f.height),
+		Ascent: fixed.I(f.ascent),
+	}
+}
 
 func (f *face) Glyph(dot fixed.Point26_6, r rune) (
 	dr image.Rectangle, mask image.Image, maskp image.Point, advance fixed.Int26_6, ok bool) {
