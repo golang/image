@@ -67,8 +67,9 @@ func (f *subface) Kern(r0, r1 rune) fixed.Int26_6 { return 0 }
 
 func (f *subface) Metrics() font.Metrics {
 	return font.Metrics{
-		Height: fixed.I(f.height),
-		Ascent: fixed.I(f.ascent),
+		Height:  fixed.I(f.height),
+		Ascent:  fixed.I(f.ascent),
+		Descent: fixed.I(f.height - f.ascent),
 	}
 }
 
@@ -148,8 +149,9 @@ func (f *face) Kern(r0, r1 rune) fixed.Int26_6 { return 0 }
 
 func (f *face) Metrics() font.Metrics {
 	return font.Metrics{
-		Height: fixed.I(f.height),
-		Ascent: fixed.I(f.ascent),
+		Height:  fixed.I(f.height),
+		Ascent:  fixed.I(f.ascent),
+		Descent: fixed.I(f.height - f.ascent),
 	}
 }
 

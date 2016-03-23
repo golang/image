@@ -74,11 +74,17 @@ type Face interface {
 // Metrics holds the metrics for a Face. A visual depiction is at
 // https://developer.apple.com/library/mac/documentation/TextFonts/Conceptual/CocoaTextArchitecture/Art/glyph_metrics_2x.png
 type Metrics struct {
+	// Height is the recommended amount of vertical space between two lines of
+	// text.
+	Height fixed.Int26_6
+
 	// Ascent is the distance from the top of a line to its baseline.
 	Ascent fixed.Int26_6
 
-	// Height is the recommended amount of vertical space between two lines of text.
-	Height fixed.Int26_6
+	// Descent is the distance from the bottom of a line to its baseline. The
+	// value is typically positive, even though a descender goes below the
+	// baseline.
+	Descent fixed.Int26_6
 }
 
 // TODO: Drawer.Layout or Drawer.Measure methods to measure text without
