@@ -26,7 +26,6 @@ import (
 	"strings"
 
 	"golang.org/x/image/webp"
-	"golang.org/x/image/webp/nycbcra"
 )
 
 var (
@@ -161,12 +160,12 @@ func encodePAM(gotImage image.Image) ([]byte, error) {
 func encodePGM(gotImage image.Image) ([]byte, error) {
 	var (
 		m  *image.YCbCr
-		ma *nycbcra.Image
+		ma *image.NYCbCrA
 	)
 	switch g := gotImage.(type) {
 	case *image.YCbCr:
 		m = g
-	case *nycbcra.Image:
+	case *image.NYCbCrA:
 		m = &g.YCbCr
 		ma = g
 	default:

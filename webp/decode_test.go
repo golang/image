@@ -13,8 +13,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-
-	"golang.org/x/image/webp/nycbcra"
 )
 
 // hex is like fmt.Sprintf("% x", x) but also inserts dots every 16 bytes, to
@@ -54,11 +52,11 @@ func testDecodeLossy(t *testing.T, tc string, withAlpha bool) {
 
 	var (
 		m0 *image.YCbCr
-		a0 *nycbcra.Image
+		a0 *image.NYCbCrA
 		ok bool
 	)
 	if withAlpha {
-		a0, ok = img0.(*nycbcra.Image)
+		a0, ok = img0.(*image.NYCbCrA)
 		if ok {
 			m0 = &a0.YCbCr
 		}
