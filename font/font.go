@@ -205,16 +205,21 @@ const (
 // Weight selects a normal, light or bold face.
 //
 // Not all fonts support weights.
+//
+// The named Weight constants (e.g. WeightBold) correspond to CSS' common
+// weight names (e.g. "Bold"), but the numerical values differ, so that in Go,
+// the zero value means to use a normal weight. For the CSS names and values,
+// see https://developer.mozilla.org/en/docs/Web/CSS/font-weight
 type Weight int
 
 const (
-	WeightThin       Weight = 100
-	WeightExtraLight Weight = 200
-	WeightLight      Weight = 300
-	WeightNormal     Weight = 400
-	WeightMedium     Weight = 500
-	WeightSemiBold   Weight = 600
-	WeightBold       Weight = 700
-	WeightExtraBold  Weight = 800
-	WeightBlack      Weight = 900
+	WeightThin       Weight = -3 // CSS font-weight value 100.
+	WeightExtraLight Weight = -2 // CSS font-weight value 200.
+	WeightLight      Weight = -1 // CSS font-weight value 300.
+	WeightNormal     Weight = +0 // CSS font-weight value 400.
+	WeightMedium     Weight = +1 // CSS font-weight value 500.
+	WeightSemiBold   Weight = +2 // CSS font-weight value 600.
+	WeightBold       Weight = +3 // CSS font-weight value 700.
+	WeightExtraBold  Weight = +4 // CSS font-weight value 800.
+	WeightBlack      Weight = +5 // CSS font-weight value 900.
 )
