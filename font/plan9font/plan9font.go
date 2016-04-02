@@ -7,16 +7,13 @@
 // http://plan9.bell-labs.com/magic/man2html/6/font
 package plan9font // import "golang.org/x/image/font/plan9font"
 
-// TODO: have a subface use an *image.Alpha instead of plan9Image implementing
-// the image.Image interface? The image/draw code has a fast path for
-// *image.Alpha masks.
-
 import (
 	"bytes"
 	"errors"
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
 	"log"
 	"strconv"
 	"strings"
@@ -54,12 +51,12 @@ func parseFontchars(p []byte) []fontchar {
 
 // subface implements font.Face for a Plan 9 subfont.
 type subface struct {
-	firstRune rune        // First rune in the subfont.
-	n         int         // Number of characters in the subfont.
-	height    int         // Inter-line spacing.
-	ascent    int         // Height above the baseline.
-	fontchars []fontchar  // Character descriptions.
-	img       *plan9Image // Image holding the glyphs.
+	firstRune rune         // First rune in the subfont.
+	n         int          // Number of characters in the subfont.
+	height    int          // Inter-line spacing.
+	ascent    int          // Height above the baseline.
+	fontchars []fontchar   // Character descriptions.
+	img       *image.Alpha // Image holding the glyphs.
 }
 
 func (f *subface) Close() error                   { return nil }
@@ -300,13 +297,15 @@ func ParseSubfont(data []byte, firstRune rune) (font.Face, error) {
 	if len(data) != 6*(n+1) {
 		return nil, errors.New("plan9font: invalid subfont: data length mismatch")
 	}
+	img := image.NewAlpha(m.Bounds())
+	draw.Draw(img, img.Bounds(), m, image.ZP, draw.Over)
 	return &subface{
 		firstRune: firstRune,
 		n:         n,
 		height:    height,
 		ascent:    ascent,
 		fontchars: parseFontchars(data),
-		img:       m,
+		img:       img,
 	}, nil
 }
 
