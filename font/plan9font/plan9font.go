@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"image/draw"
 	"log"
 	"strconv"
 	"strings"
@@ -297,8 +296,18 @@ func ParseSubfont(data []byte, firstRune rune) (font.Face, error) {
 	if len(data) != 6*(n+1) {
 		return nil, errors.New("plan9font: invalid subfont: data length mismatch")
 	}
+
+	// Convert from plan9Image to image.Alpha, as the standard library's
+	// image/draw package works best when glyph masks are of that type.
 	img := image.NewAlpha(m.Bounds())
-	draw.Draw(img, img.Bounds(), m, image.ZP, draw.Over)
+	for y := img.Rect.Min.Y; y < img.Rect.Max.Y; y++ {
+		i := img.PixOffset(img.Rect.Min.X, y)
+		for x := img.Rect.Min.X; x < img.Rect.Max.X; x++ {
+			img.Pix[i] = m.at(x, y)
+			i++
+		}
+	}
+
 	return &subface{
 		firstRune: firstRune,
 		n:         n,
@@ -339,28 +348,33 @@ func (m *plan9Image) ColorModel() color.Model { return color.AlphaModel }
 
 func (m *plan9Image) At(x, y int) color.Color {
 	if (image.Point{x, y}).In(m.rect) {
-		b := m.pix[m.byteoffset(x, y)]
-		switch m.depth {
-		case 1:
-			// CGrey, 1.
-			mask := uint8(1 << uint8(7-x&7))
-			if (b & mask) != 0 {
-				return color.Alpha{0xff}
-			}
-			return color.Alpha{0x00}
-		case 2:
-			// CGrey, 2.
-			shift := uint(x&3) << 1
-			// Place pixel at top of word.
-			y := b << shift
-			y &= 0xc0
-			// Replicate throughout.
-			y |= y >> 2
-			y |= y >> 4
-			return color.Alpha{y}
-		}
+		return color.Alpha{m.at(x, y)}
 	}
 	return color.Alpha{0x00}
+}
+
+func (m *plan9Image) at(x, y int) uint8 {
+	b := m.pix[m.byteoffset(x, y)]
+	switch m.depth {
+	case 1:
+		// CGrey, 1.
+		mask := uint8(1 << uint8(7-x&7))
+		if (b & mask) != 0 {
+			return 0xff
+		}
+		return 0
+	case 2:
+		// CGrey, 2.
+		shift := uint(x&3) << 1
+		// Place pixel at top of word.
+		y := b << shift
+		y &= 0xc0
+		// Replicate throughout.
+		y |= y >> 2
+		y |= y >> 4
+		return y
+	}
+	return 0
 }
 
 var compressed = []byte("compressed\n")
