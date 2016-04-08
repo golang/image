@@ -30,8 +30,7 @@ func ExampleParseFont() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// TODO: derive the ascent from the face's metrics.
-	const ascent = 11
+	ascent := face.Metrics().Ascent.Ceil()
 
 	dst := image.NewRGBA(image.Rect(0, 0, 4*7, 13))
 	draw.Draw(dst, dst.Bounds(), image.Black, image.Point{}, draw.Src)
