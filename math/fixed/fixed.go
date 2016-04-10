@@ -42,13 +42,19 @@ func (x Int26_6) String() string {
 }
 
 // Floor returns the greatest integer value less than or equal to x.
-func (x Int26_6) Floor() Int26_6 { return (x + 0x00) &^ 0x3f }
+//
+// Its return type is int, not Int26_6.
+func (x Int26_6) Floor() int { return int((x + 0x00) >> 6) }
 
 // Round returns the nearest integer value to x. Ties are rounded up.
-func (x Int26_6) Round() Int26_6 { return (x + 0x20) &^ 0x3f }
+//
+// Its return type is int, not Int26_6.
+func (x Int26_6) Round() int { return int((x + 0x20) >> 6) }
 
 // Ceil returns the least integer value greater than or equal to x.
-func (x Int26_6) Ceil() Int26_6 { return (x + 0x3f) &^ 0x3f }
+//
+// Its return type is int, not Int26_6.
+func (x Int26_6) Ceil() int { return int((x + 0x3f) >> 6) }
 
 // Int52_12 is a signed 52.12 fixed-point number.
 //
@@ -75,13 +81,19 @@ func (x Int52_12) String() string {
 }
 
 // Floor returns the greatest integer value less than or equal to x.
-func (x Int52_12) Floor() Int52_12 { return (x + 0x000) &^ 0xfff }
+//
+// Its return type is int, not Int52_12.
+func (x Int52_12) Floor() int { return int((x + 0x000) >> 12) }
 
 // Round returns the nearest integer value to x. Ties are rounded up.
-func (x Int52_12) Round() Int52_12 { return (x + 0x800) &^ 0xfff }
+//
+// Its return type is int, not Int52_12.
+func (x Int52_12) Round() int { return int((x + 0x800) >> 12) }
 
 // Ceil returns the least integer value greater than or equal to x.
-func (x Int52_12) Ceil() Int52_12 { return (x + 0xfff) &^ 0xfff }
+//
+// Its return type is int, not Int52_12.
+func (x Int52_12) Ceil() int { return int((x + 0xfff) >> 12) }
 
 // P returns the integer values x and y as a Point26_6.
 //
