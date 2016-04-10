@@ -145,12 +145,17 @@ func (d *Drawer) DrawString(s string) {
 
 // MeasureString returns how far dot would advance by drawing s.
 func (d *Drawer) MeasureString(s string) (advance fixed.Int26_6) {
+	return MeasureString(d.Face, s)
+}
+
+// MeasureString returns how far dot would advance by drawing s with f.
+func MeasureString(f Face, s string) (advance fixed.Int26_6) {
 	var prevC rune
 	for i, c := range s {
 		if i != 0 {
-			advance += d.Face.Kern(prevC, c)
+			advance += f.Kern(prevC, c)
 		}
-		a, ok := d.Face.GlyphAdvance(c)
+		a, ok := f.GlyphAdvance(c)
 		if !ok {
 			// TODO: is falling back on the U+FFFD glyph the responsibility of
 			// the Drawer or the Face?
