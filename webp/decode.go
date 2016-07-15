@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build go1.6
+
 // Package webp implements a decoder for WEBP images.
 //
 // WEBP is defined at:
