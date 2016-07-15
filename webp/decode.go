@@ -4,11 +4,7 @@
 
 // +build go1.6
 
-// Package webp implements a decoder for WEBP images.
-//
-// WEBP is defined at:
-// https://developers.google.com/speed/webp/docs/riff_container
-package webp // import "golang.org/x/image/webp"
+package webp
 
 import (
 	"bytes"
