@@ -134,35 +134,67 @@ func (z *Rasterizer) LineTo(b f32.Vec2) {
 //
 // The coordinates are allowed to be out of the Rasterizer's bounds.
 func (z *Rasterizer) QuadTo(b, c f32.Vec2) {
-	// We make a linear approximation to the curve.
-	// http://lists.nongnu.org/archive/html/freetype-devel/2016-08/msg00080.html
-	// gives the rationale for this evenly spaced heuristic instead of a
-	// recursive de Casteljau approach:
-	//
-	// The reason for the subdivision by n is that I expect the "flatness"
-	// computation to be semi-expensive (it's done once rather than on each
-	// potential subdivision) and also because you'll often get fewer
-	// subdivisions. Taking a circular arc as a simplifying assumption (ie a
-	// spherical cow), where I get n, a recursive approach would get 2^⌈lg n⌉,
-	// which, if I haven't made any horrible mistakes, is expected to be 33%
-	// more in the limit.
 	a := z.pen
-	devx := a[0] - 2*b[0] + c[0]
-	devy := a[1] - 2*b[1] + c[1]
-	devsq := devx*devx + devy*devy
+	devsq := devSquared(a, b, c)
 	if devsq >= 0.333 {
 		const tol = 3
 		n := 1 + int(math.Sqrt(math.Sqrt(tol*float64(devsq))))
 		t, nInv := float32(0), 1/float32(n)
 		for i := 0; i < n-1; i++ {
 			t += nInv
-			z.LineTo(lerp(t, lerp(t, a, b), lerp(t, b, c)))
+			ab := lerp(t, a, b)
+			bc := lerp(t, b, c)
+			z.LineTo(lerp(t, ab, bc))
 		}
 	}
 	z.LineTo(c)
 }
 
-// TODO: CubeTo for cubic Béziers.
+// CubeTo adds a cubic Bézier segment, from the pen via b and c to d, and moves
+// the pen to d.
+//
+// The coordinates are allowed to be out of the Rasterizer's bounds.
+func (z *Rasterizer) CubeTo(b, c, d f32.Vec2) {
+	a := z.pen
+	devsq := devSquared(a, b, d)
+	if devsqAlt := devSquared(a, c, d); devsq < devsqAlt {
+		devsq = devsqAlt
+	}
+	if devsq >= 0.333 {
+		const tol = 3
+		n := 1 + int(math.Sqrt(math.Sqrt(tol*float64(devsq))))
+		t, nInv := float32(0), 1/float32(n)
+		for i := 0; i < n-1; i++ {
+			t += nInv
+			ab := lerp(t, a, b)
+			bc := lerp(t, b, c)
+			cd := lerp(t, c, d)
+			abc := lerp(t, ab, bc)
+			bcd := lerp(t, bc, cd)
+			z.LineTo(lerp(t, abc, bcd))
+		}
+	}
+	z.LineTo(d)
+}
+
+// devSquared returns a measure of how curvy the sequnce a to b to c is. It
+// determines how many line segments will approximate a Bézier curve segment.
+//
+// http://lists.nongnu.org/archive/html/freetype-devel/2016-08/msg00080.html
+// gives the rationale for this evenly spaced heuristic instead of a recursive
+// de Casteljau approach:
+//
+// The reason for the subdivision by n is that I expect the "flatness"
+// computation to be semi-expensive (it's done once rather than on each
+// potential subdivision) and also because you'll often get fewer subdivisions.
+// Taking a circular arc as a simplifying assumption (ie a spherical cow),
+// where I get n, a recursive approach would get 2^⌈lg n⌉, which, if I haven't
+// made any horrible mistakes, is expected to be 33% more in the limit.
+func devSquared(a, b, c f32.Vec2) float32 {
+	devx := a[0] - 2*b[0] + c[0]
+	devy := a[1] - 2*b[1] + c[1]
+	return devx*devx + devy*devy
+}
 
 // Draw implements the Drawer interface from the standard library's image/draw
 // package.
