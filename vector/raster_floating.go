@@ -122,7 +122,7 @@ func (z *Rasterizer) floatingLineTo(b f32.Vec2) {
 	}
 }
 
-func floatingAccumulate(dst []uint8, src []float32) {
+const (
 	// almost256 scales a floating point value in the range [0, 1] to a uint8
 	// value in the range [0x00, 0xff].
 	//
@@ -136,8 +136,16 @@ func floatingAccumulate(dst []uint8, src []float32) {
 	// instead of the maximal value 0xff.
 	//
 	// math.Float32bits(almost256) is 0x437fffff.
-	const almost256 = 255.99998
+	almost256 = 255.99998
 
+	// almost65536 scales a floating point value in the range [0, 1] to a
+	// uint16 value in the range [0x0000, 0xffff].
+	//
+	// math.Float32bits(almost65536) is 0x477fffff.
+	almost65536 = almost256 * 256
+)
+
+func floatingAccumulateOpSrc(dst []uint8, src []float32) {
 	acc := float32(0)
 	for i, v := range src {
 		acc += v
@@ -149,5 +157,24 @@ func floatingAccumulate(dst []uint8, src []float32) {
 			a = 1
 		}
 		dst[i] = uint8(almost256 * a)
+	}
+}
+
+func floatingAccumulateOpOver(dst []uint8, src []float32) {
+	acc := float32(0)
+	for i, v := range src {
+		acc += v
+		a := acc
+		if a < 0 {
+			a = -a
+		}
+		if a > 1 {
+			a = 1
+		}
+		// This algorithm comes from the standard library's image/draw package.
+		dstA := uint32(dst[i]) * 0x101
+		maskA := uint32(almost65536 * a)
+		outA := dstA*(0xffff-maskA)/0xffff + maskA
+		dst[i] = uint8(outA >> 8)
 	}
 }
