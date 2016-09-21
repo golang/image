@@ -207,8 +207,12 @@ func (z *Rasterizer) Draw(dst draw.Image, r image.Rectangle, src image.Image, sp
 		switch dst := dst.(type) {
 		case *image.Alpha:
 			// Fast path for glyph rendering.
-			if srcA == 0xffff && z.DrawOp == draw.Src {
-				z.rasterizeDstAlphaSrcOpaqueOpSrc(dst, r)
+			if srcA == 0xffff {
+				if z.DrawOp == draw.Over {
+					z.rasterizeDstAlphaSrcOpaqueOpOver(dst, r)
+				} else {
+					z.rasterizeDstAlphaSrcOpaqueOpSrc(dst, r)
+				}
 				return
 			}
 		}
@@ -221,7 +225,18 @@ func (z *Rasterizer) rasterizeDstAlphaSrcOpaqueOpSrc(dst *image.Alpha, r image.R
 	// TODO: add a fixed point math implementation.
 	// TODO: non-zero vs even-odd winding?
 	if r == dst.Bounds() && r == z.Bounds() {
-		floatingAccumulate(dst.Pix, z.area)
+		floatingAccumulateOpSrc(dst.Pix, z.area)
+		return
+	}
+	println("TODO: the general case")
+}
+
+func (z *Rasterizer) rasterizeDstAlphaSrcOpaqueOpOver(dst *image.Alpha, r image.Rectangle) {
+	// TODO: add SIMD implementations.
+	// TODO: add a fixed point math implementation.
+	// TODO: non-zero vs even-odd winding?
+	if r == dst.Bounds() && r == z.Bounds() {
+		floatingAccumulateOpOver(dst.Pix, z.area)
 		return
 	}
 	println("TODO: the general case")

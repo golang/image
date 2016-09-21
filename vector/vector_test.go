@@ -31,7 +31,7 @@ func encodePNG(dstFilename string, src image.Image) error {
 }
 
 func TestBasicPath(t *testing.T) {
-	want := []byte{
+	mask := []byte{
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xe3, 0xaa, 0x3e, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -50,27 +50,46 @@ func TestBasicPath(t *testing.T) {
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	}
 
-	z := NewRasterizer(16, 16)
-	z.MoveTo(f32.Vec2{2, 2})
-	z.LineTo(f32.Vec2{8, 2})
-	z.QuadTo(f32.Vec2{14, 2}, f32.Vec2{14, 14})
-	z.CubeTo(f32.Vec2{8, 2}, f32.Vec2{5, 20}, f32.Vec2{2, 8})
-	z.ClosePath()
+	for _, background := range []uint8{0x00, 0x80} {
+		for _, op := range []draw.Op{draw.Over, draw.Src} {
+			z := NewRasterizer(16, 16)
+			z.MoveTo(f32.Vec2{2, 2})
+			z.LineTo(f32.Vec2{8, 2})
+			z.QuadTo(f32.Vec2{14, 2}, f32.Vec2{14, 14})
+			z.CubeTo(f32.Vec2{8, 2}, f32.Vec2{5, 20}, f32.Vec2{2, 8})
+			z.ClosePath()
 
-	dst := image.NewAlpha(z.Bounds())
-	z.DrawOp = draw.Src
-	z.Draw(dst, dst.Bounds(), image.Opaque, image.Point{})
+			dst := image.NewAlpha(z.Bounds())
+			for i := range dst.Pix {
+				dst.Pix[i] = background
+			}
+			z.DrawOp = op
+			z.Draw(dst, dst.Bounds(), image.Opaque, image.Point{})
+			got := dst.Pix
 
-	got := dst.Pix
-	if len(got) != len(want) {
-		t.Fatalf("len(got)=%d and len(want)=%d differ", len(got), len(want))
-	}
-	for i := range got {
-		delta := int(got[i]) - int(want[i])
-		// The +/- 2 allows different implementations to give different
-		// rounding errors.
-		if delta < -2 || +2 < delta {
-			t.Errorf("i=%d: got %#02x, want %#02x", i, got[i], want[i])
+			want := make([]byte, len(mask))
+			if op == draw.Over && background == 0x80 {
+				for i, ma := range mask {
+					want[i] = 0xff - (0xff-ma)/2
+				}
+			} else {
+				copy(want, mask)
+			}
+
+			if len(got) != len(want) {
+				t.Errorf("background=%#02x, op=%v: len(got)=%d and len(want)=%d differ",
+					background, op, len(got), len(want))
+				continue
+			}
+			for i := range got {
+				delta := int(got[i]) - int(want[i])
+				// The +/- 2 allows different implementations to give different
+				// rounding errors.
+				if delta < -2 || +2 < delta {
+					t.Errorf("background=%#02x, op=%v: i=%d: got %#02x, want %#02x",
+						background, op, i, got[i], want[i])
+				}
+			}
 		}
 	}
 }
