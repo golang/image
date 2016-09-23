@@ -61,7 +61,7 @@ func (z *Rasterizer) floatingLineTo(b f32.Vec2) {
 			x = xNext
 			continue
 		}
-		buf := z.area[y*width:]
+		buf := z.bufF32[y*width:]
 		d := dy * dir
 		x0, x1 := x, xNext
 		if x > xNext {
@@ -176,5 +176,20 @@ func floatingAccumulateOpOver(dst []uint8, src []float32) {
 		maskA := uint32(almost65536 * a)
 		outA := dstA*(0xffff-maskA)/0xffff + maskA
 		dst[i] = uint8(outA >> 8)
+	}
+}
+
+func floatingAccumulateMask(dst []uint32, src []float32) {
+	acc := float32(0)
+	for i, v := range src {
+		acc += v
+		a := acc
+		if a < 0 {
+			a = -a
+		}
+		if a > 1 {
+			a = 1
+		}
+		dst[i] = uint32(almost65536 * a)
 	}
 }
