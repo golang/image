@@ -240,17 +240,45 @@ func (z *Rasterizer) Draw(dst draw.Image, r image.Rectangle, src image.Image, sp
 		}
 	}
 
+	if z.DrawOp == draw.Over {
+		z.rasterizeOpOver(dst, r, src, sp)
+	} else {
+		z.rasterizeOpSrc(dst, r, src, sp)
+	}
+}
+
+func (z *Rasterizer) accumulateMask() {
 	if n := z.size.X * z.size.Y; n > cap(z.bufU32) {
 		z.bufU32 = make([]uint32, n)
 	} else {
 		z.bufU32 = z.bufU32[:n]
 	}
 	floatingAccumulateMask(z.bufU32, z.bufF32)
+}
 
-	if z.DrawOp == draw.Over {
-		z.rasterizeOpOver(dst, r, src, sp)
-	} else {
-		z.rasterizeOpSrc(dst, r, src, sp)
+func (z *Rasterizer) rasterizeDstAlphaSrcOpaqueOpOver(dst *image.Alpha, r image.Rectangle) {
+	// TODO: add SIMD implementations.
+	// TODO: add a fixed point math implementation.
+	// TODO: non-zero vs even-odd winding?
+	if r == dst.Bounds() && r == z.Bounds() {
+		// We bypass the z.accumulateMask step and convert straight from
+		// z.bufF32 to dst.Pix.
+		floatingAccumulateOpOver(dst.Pix, z.bufF32)
+		return
+	}
+
+	z.accumulateMask()
+	pix := dst.Pix[dst.PixOffset(r.Min.X, r.Min.Y):]
+	for y, y1 := 0, r.Max.Y-r.Min.Y; y < y1; y++ {
+		for x, x1 := 0, r.Max.X-r.Min.X; x < x1; x++ {
+			ma := z.bufU32[y*z.size.X+x]
+			i := y*dst.Stride + x
+
+			// This formula is like rasterizeOpOver's, simplified for the
+			// concrete dst type and opaque src assumption.
+			a := 0xffff - ma
+			pix[i] = uint8((uint32(pix[i])*0x101*a/0xffff + ma) >> 8)
+		}
 	}
 }
 
@@ -259,24 +287,27 @@ func (z *Rasterizer) rasterizeDstAlphaSrcOpaqueOpSrc(dst *image.Alpha, r image.R
 	// TODO: add a fixed point math implementation.
 	// TODO: non-zero vs even-odd winding?
 	if r == dst.Bounds() && r == z.Bounds() {
+		// We bypass the z.accumulateMask step and convert straight from
+		// z.bufF32 to dst.Pix.
 		floatingAccumulateOpSrc(dst.Pix, z.bufF32)
 		return
 	}
-	println("TODO: the general case")
-}
 
-func (z *Rasterizer) rasterizeDstAlphaSrcOpaqueOpOver(dst *image.Alpha, r image.Rectangle) {
-	// TODO: add SIMD implementations.
-	// TODO: add a fixed point math implementation.
-	// TODO: non-zero vs even-odd winding?
-	if r == dst.Bounds() && r == z.Bounds() {
-		floatingAccumulateOpOver(dst.Pix, z.bufF32)
-		return
+	z.accumulateMask()
+	pix := dst.Pix[dst.PixOffset(r.Min.X, r.Min.Y):]
+	for y, y1 := 0, r.Max.Y-r.Min.Y; y < y1; y++ {
+		for x, x1 := 0, r.Max.X-r.Min.X; x < x1; x++ {
+			ma := z.bufU32[y*z.size.X+x]
+
+			// This formula is like rasterizeOpSrc's, simplified for the
+			// concrete dst type and opaque src assumption.
+			pix[y*dst.Stride+x] = uint8(ma >> 8)
+		}
 	}
-	println("TODO: the general case")
 }
 
 func (z *Rasterizer) rasterizeOpOver(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point) {
+	z.accumulateMask()
 	out := color.RGBA64{}
 	outc := color.Color(&out)
 	for y, y1 := 0, r.Max.Y-r.Min.Y; y < y1; y++ {
@@ -299,6 +330,7 @@ func (z *Rasterizer) rasterizeOpOver(dst draw.Image, r image.Rectangle, src imag
 }
 
 func (z *Rasterizer) rasterizeOpSrc(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point) {
+	z.accumulateMask()
 	out := color.RGBA64{}
 	outc := color.Color(&out)
 	for y, y1 := 0, r.Max.Y-r.Min.Y; y < y1; y++ {
