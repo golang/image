@@ -59,6 +59,9 @@ func NewRasterizer(w, h int) *Rasterizer {
 }
 
 // Raster is a 2-D vector graphics rasterizer.
+//
+// The zero value is usable, in that it is a Rasterizer whose rendered mask
+// image has zero width and zero height. Call Reset to change its bounds.
 type Rasterizer struct {
 	// bufXxx are buffers of float32 or uint32 values, holding either the
 	// individual or cumulative area values.
