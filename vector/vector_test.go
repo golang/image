@@ -14,6 +14,7 @@ import (
 	"image/png"
 	"math"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"golang.org/x/image/math/f32"
@@ -31,6 +32,117 @@ func encodePNG(dstFilename string, src image.Image) error {
 		return encErr
 	}
 	return closeErr
+}
+
+func pointOnCircle(center, radius, index, number int) f32.Vec2 {
+	c := float64(center)
+	r := float64(radius)
+	i := float64(index)
+	n := float64(number)
+	return f32.Vec2{
+		float32(c + r*(math.Cos(2*math.Pi*i/n))),
+		float32(c + r*(math.Sin(2*math.Pi*i/n))),
+	}
+}
+
+func TestRasterizeOutOfBounds(t *testing.T) {
+	// Set this to a non-empty string such as "/tmp" to manually inspect the
+	// rasterization.
+	//
+	// If empty, this test simply checks that calling LineTo with points out of
+	// the rasterizer's bounds doesn't panic.
+	const tmpDir = ""
+
+	const center, radius, n = 16, 20, 16
+	var z Rasterizer
+	for i := 0; i < n; i++ {
+		for j := 1; j < n/2; j++ {
+			z.Reset(2*center, 2*center)
+			z.MoveTo(f32.Vec2{1 * center, 1 * center})
+			z.LineTo(pointOnCircle(center, radius, i+0, n))
+			z.LineTo(pointOnCircle(center, radius, i+j, n))
+			z.ClosePath()
+
+			z.MoveTo(f32.Vec2{0 * center, 0 * center})
+			z.LineTo(f32.Vec2{0 * center, 2 * center})
+			z.LineTo(f32.Vec2{2 * center, 2 * center})
+			z.LineTo(f32.Vec2{2 * center, 0 * center})
+			z.ClosePath()
+
+			dst := image.NewAlpha(z.Bounds())
+			z.Draw(dst, dst.Bounds(), image.Opaque, image.Point{})
+
+			if tmpDir == "" {
+				continue
+			}
+
+			filename := filepath.Join(tmpDir, fmt.Sprintf("out-%02d-%02d.png", i, j))
+			if err := encodePNG(filename, dst); err != nil {
+				t.Error(err)
+			}
+			t.Logf("wrote %s", filename)
+		}
+	}
+}
+
+func TestRasterizePolygon(t *testing.T) {
+	var z Rasterizer
+	for radius := 4; radius <= 1024; radius *= 2 {
+		for n := 3; n <= 19; n += 4 {
+			z.Reset(2*radius, 2*radius)
+			z.MoveTo(f32.Vec2{
+				float32(2 * radius),
+				float32(1 * radius),
+			})
+			for i := 1; i < n; i++ {
+				z.LineTo(pointOnCircle(radius, radius, i, n))
+			}
+			z.ClosePath()
+
+			dst := image.NewAlpha(z.Bounds())
+			z.Draw(dst, dst.Bounds(), image.Opaque, image.Point{})
+
+			if err := checkCornersCenter(dst); err != nil {
+				t.Errorf("radius=%d, n=%d: %v", radius, n, err)
+			}
+		}
+	}
+}
+
+func TestRasterizeAlmostAxisAligned(t *testing.T) {
+	z := NewRasterizer(8, 8)
+	z.MoveTo(f32.Vec2{2, 2})
+	z.LineTo(f32.Vec2{6, math.Nextafter32(2, 0)})
+	z.LineTo(f32.Vec2{6, 6})
+	z.LineTo(f32.Vec2{math.Nextafter32(2, 0), 6})
+	z.ClosePath()
+
+	dst := image.NewAlpha(z.Bounds())
+	z.Draw(dst, dst.Bounds(), image.Opaque, image.Point{})
+
+	if err := checkCornersCenter(dst); err != nil {
+		t.Error(err)
+	}
+}
+
+// checkCornersCenter checks that the corners of the image are all 0x00 and the
+// center is 0xff.
+func checkCornersCenter(m *image.Alpha) error {
+	size := m.Bounds().Size()
+	corners := [4]uint8{
+		m.Pix[(0*size.Y+0)*m.Stride+(0*size.X+0)],
+		m.Pix[(0*size.Y+0)*m.Stride+(1*size.X-1)],
+		m.Pix[(1*size.Y-1)*m.Stride+(0*size.X+0)],
+		m.Pix[(1*size.Y-1)*m.Stride+(1*size.X-1)],
+	}
+	if corners != [4]uint8{} {
+		return fmt.Errorf("corners were not all zero: %v", corners)
+	}
+	center := m.Pix[(size.Y/2)*m.Stride+(size.X/2)]
+	if center != 0xff {
+		return fmt.Errorf("center: got %#02x, want 0xff", center)
+	}
+	return nil
 }
 
 var basicMask = []byte{
