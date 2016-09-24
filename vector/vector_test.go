@@ -7,6 +7,7 @@ package vector
 // TODO: add tests for NaN and Inf coordinates.
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -51,111 +52,127 @@ var basicMask = []byte{
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 }
 
-func basicRasterizer() *Rasterizer {
+func testBasicPath(t *testing.T, prefix string, dst draw.Image, src image.Image, op draw.Op, want []byte) {
 	z := NewRasterizer(16, 16)
 	z.MoveTo(f32.Vec2{2, 2})
 	z.LineTo(f32.Vec2{8, 2})
 	z.QuadTo(f32.Vec2{14, 2}, f32.Vec2{14, 14})
 	z.CubeTo(f32.Vec2{8, 2}, f32.Vec2{5, 20}, f32.Vec2{2, 8})
 	z.ClosePath()
-	return z
+
+	z.DrawOp = op
+	z.Draw(dst, z.Bounds(), src, image.Point{})
+
+	var got []byte
+	switch dst := dst.(type) {
+	case *image.Alpha:
+		got = dst.Pix
+	case *image.RGBA:
+		got = dst.Pix
+	default:
+		t.Errorf("%s: unrecognized dst image type %T", prefix, dst)
+	}
+
+	if len(got) != len(want) {
+		t.Errorf("%s: len(got)=%d and len(want)=%d differ", prefix, len(got), len(want))
+		return
+	}
+	for i := range got {
+		delta := int(got[i]) - int(want[i])
+		// The +/- 2 allows different implementations to give different
+		// rounding errors.
+		if delta < -2 || +2 < delta {
+			t.Errorf("%s: i=%d: got %#02x, want %#02x", prefix, i, got[i], want[i])
+			return
+		}
+	}
 }
 
 func TestBasicPathDstAlpha(t *testing.T) {
 	for _, background := range []uint8{0x00, 0x80} {
 		for _, op := range []draw.Op{draw.Over, draw.Src} {
-			z := basicRasterizer()
-			dst := image.NewAlpha(z.Bounds())
-			for i := range dst.Pix {
-				dst.Pix[i] = background
-			}
-			z.DrawOp = op
-			z.Draw(dst, dst.Bounds(), image.Opaque, image.Point{})
-			got := dst.Pix
-
-			want := make([]byte, len(basicMask))
-			if op == draw.Over && background == 0x80 {
-				for i, ma := range basicMask {
-					want[i] = 0xff - (0xff-ma)/2
+			for _, xPadding := range []int{0, 7} {
+				bounds := image.Rect(0, 0, 16+xPadding, 16)
+				dst := image.NewAlpha(bounds)
+				for i := range dst.Pix {
+					dst.Pix[i] = background
 				}
-			} else {
-				copy(want, basicMask)
-			}
 
-			if len(got) != len(want) {
-				t.Errorf("background=%#02x, op=%v: len(got)=%d and len(want)=%d differ",
-					background, op, len(got), len(want))
-				continue
-			}
-			for i := range got {
-				delta := int(got[i]) - int(want[i])
-				// The +/- 2 allows different implementations to give different
-				// rounding errors.
-				if delta < -2 || +2 < delta {
-					t.Errorf("background=%#02x, op=%v: i=%d: got %#02x, want %#02x",
-						background, op, i, got[i], want[i])
+				want := make([]byte, len(dst.Pix))
+				copy(want, dst.Pix)
+
+				if op == draw.Over && background == 0x80 {
+					for y := 0; y < 16; y++ {
+						for x := 0; x < 16; x++ {
+							ma := basicMask[16*y+x]
+							i := dst.PixOffset(x, y)
+							want[i] = 0xff - (0xff-ma)/2
+						}
+					}
+				} else {
+					for y := 0; y < 16; y++ {
+						for x := 0; x < 16; x++ {
+							ma := basicMask[16*y+x]
+							i := dst.PixOffset(x, y)
+							want[i] = ma
+						}
+					}
 				}
+
+				prefix := fmt.Sprintf("background=%#02x, op=%v, xPadding=%d", background, op, xPadding)
+				testBasicPath(t, prefix, dst, image.Opaque, op, want)
 			}
 		}
 	}
 }
 
 func TestBasicPathDstRGBA(t *testing.T) {
-	blue := color.RGBA{0x00, 0x00, 0xff, 0xff}
+	blue := image.NewUniform(color.RGBA{0x00, 0x00, 0xff, 0xff})
 
 	for _, op := range []draw.Op{draw.Over, draw.Src} {
-		z := basicRasterizer()
-		dst := image.NewRGBA(z.Bounds())
-		for y := 0; y < 16; y++ {
-			for x := 0; x < 16; x++ {
-				dst.SetRGBA(x, y, color.RGBA{
-					R: uint8(y*0x11) / 2,
-					G: uint8(x*0x11) / 2,
-					B: 0x00,
-					A: 0x80,
-				})
-			}
-		}
-		z.DrawOp = op
-		z.Draw(dst, dst.Bounds(), image.NewUniform(blue), image.Point{})
-		got := dst.Pix
-
-		want := make([]byte, len(basicMask)*4)
-		if op == draw.Over {
-			for y := 0; y < 16; y++ {
-				for x := 0; x < 16; x++ {
-					i := 16*y + x
-					ma := basicMask[i]
-					want[4*i+0] = uint8((uint32(0xff-ma) * uint32(y*0x11/2)) / 0xff)
-					want[4*i+1] = uint8((uint32(0xff-ma) * uint32(x*0x11/2)) / 0xff)
-					want[4*i+2] = ma
-					want[4*i+3] = ma/2 + 0x80
+		for _, xPadding := range []int{0, 7} {
+			bounds := image.Rect(0, 0, 16+xPadding, 16)
+			dst := image.NewRGBA(bounds)
+			for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+				for x := bounds.Min.X; x < bounds.Max.X; x++ {
+					dst.SetRGBA(x, y, color.RGBA{
+						R: uint8(y * 0x07),
+						G: uint8(x * 0x05),
+						B: 0x00,
+						A: 0x80,
+					})
 				}
 			}
-		} else {
-			for y := 0; y < 16; y++ {
-				for x := 0; x < 16; x++ {
-					i := 16*y + x
-					ma := basicMask[i]
-					want[4*i+0] = 0x00
-					want[4*i+1] = 0x00
-					want[4*i+2] = ma
-					want[4*i+3] = ma
+
+			want := make([]byte, len(dst.Pix))
+			copy(want, dst.Pix)
+
+			if op == draw.Over {
+				for y := 0; y < 16; y++ {
+					for x := 0; x < 16; x++ {
+						ma := basicMask[16*y+x]
+						i := dst.PixOffset(x, y)
+						want[i+0] = uint8((uint32(0xff-ma) * uint32(y*0x07)) / 0xff)
+						want[i+1] = uint8((uint32(0xff-ma) * uint32(x*0x05)) / 0xff)
+						want[i+2] = ma
+						want[i+3] = ma/2 + 0x80
+					}
+				}
+			} else {
+				for y := 0; y < 16; y++ {
+					for x := 0; x < 16; x++ {
+						ma := basicMask[16*y+x]
+						i := dst.PixOffset(x, y)
+						want[i+0] = 0x00
+						want[i+1] = 0x00
+						want[i+2] = ma
+						want[i+3] = ma
+					}
 				}
 			}
-		}
 
-		if len(got) != len(want) {
-			t.Errorf("op=%v: len(got)=%d and len(want)=%d differ", op, len(got), len(want))
-			continue
-		}
-		for i := range got {
-			delta := int(got[i]) - int(want[i])
-			// The +/- 2 allows different implementations to give different
-			// rounding errors.
-			if delta < -2 || +2 < delta {
-				t.Errorf("op=%v: i=%d: got %#02x, want %#02x", op, i, got[i], want[i])
-			}
+			prefix := fmt.Sprintf("op=%v, xPadding=%d", op, xPadding)
+			testBasicPath(t, prefix, dst, blue, op, want)
 		}
 	}
 }
@@ -211,7 +228,7 @@ var benchmarkGlyphData = []struct {
 // Note that, compared to the github.com/google/font-go prototype, the height
 // here is the height of the bounding box, not the pixels per em used to scale
 // a glyph's vectors. A height of 64 corresponds to a ppem greater than 64.
-func benchGlyph(b *testing.B, cm color.Model, height int, op draw.Op) {
+func benchGlyph(b *testing.B, colorModel byte, loose bool, height int, op draw.Op) {
 	scale := float32(height) / benchmarkGlyphHeight
 
 	// Clone the benchmarkGlyphData slice and scale its coordinates.
@@ -226,20 +243,25 @@ func benchGlyph(b *testing.B, cm color.Model, height int, op draw.Op) {
 	width := int(math.Ceil(float64(benchmarkGlyphWidth * scale)))
 	z := NewRasterizer(width, height)
 
+	bounds := z.Bounds()
+	if loose {
+		bounds.Max.X++
+	}
 	dst, src := draw.Image(nil), image.Image(nil)
-	switch cm {
-	case color.AlphaModel:
-		dst = image.NewAlpha(z.Bounds())
+	switch colorModel {
+	case 'A':
+		dst = image.NewAlpha(bounds)
 		src = image.Opaque
-	case color.NRGBAModel:
-		dst = image.NewNRGBA(z.Bounds())
+	case 'N':
+		dst = image.NewNRGBA(bounds)
 		src = image.NewUniform(color.NRGBA{0x40, 0x80, 0xc0, 0xff})
-	case color.RGBAModel:
-		dst = image.NewRGBA(z.Bounds())
+	case 'R':
+		dst = image.NewRGBA(bounds)
 		src = image.NewUniform(color.RGBA{0x40, 0x80, 0xc0, 0xff})
 	default:
 		b.Fatal("unsupported color model")
 	}
+	bounds = z.Bounds()
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -255,39 +277,50 @@ func benchGlyph(b *testing.B, cm color.Model, height int, op draw.Op) {
 				z.QuadTo(d.p, d.q)
 			}
 		}
-		z.Draw(dst, dst.Bounds(), src, image.Point{})
+		z.Draw(dst, bounds, src, image.Point{})
 	}
 }
 
-func BenchmarkGlyphAlpha16Over(b *testing.B)  { benchGlyph(b, color.AlphaModel, 16, draw.Over) }
-func BenchmarkGlyphAlpha16Src(b *testing.B)   { benchGlyph(b, color.AlphaModel, 16, draw.Src) }
-func BenchmarkGlyphAlpha32Over(b *testing.B)  { benchGlyph(b, color.AlphaModel, 32, draw.Over) }
-func BenchmarkGlyphAlpha32Src(b *testing.B)   { benchGlyph(b, color.AlphaModel, 32, draw.Src) }
-func BenchmarkGlyphAlpha64Over(b *testing.B)  { benchGlyph(b, color.AlphaModel, 64, draw.Over) }
-func BenchmarkGlyphAlpha64Src(b *testing.B)   { benchGlyph(b, color.AlphaModel, 64, draw.Src) }
-func BenchmarkGlyphAlpha128Over(b *testing.B) { benchGlyph(b, color.AlphaModel, 128, draw.Over) }
-func BenchmarkGlyphAlpha128Src(b *testing.B)  { benchGlyph(b, color.AlphaModel, 128, draw.Src) }
-func BenchmarkGlyphAlpha256Over(b *testing.B) { benchGlyph(b, color.AlphaModel, 256, draw.Over) }
-func BenchmarkGlyphAlpha256Src(b *testing.B)  { benchGlyph(b, color.AlphaModel, 256, draw.Src) }
+func BenchmarkGlyphAlpha16Over(b *testing.B)  { benchGlyph(b, 'A', false, 16, draw.Over) }
+func BenchmarkGlyphAlpha16Src(b *testing.B)   { benchGlyph(b, 'A', false, 16, draw.Src) }
+func BenchmarkGlyphAlpha32Over(b *testing.B)  { benchGlyph(b, 'A', false, 32, draw.Over) }
+func BenchmarkGlyphAlpha32Src(b *testing.B)   { benchGlyph(b, 'A', false, 32, draw.Src) }
+func BenchmarkGlyphAlpha64Over(b *testing.B)  { benchGlyph(b, 'A', false, 64, draw.Over) }
+func BenchmarkGlyphAlpha64Src(b *testing.B)   { benchGlyph(b, 'A', false, 64, draw.Src) }
+func BenchmarkGlyphAlpha128Over(b *testing.B) { benchGlyph(b, 'A', false, 128, draw.Over) }
+func BenchmarkGlyphAlpha128Src(b *testing.B)  { benchGlyph(b, 'A', false, 128, draw.Src) }
+func BenchmarkGlyphAlpha256Over(b *testing.B) { benchGlyph(b, 'A', false, 256, draw.Over) }
+func BenchmarkGlyphAlpha256Src(b *testing.B)  { benchGlyph(b, 'A', false, 256, draw.Src) }
 
-func BenchmarkGlyphNRGBA16Over(b *testing.B)  { benchGlyph(b, color.NRGBAModel, 16, draw.Over) }
-func BenchmarkGlyphNRGBA16Src(b *testing.B)   { benchGlyph(b, color.NRGBAModel, 16, draw.Src) }
-func BenchmarkGlyphNRGBA32Over(b *testing.B)  { benchGlyph(b, color.NRGBAModel, 32, draw.Over) }
-func BenchmarkGlyphNRGBA32Src(b *testing.B)   { benchGlyph(b, color.NRGBAModel, 32, draw.Src) }
-func BenchmarkGlyphNRGBA64Over(b *testing.B)  { benchGlyph(b, color.NRGBAModel, 64, draw.Over) }
-func BenchmarkGlyphNRGBA64Src(b *testing.B)   { benchGlyph(b, color.NRGBAModel, 64, draw.Src) }
-func BenchmarkGlyphNRGBA128Over(b *testing.B) { benchGlyph(b, color.NRGBAModel, 128, draw.Over) }
-func BenchmarkGlyphNRGBA128Src(b *testing.B)  { benchGlyph(b, color.NRGBAModel, 128, draw.Src) }
-func BenchmarkGlyphNRGBA256Over(b *testing.B) { benchGlyph(b, color.NRGBAModel, 256, draw.Over) }
-func BenchmarkGlyphNRGBA256Src(b *testing.B)  { benchGlyph(b, color.NRGBAModel, 256, draw.Src) }
+func BenchmarkGlyphAlphaLoose16Over(b *testing.B)  { benchGlyph(b, 'A', true, 16, draw.Over) }
+func BenchmarkGlyphAlphaLoose16Src(b *testing.B)   { benchGlyph(b, 'A', true, 16, draw.Src) }
+func BenchmarkGlyphAlphaLoose32Over(b *testing.B)  { benchGlyph(b, 'A', true, 32, draw.Over) }
+func BenchmarkGlyphAlphaLoose32Src(b *testing.B)   { benchGlyph(b, 'A', true, 32, draw.Src) }
+func BenchmarkGlyphAlphaLoose64Over(b *testing.B)  { benchGlyph(b, 'A', true, 64, draw.Over) }
+func BenchmarkGlyphAlphaLoose64Src(b *testing.B)   { benchGlyph(b, 'A', true, 64, draw.Src) }
+func BenchmarkGlyphAlphaLoose128Over(b *testing.B) { benchGlyph(b, 'A', true, 128, draw.Over) }
+func BenchmarkGlyphAlphaLoose128Src(b *testing.B)  { benchGlyph(b, 'A', true, 128, draw.Src) }
+func BenchmarkGlyphAlphaLoose256Over(b *testing.B) { benchGlyph(b, 'A', true, 256, draw.Over) }
+func BenchmarkGlyphAlphaLoose256Src(b *testing.B)  { benchGlyph(b, 'A', true, 256, draw.Src) }
 
-func BenchmarkGlyphRGBA16Over(b *testing.B)  { benchGlyph(b, color.RGBAModel, 16, draw.Over) }
-func BenchmarkGlyphRGBA16Src(b *testing.B)   { benchGlyph(b, color.RGBAModel, 16, draw.Src) }
-func BenchmarkGlyphRGBA32Over(b *testing.B)  { benchGlyph(b, color.RGBAModel, 32, draw.Over) }
-func BenchmarkGlyphRGBA32Src(b *testing.B)   { benchGlyph(b, color.RGBAModel, 32, draw.Src) }
-func BenchmarkGlyphRGBA64Over(b *testing.B)  { benchGlyph(b, color.RGBAModel, 64, draw.Over) }
-func BenchmarkGlyphRGBA64Src(b *testing.B)   { benchGlyph(b, color.RGBAModel, 64, draw.Src) }
-func BenchmarkGlyphRGBA128Over(b *testing.B) { benchGlyph(b, color.RGBAModel, 128, draw.Over) }
-func BenchmarkGlyphRGBA128Src(b *testing.B)  { benchGlyph(b, color.RGBAModel, 128, draw.Src) }
-func BenchmarkGlyphRGBA256Over(b *testing.B) { benchGlyph(b, color.RGBAModel, 256, draw.Over) }
-func BenchmarkGlyphRGBA256Src(b *testing.B)  { benchGlyph(b, color.RGBAModel, 256, draw.Src) }
+func BenchmarkGlyphNRGBA16Over(b *testing.B)  { benchGlyph(b, 'N', false, 16, draw.Over) }
+func BenchmarkGlyphNRGBA16Src(b *testing.B)   { benchGlyph(b, 'N', false, 16, draw.Src) }
+func BenchmarkGlyphNRGBA32Over(b *testing.B)  { benchGlyph(b, 'N', false, 32, draw.Over) }
+func BenchmarkGlyphNRGBA32Src(b *testing.B)   { benchGlyph(b, 'N', false, 32, draw.Src) }
+func BenchmarkGlyphNRGBA64Over(b *testing.B)  { benchGlyph(b, 'N', false, 64, draw.Over) }
+func BenchmarkGlyphNRGBA64Src(b *testing.B)   { benchGlyph(b, 'N', false, 64, draw.Src) }
+func BenchmarkGlyphNRGBA128Over(b *testing.B) { benchGlyph(b, 'N', false, 128, draw.Over) }
+func BenchmarkGlyphNRGBA128Src(b *testing.B)  { benchGlyph(b, 'N', false, 128, draw.Src) }
+func BenchmarkGlyphNRGBA256Over(b *testing.B) { benchGlyph(b, 'N', false, 256, draw.Over) }
+func BenchmarkGlyphNRGBA256Src(b *testing.B)  { benchGlyph(b, 'N', false, 256, draw.Src) }
+
+func BenchmarkGlyphRGBA16Over(b *testing.B)  { benchGlyph(b, 'R', false, 16, draw.Over) }
+func BenchmarkGlyphRGBA16Src(b *testing.B)   { benchGlyph(b, 'R', false, 16, draw.Src) }
+func BenchmarkGlyphRGBA32Over(b *testing.B)  { benchGlyph(b, 'R', false, 32, draw.Over) }
+func BenchmarkGlyphRGBA32Src(b *testing.B)   { benchGlyph(b, 'R', false, 32, draw.Src) }
+func BenchmarkGlyphRGBA64Over(b *testing.B)  { benchGlyph(b, 'R', false, 64, draw.Over) }
+func BenchmarkGlyphRGBA64Src(b *testing.B)   { benchGlyph(b, 'R', false, 64, draw.Src) }
+func BenchmarkGlyphRGBA128Over(b *testing.B) { benchGlyph(b, 'R', false, 128, draw.Over) }
+func BenchmarkGlyphRGBA128Src(b *testing.B)  { benchGlyph(b, 'R', false, 128, draw.Src) }
+func BenchmarkGlyphRGBA256Over(b *testing.B) { benchGlyph(b, 'R', false, 256, draw.Over) }
+func BenchmarkGlyphRGBA256Src(b *testing.B)  { benchGlyph(b, 'R', false, 256, draw.Src) }
