@@ -228,7 +228,7 @@ func (z *Rasterizer) Draw(dst draw.Image, r image.Rectangle, src image.Image, sp
 	// r.Add(sp.Sub(r.Min)).
 
 	if src, ok := src.(*image.Uniform); ok {
-		_, _, _, srcA := src.RGBA()
+		srcR, srcG, srcB, srcA := src.RGBA()
 		switch dst := dst.(type) {
 		case *image.Alpha:
 			// Fast path for glyph rendering.
@@ -240,6 +240,13 @@ func (z *Rasterizer) Draw(dst draw.Image, r image.Rectangle, src image.Image, sp
 				}
 				return
 			}
+		case *image.RGBA:
+			if z.DrawOp == draw.Over {
+				z.rasterizeDstRGBASrcUniformOpOver(dst, r, srcR, srcG, srcB, srcA)
+			} else {
+				z.rasterizeDstRGBASrcUniformOpSrc(dst, r, srcR, srcG, srcB, srcA)
+			}
+			return
 		}
 	}
 
@@ -305,6 +312,43 @@ func (z *Rasterizer) rasterizeDstAlphaSrcOpaqueOpSrc(dst *image.Alpha, r image.R
 			// This formula is like rasterizeOpSrc's, simplified for the
 			// concrete dst type and opaque src assumption.
 			pix[y*dst.Stride+x] = uint8(ma >> 8)
+		}
+	}
+}
+
+func (z *Rasterizer) rasterizeDstRGBASrcUniformOpOver(dst *image.RGBA, r image.Rectangle, sr, sg, sb, sa uint32) {
+	z.accumulateMask()
+	pix := dst.Pix[dst.PixOffset(r.Min.X, r.Min.Y):]
+	for y, y1 := 0, r.Max.Y-r.Min.Y; y < y1; y++ {
+		for x, x1 := 0, r.Max.X-r.Min.X; x < x1; x++ {
+			ma := z.bufU32[y*z.size.X+x]
+
+			// This formula is like rasterizeOpOver's, simplified for the
+			// concrete dst type and uniform src assumption.
+			a := 0xffff - (sa * ma / 0xffff)
+			i := y*dst.Stride + 4*x
+			pix[i+0] = uint8(((uint32(pix[i+0])*0x101*a + sr*ma) / 0xffff) >> 8)
+			pix[i+1] = uint8(((uint32(pix[i+1])*0x101*a + sg*ma) / 0xffff) >> 8)
+			pix[i+2] = uint8(((uint32(pix[i+2])*0x101*a + sb*ma) / 0xffff) >> 8)
+			pix[i+3] = uint8(((uint32(pix[i+3])*0x101*a + sa*ma) / 0xffff) >> 8)
+		}
+	}
+}
+
+func (z *Rasterizer) rasterizeDstRGBASrcUniformOpSrc(dst *image.RGBA, r image.Rectangle, sr, sg, sb, sa uint32) {
+	z.accumulateMask()
+	pix := dst.Pix[dst.PixOffset(r.Min.X, r.Min.Y):]
+	for y, y1 := 0, r.Max.Y-r.Min.Y; y < y1; y++ {
+		for x, x1 := 0, r.Max.X-r.Min.X; x < x1; x++ {
+			ma := z.bufU32[y*z.size.X+x]
+
+			// This formula is like rasterizeOpSrc's, simplified for the
+			// concrete dst type and uniform src assumption.
+			i := y*dst.Stride + 4*x
+			pix[i+0] = uint8((sr * ma / 0xffff) >> 8)
+			pix[i+1] = uint8((sg * ma / 0xffff) >> 8)
+			pix[i+2] = uint8((sb * ma / 0xffff) >> 8)
+			pix[i+3] = uint8((sa * ma / 0xffff) >> 8)
 		}
 	}
 }
