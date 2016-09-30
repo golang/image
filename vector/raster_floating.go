@@ -145,21 +145,6 @@ const (
 	almost65536 = almost256 * 256
 )
 
-func floatingAccumulateOpSrc(dst []uint8, src []float32) {
-	acc := float32(0)
-	for i, v := range src {
-		acc += v
-		a := acc
-		if a < 0 {
-			a = -a
-		}
-		if a > 1 {
-			a = 1
-		}
-		dst[i] = uint8(almost256 * a)
-	}
-}
-
 func floatingAccumulateOpOver(dst []uint8, src []float32) {
 	acc := float32(0)
 	for i, v := range src {
@@ -176,6 +161,21 @@ func floatingAccumulateOpOver(dst []uint8, src []float32) {
 		maskA := uint32(almost65536 * a)
 		outA := dstA*(0xffff-maskA)/0xffff + maskA
 		dst[i] = uint8(outA >> 8)
+	}
+}
+
+func floatingAccumulateOpSrc(dst []uint8, src []float32) {
+	acc := float32(0)
+	for i, v := range src {
+		acc += v
+		a := acc
+		if a < 0 {
+			a = -a
+		}
+		if a > 1 {
+			a = 1
+		}
+		dst[i] = uint8(almost256 * a)
 	}
 }
 

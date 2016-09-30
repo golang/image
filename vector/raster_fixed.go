@@ -199,22 +199,6 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 	}
 }
 
-func fixedAccumulateOpSrc(dst []uint8, src []uint32) {
-	acc := int2ϕ(0)
-	for i, v := range src {
-		acc += int2ϕ(v)
-		a := acc
-		if a < 0 {
-			a = -a
-		}
-		a >>= 2*ϕ - 8
-		if a > 0xff {
-			a = 0xff
-		}
-		dst[i] = uint8(a)
-	}
-}
-
 func fixedAccumulateOpOver(dst []uint8, src []uint32) {
 	acc := int2ϕ(0)
 	for i, v := range src {
@@ -232,6 +216,22 @@ func fixedAccumulateOpOver(dst []uint8, src []uint32) {
 		maskA := uint32(a)
 		outA := dstA*(0xffff-maskA)/0xffff + maskA
 		dst[i] = uint8(outA >> 8)
+	}
+}
+
+func fixedAccumulateOpSrc(dst []uint8, src []uint32) {
+	acc := int2ϕ(0)
+	for i, v := range src {
+		acc += int2ϕ(v)
+		a := acc
+		if a < 0 {
+			a = -a
+		}
+		a >>= 2*ϕ - 8
+		if a > 0xff {
+			a = 0xff
+		}
+		dst[i] = uint8(a)
 	}
 }
 
