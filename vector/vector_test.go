@@ -294,14 +294,16 @@ const (
 	benchmarkGlyphHeight = 1122
 )
 
-// benchmarkGlyphData is the 'a' glyph from the Roboto Regular font, translated
-// so that its top left corner is (0, 0).
-var benchmarkGlyphData = []struct {
+type benchmarkGlyphDatum struct {
 	// n being 0, 1 or 2 means moveTo, lineTo or quadTo.
 	n uint32
 	p f32.Vec2
 	q f32.Vec2
-}{
+}
+
+// benchmarkGlyphData is the 'a' glyph from the Roboto Regular font, translated
+// so that its top left corner is (0, 0).
+var benchmarkGlyphData = []benchmarkGlyphDatum{
 	{0, f32.Vec2{699, 1102}, f32.Vec2{0, 0}},
 	{2, f32.Vec2{683, 1070}, f32.Vec2{673, 988}},
 	{2, f32.Vec2{544, 1122}, f32.Vec2{365, 1122}},
@@ -335,16 +337,11 @@ var benchmarkGlyphData = []struct {
 	{2, f32.Vec2{301, 961}, f32.Vec2{392, 961}},
 }
 
-// benchGlyph benchmarks rasterizing a TrueType glyph.
-//
-// Note that, compared to the github.com/google/font-go prototype, the height
-// here is the height of the bounding box, not the pixels per em used to scale
-// a glyph's vectors. A height of 64 corresponds to a ppem greater than 64.
-func benchGlyph(b *testing.B, colorModel byte, loose bool, height int, op draw.Op) {
+func scaledBenchmarkGlyphData(height int) (width int, data []benchmarkGlyphDatum) {
 	scale := float32(height) / benchmarkGlyphHeight
 
 	// Clone the benchmarkGlyphData slice and scale its coordinates.
-	data := append(benchmarkGlyphData[:0:0], benchmarkGlyphData...)
+	data = append(data, benchmarkGlyphData...)
 	for i := range data {
 		data[i].p[0] *= scale
 		data[i].p[1] *= scale
@@ -352,7 +349,16 @@ func benchGlyph(b *testing.B, colorModel byte, loose bool, height int, op draw.O
 		data[i].q[1] *= scale
 	}
 
-	width := int(math.Ceil(float64(benchmarkGlyphWidth * scale)))
+	return int(math.Ceil(float64(benchmarkGlyphWidth * scale))), data
+}
+
+// benchGlyph benchmarks rasterizing a TrueType glyph.
+//
+// Note that, compared to the github.com/google/font-go prototype, the height
+// here is the height of the bounding box, not the pixels per em used to scale
+// a glyph's vectors. A height of 64 corresponds to a ppem greater than 64.
+func benchGlyph(b *testing.B, colorModel byte, loose bool, height int, op draw.Op) {
+	width, data := scaledBenchmarkGlyphData(height)
 	z := NewRasterizer(width, height)
 
 	bounds := z.Bounds()
