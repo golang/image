@@ -123,11 +123,15 @@ func (z *Rasterizer) Reset(w, h int) {
 	z.pen = f32.Vec2{}
 	z.DrawOp = draw.Over
 
-	z.useFloatingPointMath = w > floatingPointMathThreshold || h > floatingPointMathThreshold
+	z.setUseFloatingPointMath(w > floatingPointMathThreshold || h > floatingPointMathThreshold)
+}
 
-	// Make z.bufF32 or z.bufU32 large enough to hold w*h samples.
+func (z *Rasterizer) setUseFloatingPointMath(b bool) {
+	z.useFloatingPointMath = b
+
+	// Make z.bufF32 or z.bufU32 large enough to hold width * height samples.
 	if z.useFloatingPointMath {
-		if n := w * h; n > cap(z.bufF32) {
+		if n := z.size.X * z.size.Y; n > cap(z.bufF32) {
 			z.bufF32 = make([]float32, n)
 		} else {
 			z.bufF32 = z.bufF32[:n]
@@ -136,7 +140,7 @@ func (z *Rasterizer) Reset(w, h int) {
 			}
 		}
 	} else {
-		if n := w * h; n > cap(z.bufU32) {
+		if n := z.size.X * z.size.Y; n > cap(z.bufU32) {
 			z.bufU32 = make([]uint32, n)
 		} else {
 			z.bufU32 = z.bufU32[:n]
