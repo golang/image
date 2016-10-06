@@ -10,6 +10,87 @@ import (
 	"testing"
 )
 
+// TestXxxSIMDUnaligned tests that unaligned SIMD loads/stores don't crash.
+
+func TestFixedAccumulateSIMDUnaligned(t *testing.T) {
+	if !haveFixedAccumulateSIMD {
+		t.Skip("No SIMD implemention")
+	}
+
+	dst := make([]uint8, 64)
+	src := make([]uint32, 64)
+	for d := 0; d < 16; d++ {
+		for s := 0; s < 16; s++ {
+			fixedAccumulateOpSrcSIMD(dst[d:d+32], src[s:s+32])
+		}
+	}
+}
+
+func TestFloatingAccumulateSIMDUnaligned(t *testing.T) {
+	if !haveFloatingAccumulateSIMD {
+		t.Skip("No SIMD implemention")
+	}
+
+	dst := make([]uint8, 64)
+	src := make([]float32, 64)
+	for d := 0; d < 16; d++ {
+		for s := 0; s < 16; s++ {
+			floatingAccumulateOpSrcSIMD(dst[d:d+32], src[s:s+32])
+		}
+	}
+}
+
+// TestXxxSIMDShortDst tests that the SIMD implementations don't write past the
+// end of the dst buffer.
+
+func TestFixedAccumulateSIMDShortDst(t *testing.T) {
+	if !haveFixedAccumulateSIMD {
+		t.Skip("No SIMD implemention")
+	}
+
+	const oneQuarter = uint32(int2ϕ(fxOne*fxOne)) / 4
+	src := []uint32{oneQuarter, oneQuarter, oneQuarter, oneQuarter}
+	for i := 0; i < 4; i++ {
+		dst := make([]uint8, 4)
+		fixedAccumulateOpSrcSIMD(dst[:i], src[:i])
+		for j := range dst {
+			if j < i {
+				if got := dst[j]; got == 0 {
+					t.Errorf("i=%d, j=%d: got %#02x, want non-zero", i, j, got)
+				}
+			} else {
+				if got := dst[j]; got != 0 {
+					t.Errorf("i=%d, j=%d: got %#02x, want zero", i, j, got)
+				}
+			}
+		}
+	}
+}
+
+func TestFloatingAccumulateSIMDShortDst(t *testing.T) {
+	if !haveFloatingAccumulateSIMD {
+		t.Skip("No SIMD implemention")
+	}
+
+	const oneQuarter = 0.25
+	src := []float32{oneQuarter, oneQuarter, oneQuarter, oneQuarter}
+	for i := 0; i < 4; i++ {
+		dst := make([]uint8, 4)
+		floatingAccumulateOpSrcSIMD(dst[:i], src[:i])
+		for j := range dst {
+			if j < i {
+				if got := dst[j]; got == 0 {
+					t.Errorf("i=%d, j=%d: got %#02x, want non-zero", i, j, got)
+				}
+			} else {
+				if got := dst[j]; got != 0 {
+					t.Errorf("i=%d, j=%d: got %#02x, want zero", i, j, got)
+				}
+			}
+		}
+	}
+}
+
 func TestFixedAccumulateOpOverShort(t *testing.T)    { testAcc(t, fxInShort, fxMaskShort, "over") }
 func TestFixedAccumulateOpSrcShort(t *testing.T)     { testAcc(t, fxInShort, fxMaskShort, "src") }
 func TestFixedAccumulateMaskShort(t *testing.T)      { testAcc(t, fxInShort, fxMaskShort, "mask") }
@@ -25,81 +106,97 @@ func TestFloatingAccumulateOpSrc16(t *testing.T)  { testAcc(t, flIn16, flMask16,
 func TestFloatingAccumulateMask16(t *testing.T)   { testAcc(t, flIn16, flMask16, "mask") }
 
 func testAcc(t *testing.T, in interface{}, mask []uint32, op string) {
-	maxN := 0
-	switch in := in.(type) {
-	case []uint32:
-		maxN = len(in)
-	case []float32:
-		maxN = len(in)
-	}
-
-	for _, n := range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
-		33, 55, 79, 96, 120, 165, 256, maxN} {
-
-		if n > maxN {
-			continue
-		}
-
-		var (
-			got8, want8   []uint8
-			got32, want32 []uint32
-		)
-		switch op {
-		case "over":
-			const background = 0x40
-			got8 = make([]uint8, n)
-			for i := range got8 {
-				got8[i] = background
-			}
-			want8 = make([]uint8, n)
-			for i := range want8 {
-				dstA := uint32(background * 0x101)
-				maskA := mask[i]
-				outA := dstA*(0xffff-maskA)/0xffff + maskA
-				want8[i] = uint8(outA >> 8)
-			}
-
-		case "src":
-			got8 = make([]uint8, n)
-			want8 = make([]uint8, n)
-			for i := range want8 {
-				want8[i] = uint8(mask[i] >> 8)
-			}
-
-		case "mask":
-			got32 = make([]uint32, n)
-			want32 = mask[:n]
-		}
-
+	for _, simd := range []bool{false, true} {
+		maxN := 0
 		switch in := in.(type) {
 		case []uint32:
-			switch op {
-			case "over":
-				fixedAccumulateOpOver(got8, in[:n])
-			case "src":
-				fixedAccumulateOpSrc(got8, in[:n])
-			case "mask":
-				copy(got32, in[:n])
-				fixedAccumulateMask(got32)
+			if simd && !haveFixedAccumulateSIMD {
+				continue
 			}
+			maxN = len(in)
 		case []float32:
-			switch op {
-			case "over":
-				floatingAccumulateOpOver(got8, in[:n])
-			case "src":
-				floatingAccumulateOpSrc(got8, in[:n])
-			case "mask":
-				floatingAccumulateMask(got32, in[:n])
+			if simd && !haveFloatingAccumulateSIMD {
+				continue
 			}
+			maxN = len(in)
 		}
 
-		if op != "mask" {
-			if !bytes.Equal(got8, want8) {
-				t.Errorf("n=%d:\ngot:  % x\nwant: % x", n, got8, want8)
+		for _, n := range []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+			33, 55, 79, 96, 120, 165, 256, maxN} {
+
+			if n > maxN {
+				continue
 			}
-		} else {
-			if !uint32sEqual(got32, want32) {
-				t.Errorf("n=%d:\ngot:  % x\nwant: % x", n, got32, want32)
+
+			var (
+				got8, want8   []uint8
+				got32, want32 []uint32
+			)
+			switch op {
+			case "over":
+				const background = 0x40
+				got8 = make([]uint8, n)
+				for i := range got8 {
+					got8[i] = background
+				}
+				want8 = make([]uint8, n)
+				for i := range want8 {
+					dstA := uint32(background * 0x101)
+					maskA := mask[i]
+					outA := dstA*(0xffff-maskA)/0xffff + maskA
+					want8[i] = uint8(outA >> 8)
+				}
+
+			case "src":
+				got8 = make([]uint8, n)
+				want8 = make([]uint8, n)
+				for i := range want8 {
+					want8[i] = uint8(mask[i] >> 8)
+				}
+
+			case "mask":
+				got32 = make([]uint32, n)
+				want32 = mask[:n]
+			}
+
+			switch in := in.(type) {
+			case []uint32:
+				switch op {
+				case "over":
+					fixedAccumulateOpOver(got8, in[:n])
+				case "src":
+					if simd {
+						fixedAccumulateOpSrcSIMD(got8, in[:n])
+					} else {
+						fixedAccumulateOpSrc(got8, in[:n])
+					}
+				case "mask":
+					copy(got32, in[:n])
+					fixedAccumulateMask(got32)
+				}
+			case []float32:
+				switch op {
+				case "over":
+					floatingAccumulateOpOver(got8, in[:n])
+				case "src":
+					if simd {
+						floatingAccumulateOpSrcSIMD(got8, in[:n])
+					} else {
+						floatingAccumulateOpSrc(got8, in[:n])
+					}
+				case "mask":
+					floatingAccumulateMask(got32, in[:n])
+				}
+			}
+
+			if op != "mask" {
+				if !bytes.Equal(got8, want8) {
+					t.Errorf("simd=%t, n=%d:\ngot:  % x\nwant: % x", simd, n, got8, want8)
+				}
+			} else {
+				if !uint32sEqual(got32, want32) {
+					t.Errorf("simd=%t, n=%d:\ngot:  % x\nwant: % x", simd, n, got32, want32)
+				}
 			}
 		}
 	}
@@ -129,45 +226,66 @@ func float32sEqual(xs, ys []float32) bool {
 	return true
 }
 
-func BenchmarkFixedAccumulateOpOver16(b *testing.B)    { benchAcc(b, fxIn16, "over") }
-func BenchmarkFixedAccumulateOpSrc16(b *testing.B)     { benchAcc(b, fxIn16, "src") }
-func BenchmarkFixedAccumulateMask16(b *testing.B)      { benchAcc(b, fxIn16, "mask") }
-func BenchmarkFloatingAccumulateOpOver16(b *testing.B) { benchAcc(b, flIn16, "over") }
-func BenchmarkFloatingAccumulateOpSrc16(b *testing.B)  { benchAcc(b, flIn16, "src") }
-func BenchmarkFloatingAccumulateMask16(b *testing.B)   { benchAcc(b, flIn16, "mask") }
+func BenchmarkFixedAccumulateOpOver16(b *testing.B)       { benchAcc(b, fxIn16, "over", false) }
+func BenchmarkFixedAccumulateOpSrc16(b *testing.B)        { benchAcc(b, fxIn16, "src", false) }
+func BenchmarkFixedAccumulateOpSrcSIMD16(b *testing.B)    { benchAcc(b, fxIn16, "src", true) }
+func BenchmarkFixedAccumulateMask16(b *testing.B)         { benchAcc(b, fxIn16, "mask", false) }
+func BenchmarkFloatingAccumulateOpOver16(b *testing.B)    { benchAcc(b, flIn16, "over", false) }
+func BenchmarkFloatingAccumulateOpSrc16(b *testing.B)     { benchAcc(b, flIn16, "src", false) }
+func BenchmarkFloatingAccumulateOpSrcSIMD16(b *testing.B) { benchAcc(b, flIn16, "src", true) }
+func BenchmarkFloatingAccumulateMask16(b *testing.B)      { benchAcc(b, flIn16, "mask", false) }
 
-func BenchmarkFixedAccumulateOpOver64(b *testing.B)    { benchAcc(b, fxIn64, "over") }
-func BenchmarkFixedAccumulateOpSrc64(b *testing.B)     { benchAcc(b, fxIn64, "src") }
-func BenchmarkFixedAccumulateMask64(b *testing.B)      { benchAcc(b, fxIn64, "mask") }
-func BenchmarkFloatingAccumulateOpOver64(b *testing.B) { benchAcc(b, flIn64, "over") }
-func BenchmarkFloatingAccumulateOpSrc64(b *testing.B)  { benchAcc(b, flIn64, "src") }
-func BenchmarkFloatingAccumulateMask64(b *testing.B)   { benchAcc(b, flIn64, "mask") }
+func BenchmarkFixedAccumulateOpOver64(b *testing.B)       { benchAcc(b, fxIn64, "over", false) }
+func BenchmarkFixedAccumulateOpSrc64(b *testing.B)        { benchAcc(b, fxIn64, "src", false) }
+func BenchmarkFixedAccumulateOpSrcSIMD64(b *testing.B)    { benchAcc(b, fxIn64, "src", true) }
+func BenchmarkFixedAccumulateMask64(b *testing.B)         { benchAcc(b, fxIn64, "mask", false) }
+func BenchmarkFloatingAccumulateOpOver64(b *testing.B)    { benchAcc(b, flIn64, "over", false) }
+func BenchmarkFloatingAccumulateOpSrc64(b *testing.B)     { benchAcc(b, flIn64, "src", false) }
+func BenchmarkFloatingAccumulateOpSrcSIMD64(b *testing.B) { benchAcc(b, flIn64, "src", true) }
+func BenchmarkFloatingAccumulateMask64(b *testing.B)      { benchAcc(b, flIn64, "mask", false) }
 
-func benchAcc(b *testing.B, in interface{}, op string) {
+func benchAcc(b *testing.B, in interface{}, op string, simd bool) {
 	var f func()
 
 	switch in := in.(type) {
 	case []uint32:
+		if simd && !haveFixedAccumulateSIMD {
+			b.Skip("No SIMD implemention")
+		}
+
 		switch op {
 		case "over":
 			dst := make([]uint8, len(in))
 			f = func() { fixedAccumulateOpOver(dst, in) }
 		case "src":
 			dst := make([]uint8, len(in))
-			f = func() { fixedAccumulateOpSrc(dst, in) }
+			if simd {
+				f = func() { fixedAccumulateOpSrcSIMD(dst, in) }
+			} else {
+				f = func() { fixedAccumulateOpSrc(dst, in) }
+			}
 		case "mask":
 			buf := make([]uint32, len(in))
 			copy(buf, in)
 			f = func() { fixedAccumulateMask(buf) }
 		}
+
 	case []float32:
+		if simd && !haveFloatingAccumulateSIMD {
+			b.Skip("No SIMD implemention")
+		}
+
 		switch op {
 		case "over":
 			dst := make([]uint8, len(in))
 			f = func() { floatingAccumulateOpOver(dst, in) }
 		case "src":
 			dst := make([]uint8, len(in))
-			f = func() { floatingAccumulateOpSrc(dst, in) }
+			if simd {
+				f = func() { floatingAccumulateOpSrcSIMD(dst, in) }
+			} else {
+				f = func() { floatingAccumulateOpSrc(dst, in) }
+			}
 		case "mask":
 			dst := make([]uint32, len(in))
 			f = func() { floatingAccumulateMask(dst, in) }

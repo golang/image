@@ -165,6 +165,11 @@ func floatingAccumulateOpOver(dst []uint8, src []float32) {
 }
 
 func floatingAccumulateOpSrc(dst []uint8, src []float32) {
+	// Sanity check that len(dst) >= len(src).
+	if len(dst) < len(src) {
+		return
+	}
+
 	acc := float32(0)
 	for i, v := range src {
 		acc += v
