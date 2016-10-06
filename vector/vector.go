@@ -312,7 +312,6 @@ func (z *Rasterizer) accumulateMask() {
 }
 
 func (z *Rasterizer) rasterizeDstAlphaSrcOpaqueOpOver(dst *image.Alpha, r image.Rectangle) {
-	// TODO: add SIMD implementations.
 	// TODO: non-zero vs even-odd winding?
 	if r == dst.Bounds() && r == z.Bounds() {
 		// We bypass the z.accumulateMask step and convert straight from
@@ -341,15 +340,22 @@ func (z *Rasterizer) rasterizeDstAlphaSrcOpaqueOpOver(dst *image.Alpha, r image.
 }
 
 func (z *Rasterizer) rasterizeDstAlphaSrcOpaqueOpSrc(dst *image.Alpha, r image.Rectangle) {
-	// TODO: add SIMD implementations.
 	// TODO: non-zero vs even-odd winding?
 	if r == dst.Bounds() && r == z.Bounds() {
 		// We bypass the z.accumulateMask step and convert straight from
 		// z.bufF32 or z.bufU32 to dst.Pix.
 		if z.useFloatingPointMath {
-			floatingAccumulateOpSrc(dst.Pix, z.bufF32)
+			if haveFloatingAccumulateSIMD {
+				floatingAccumulateOpSrcSIMD(dst.Pix, z.bufF32)
+			} else {
+				floatingAccumulateOpSrc(dst.Pix, z.bufF32)
+			}
 		} else {
-			fixedAccumulateOpSrc(dst.Pix, z.bufU32)
+			if haveFixedAccumulateSIMD {
+				fixedAccumulateOpSrcSIMD(dst.Pix, z.bufU32)
+			} else {
+				fixedAccumulateOpSrc(dst.Pix, z.bufU32)
+			}
 		}
 		return
 	}

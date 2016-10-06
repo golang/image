@@ -21,9 +21,9 @@ const (
 	// in the .s files).
 	ϕ = 10
 
-	one          int1ϕ = 1 << ϕ
-	oneAndAHalf  int1ϕ = 1<<ϕ + 1<<(ϕ-1)
-	oneMinusIota int1ϕ = 1<<ϕ - 1 // Used for rounding up.
+	fxOne          int1ϕ = 1 << ϕ
+	fxOneAndAHalf  int1ϕ = 1<<ϕ + 1<<(ϕ-1)
+	fxOneMinusIota int1ϕ = 1<<ϕ - 1 // Used for rounding up.
 )
 
 // int1ϕ is a signed fixed-point number with 1*ϕ binary digits after the fixed
@@ -56,7 +56,7 @@ func fixedMin(x, y int1ϕ) int1ϕ {
 }
 
 func fixedFloor(x int1ϕ) int32 { return int32(x >> ϕ) }
-func fixedCeil(x int1ϕ) int32  { return int32((x + oneMinusIota) >> ϕ) }
+func fixedCeil(x int1ϕ) int32  { return int32((x + fxOneMinusIota) >> ϕ) }
 
 func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 	a := z.pen
@@ -74,10 +74,10 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 	}
 	dxdy := (b[0] - a[0]) / (b[1] - a[1])
 
-	ay := int1ϕ(a[1] * float32(one))
-	by := int1ϕ(b[1] * float32(one))
+	ay := int1ϕ(a[1] * float32(fxOne))
+	by := int1ϕ(b[1] * float32(fxOne))
 
-	x := int1ϕ(a[0] * float32(one))
+	x := int1ϕ(a[0] * float32(fxOne))
 	y := fixedFloor(ay)
 	yMax := fixedCeil(by)
 	if yMax > int32(z.size.Y) {
@@ -106,7 +106,7 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 		if x1i <= x0i+1 {
 			xmf := (x+xNext)>>1 - x0Floor
 			if i := clamp(x0i+0, width); i < uint(len(buf)) {
-				buf[i] += uint32(d * (one - xmf))
+				buf[i] += uint32(d * (fxOne - xmf))
 			}
 			if i := clamp(x0i+1, width); i < uint(len(buf)) {
 				buf[i] += uint32(d * xmf)
@@ -115,9 +115,9 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 			oneOverS := x1 - x0
 			twoOverS := 2 * oneOverS
 			x0f := x0 - x0Floor
-			oneMinusX0f := one - x0f
+			oneMinusX0f := fxOne - x0f
 			oneMinusX0fSquared := oneMinusX0f * oneMinusX0f
-			x1f := x1 - x1Ceil + one
+			x1f := x1 - x1Ceil + fxOne
 			x1fSquared := x1f * x1f
 
 			// These next two variables are unused, as rounding errors are
@@ -139,7 +139,7 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 
 			if x1i == x0i+2 {
 				if i := clamp(x0i+1, width); i < uint(len(buf)) {
-					// In ideal math: buf[i] += uint32(d * (one - a0 - am))
+					// In ideal math: buf[i] += uint32(d * (fxOne - a0 - am))
 					D := twoOverS<<ϕ - oneMinusX0fSquared - x1fSquared
 					D *= d
 					D /= twoOverS
@@ -148,14 +148,14 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 			} else {
 				// This is commented out for the same reason as a0 and am.
 				//
-				// a1 := ((oneAndAHalf - x0f) << ϕ) / oneOverS
+				// a1 := ((fxOneAndAHalf - x0f) << ϕ) / oneOverS
 
 				if i := clamp(x0i+1, width); i < uint(len(buf)) {
 					// In ideal math: buf[i] += uint32(d * (a1 - a0))
 					//
 					// Convert to int64 to avoid overflow. Without that,
 					// TestRasterizePolygon fails.
-					D := int64((oneAndAHalf-x0f)<<(ϕ+1) - oneMinusX0fSquared)
+					D := int64((fxOneAndAHalf-x0f)<<(ϕ+1) - oneMinusX0fSquared)
 					D *= int64(d)
 					D /= int64(twoOverS)
 					buf[i] += uint32(D)
@@ -172,12 +172,12 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 				// a2 := a1 + (int1ϕ(x1i-x0i-3)<<(2*ϕ))/oneOverS
 
 				if i := clamp(x1i-1, width); i < uint(len(buf)) {
-					// In ideal math: buf[i] += uint32(d * (one - a2 - am))
+					// In ideal math: buf[i] += uint32(d * (fxOne - a2 - am))
 					//
 					// Convert to int64 to avoid overflow. Without that,
 					// TestRasterizePolygon fails.
 					D := int64(twoOverS << ϕ)
-					D -= int64((oneAndAHalf - x0f) << (ϕ + 1))
+					D -= int64((fxOneAndAHalf - x0f) << (ϕ + 1))
 					D -= int64((x1i - x0i - 3) << (2*ϕ + 1))
 					D -= int64(x1fSquared)
 					D *= int64(d)
@@ -220,6 +220,11 @@ func fixedAccumulateOpOver(dst []uint8, src []uint32) {
 }
 
 func fixedAccumulateOpSrc(dst []uint8, src []uint32) {
+	// Sanity check that len(dst) >= len(src).
+	if len(dst) < len(src) {
+		return
+	}
+
 	acc := int2ϕ(0)
 	for i, v := range src {
 		acc += int2ϕ(v)
