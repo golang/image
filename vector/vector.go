@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+//go:generate go run gen.go
+//go:generate asmfmt -w acc_amd64.s
+
+// asmfmt is https://github.com/klauspost/asmfmt
+
 // Package vector provides a rasterizer for 2-D vector graphics.
 package vector // import "golang.org/x/image/vector"
 
