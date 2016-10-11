@@ -322,9 +322,17 @@ func (z *Rasterizer) rasterizeDstAlphaSrcOpaqueOpOver(dst *image.Alpha, r image.
 		// We bypass the z.accumulateMask step and convert straight from
 		// z.bufF32 or z.bufU32 to dst.Pix.
 		if z.useFloatingPointMath {
-			floatingAccumulateOpOver(dst.Pix, z.bufF32)
+			if haveFloatingAccumulateSIMD {
+				floatingAccumulateOpOverSIMD(dst.Pix, z.bufF32)
+			} else {
+				floatingAccumulateOpOver(dst.Pix, z.bufF32)
+			}
 		} else {
-			fixedAccumulateOpOver(dst.Pix, z.bufU32)
+			if haveFixedAccumulateSIMD {
+				fixedAccumulateOpOverSIMD(dst.Pix, z.bufU32)
+			} else {
+				fixedAccumulateOpOver(dst.Pix, z.bufU32)
+			}
 		}
 		return
 	}

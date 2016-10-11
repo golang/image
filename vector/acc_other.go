@@ -9,5 +9,7 @@ package vector
 const haveFixedAccumulateSIMD = false
 const haveFloatingAccumulateSIMD = false
 
-func fixedAccumulateOpSrcSIMD(dst []uint8, src []uint32)     {}
-func floatingAccumulateOpSrcSIMD(dst []uint8, src []float32) {}
+func fixedAccumulateOpOverSIMD(dst []uint8, src []uint32)     {}
+func fixedAccumulateOpSrcSIMD(dst []uint8, src []uint32)      {}
+func floatingAccumulateOpOverSIMD(dst []uint8, src []float32) {}
+func floatingAccumulateOpSrcSIMD(dst []uint8, src []float32)  {}

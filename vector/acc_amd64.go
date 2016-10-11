@@ -15,7 +15,13 @@ var haveFixedAccumulateSIMD = haveSSE4_1()
 const haveFloatingAccumulateSIMD = true
 
 //go:noescape
+func fixedAccumulateOpOverSIMD(dst []uint8, src []uint32)
+
+//go:noescape
 func fixedAccumulateOpSrcSIMD(dst []uint8, src []uint32)
+
+//go:noescape
+func floatingAccumulateOpOverSIMD(dst []uint8, src []float32)
 
 //go:noescape
 func floatingAccumulateOpSrcSIMD(dst []uint8, src []float32)
