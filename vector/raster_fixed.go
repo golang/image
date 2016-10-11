@@ -200,6 +200,11 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 }
 
 func fixedAccumulateOpOver(dst []uint8, src []uint32) {
+	// Sanity check that len(dst) >= len(src).
+	if len(dst) < len(src) {
+		return
+	}
+
 	acc := int2ϕ(0)
 	for i, v := range src {
 		acc += int2ϕ(v)

@@ -7,8 +7,33 @@ package vector
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"testing"
 )
+
+// TestDivideByFFFF tests that dividing by 0xffff is equivalent to multiplying
+// and then shifting by magic constants. The Go compiler itself issues this
+// multiply-and-shift for a division by the constant value 0xffff. This trick
+// is used in the asm code as the GOARCH=amd64 SIMD instructions have parallel
+// multiply but not parallel divide.
+//
+// There's undoubtedly a justification somewhere in Hacker's Delight chapter 10
+// "Integer Division by Constants", but I don't have a more specific link.
+//
+// http://www.hackersdelight.org/divcMore.pdf and
+// http://www.hackersdelight.org/magic.htm
+func TestDivideByFFFF(t *testing.T) {
+	const mul, shift = 0x80008001, 47
+	rng := rand.New(rand.NewSource(1))
+	for i := 0; i < 20000; i++ {
+		u := rng.Uint32()
+		got := uint32((uint64(u) * mul) >> shift)
+		want := u / 0xffff
+		if got != want {
+			t.Fatalf("i=%d, u=%#08x: got %#08x, want %#08x", i, u, got, want)
+		}
+	}
+}
 
 // TestXxxSIMDUnaligned tests that unaligned SIMD loads/stores don't crash.
 
@@ -163,7 +188,11 @@ func testAcc(t *testing.T, in interface{}, mask []uint32, op string) {
 			case []uint32:
 				switch op {
 				case "over":
-					fixedAccumulateOpOver(got8, in[:n])
+					if simd {
+						fixedAccumulateOpOverSIMD(got8, in[:n])
+					} else {
+						fixedAccumulateOpOver(got8, in[:n])
+					}
 				case "src":
 					if simd {
 						fixedAccumulateOpSrcSIMD(got8, in[:n])
@@ -177,7 +206,11 @@ func testAcc(t *testing.T, in interface{}, mask []uint32, op string) {
 			case []float32:
 				switch op {
 				case "over":
-					floatingAccumulateOpOver(got8, in[:n])
+					if simd {
+						floatingAccumulateOpOverSIMD(got8, in[:n])
+					} else {
+						floatingAccumulateOpOver(got8, in[:n])
+					}
 				case "src":
 					if simd {
 						floatingAccumulateOpSrcSIMD(got8, in[:n])
@@ -226,23 +259,27 @@ func float32sEqual(xs, ys []float32) bool {
 	return true
 }
 
-func BenchmarkFixedAccumulateOpOver16(b *testing.B)       { benchAcc(b, fxIn16, "over", false) }
-func BenchmarkFixedAccumulateOpSrc16(b *testing.B)        { benchAcc(b, fxIn16, "src", false) }
-func BenchmarkFixedAccumulateOpSrcSIMD16(b *testing.B)    { benchAcc(b, fxIn16, "src", true) }
-func BenchmarkFixedAccumulateMask16(b *testing.B)         { benchAcc(b, fxIn16, "mask", false) }
-func BenchmarkFloatingAccumulateOpOver16(b *testing.B)    { benchAcc(b, flIn16, "over", false) }
-func BenchmarkFloatingAccumulateOpSrc16(b *testing.B)     { benchAcc(b, flIn16, "src", false) }
-func BenchmarkFloatingAccumulateOpSrcSIMD16(b *testing.B) { benchAcc(b, flIn16, "src", true) }
-func BenchmarkFloatingAccumulateMask16(b *testing.B)      { benchAcc(b, flIn16, "mask", false) }
+func BenchmarkFixedAccumulateOpOver16(b *testing.B)        { benchAcc(b, fxIn16, "over", false) }
+func BenchmarkFixedAccumulateOpOverSIMD16(b *testing.B)    { benchAcc(b, fxIn16, "over", true) }
+func BenchmarkFixedAccumulateOpSrc16(b *testing.B)         { benchAcc(b, fxIn16, "src", false) }
+func BenchmarkFixedAccumulateOpSrcSIMD16(b *testing.B)     { benchAcc(b, fxIn16, "src", true) }
+func BenchmarkFixedAccumulateMask16(b *testing.B)          { benchAcc(b, fxIn16, "mask", false) }
+func BenchmarkFloatingAccumulateOpOver16(b *testing.B)     { benchAcc(b, flIn16, "over", false) }
+func BenchmarkFloatingAccumulateOpOverSIMD16(b *testing.B) { benchAcc(b, flIn16, "over", true) }
+func BenchmarkFloatingAccumulateOpSrc16(b *testing.B)      { benchAcc(b, flIn16, "src", false) }
+func BenchmarkFloatingAccumulateOpSrcSIMD16(b *testing.B)  { benchAcc(b, flIn16, "src", true) }
+func BenchmarkFloatingAccumulateMask16(b *testing.B)       { benchAcc(b, flIn16, "mask", false) }
 
-func BenchmarkFixedAccumulateOpOver64(b *testing.B)       { benchAcc(b, fxIn64, "over", false) }
-func BenchmarkFixedAccumulateOpSrc64(b *testing.B)        { benchAcc(b, fxIn64, "src", false) }
-func BenchmarkFixedAccumulateOpSrcSIMD64(b *testing.B)    { benchAcc(b, fxIn64, "src", true) }
-func BenchmarkFixedAccumulateMask64(b *testing.B)         { benchAcc(b, fxIn64, "mask", false) }
-func BenchmarkFloatingAccumulateOpOver64(b *testing.B)    { benchAcc(b, flIn64, "over", false) }
-func BenchmarkFloatingAccumulateOpSrc64(b *testing.B)     { benchAcc(b, flIn64, "src", false) }
-func BenchmarkFloatingAccumulateOpSrcSIMD64(b *testing.B) { benchAcc(b, flIn64, "src", true) }
-func BenchmarkFloatingAccumulateMask64(b *testing.B)      { benchAcc(b, flIn64, "mask", false) }
+func BenchmarkFixedAccumulateOpOver64(b *testing.B)        { benchAcc(b, fxIn64, "over", false) }
+func BenchmarkFixedAccumulateOpOverSIMD64(b *testing.B)    { benchAcc(b, fxIn64, "over", true) }
+func BenchmarkFixedAccumulateOpSrc64(b *testing.B)         { benchAcc(b, fxIn64, "src", false) }
+func BenchmarkFixedAccumulateOpSrcSIMD64(b *testing.B)     { benchAcc(b, fxIn64, "src", true) }
+func BenchmarkFixedAccumulateMask64(b *testing.B)          { benchAcc(b, fxIn64, "mask", false) }
+func BenchmarkFloatingAccumulateOpOver64(b *testing.B)     { benchAcc(b, flIn64, "over", false) }
+func BenchmarkFloatingAccumulateOpOverSIMD64(b *testing.B) { benchAcc(b, flIn64, "over", true) }
+func BenchmarkFloatingAccumulateOpSrc64(b *testing.B)      { benchAcc(b, flIn64, "src", false) }
+func BenchmarkFloatingAccumulateOpSrcSIMD64(b *testing.B)  { benchAcc(b, flIn64, "src", true) }
+func BenchmarkFloatingAccumulateMask64(b *testing.B)       { benchAcc(b, flIn64, "mask", false) }
 
 func benchAcc(b *testing.B, in interface{}, op string, simd bool) {
 	var f func()
@@ -256,7 +293,11 @@ func benchAcc(b *testing.B, in interface{}, op string, simd bool) {
 		switch op {
 		case "over":
 			dst := make([]uint8, len(in))
-			f = func() { fixedAccumulateOpOver(dst, in) }
+			if simd {
+				f = func() { fixedAccumulateOpOverSIMD(dst, in) }
+			} else {
+				f = func() { fixedAccumulateOpOver(dst, in) }
+			}
 		case "src":
 			dst := make([]uint8, len(in))
 			if simd {
@@ -278,7 +319,11 @@ func benchAcc(b *testing.B, in interface{}, op string, simd bool) {
 		switch op {
 		case "over":
 			dst := make([]uint8, len(in))
-			f = func() { floatingAccumulateOpOver(dst, in) }
+			if simd {
+				f = func() { floatingAccumulateOpOverSIMD(dst, in) }
+			} else {
+				f = func() { floatingAccumulateOpOver(dst, in) }
+			}
 		case "src":
 			dst := make([]uint8, len(in))
 			if simd {

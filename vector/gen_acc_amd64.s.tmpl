@@ -12,20 +12,50 @@
 
 DATA flAlmost256<>+0x00(SB)/8, $0x437fffff437fffff
 DATA flAlmost256<>+0x08(SB)/8, $0x437fffff437fffff
+DATA flAlmost65536<>+0x00(SB)/8, $0x477fffff477fffff
+DATA flAlmost65536<>+0x08(SB)/8, $0x477fffff477fffff
 DATA flOne<>+0x00(SB)/8, $0x3f8000003f800000
 DATA flOne<>+0x08(SB)/8, $0x3f8000003f800000
 DATA flSignMask<>+0x00(SB)/8, $0x7fffffff7fffffff
 DATA flSignMask<>+0x08(SB)/8, $0x7fffffff7fffffff
-DATA shuffleMask<>+0x00(SB)/8, $0x0c0804000c080400
-DATA shuffleMask<>+0x08(SB)/8, $0x0c0804000c080400
+
+// scatterAndMulBy0x101 is a PSHUFB mask that brings the low four bytes of an
+// XMM register to the low byte of that register's four uint32 values. It
+// duplicates those bytes, effectively multiplying each uint32 by 0x101.
+//
+// It transforms a little-endian 16-byte XMM value from
+//	ijkl????????????
+// to
+//	ii00jj00kk00ll00
+DATA scatterAndMulBy0x101<>+0x00(SB)/8, $0x8080010180800000
+DATA scatterAndMulBy0x101<>+0x08(SB)/8, $0x8080030380800202
+
+// gather is a PSHUFB mask that brings the low byte of the XMM register's four
+// uint32 values to the low four bytes of that register.
+//
+// It transforms a little-endian 16-byte XMM value from
+//	i???j???k???l???
+// to
+//	ijkl000000000000
+DATA gather<>+0x00(SB)/8, $0x808080800c080400
+DATA gather<>+0x08(SB)/8, $0x8080808080808080
+
 DATA fxAlmost256<>+0x00(SB)/8, $0x000000ff000000ff
 DATA fxAlmost256<>+0x08(SB)/8, $0x000000ff000000ff
+DATA fxAlmost65536<>+0x00(SB)/8, $0x0000ffff0000ffff
+DATA fxAlmost65536<>+0x08(SB)/8, $0x0000ffff0000ffff
+DATA inverseFFFF<>+0x00(SB)/8, $0x8000800180008001
+DATA inverseFFFF<>+0x08(SB)/8, $0x8000800180008001
 
 GLOBL flAlmost256<>(SB), (NOPTR+RODATA), $16
+GLOBL flAlmost65536<>(SB), (NOPTR+RODATA), $16
 GLOBL flOne<>(SB), (NOPTR+RODATA), $16
 GLOBL flSignMask<>(SB), (NOPTR+RODATA), $16
-GLOBL shuffleMask<>(SB), (NOPTR+RODATA), $16
+GLOBL scatterAndMulBy0x101<>(SB), (NOPTR+RODATA), $16
+GLOBL gather<>(SB), (NOPTR+RODATA), $16
 GLOBL fxAlmost256<>(SB), (NOPTR+RODATA), $16
+GLOBL fxAlmost65536<>(SB), (NOPTR+RODATA), $16
+GLOBL inverseFFFF<>(SB), (NOPTR+RODATA), $16
 
 // func haveSSE4_1() bool
 TEXT ·haveSSE4_1(SB), NOSPLIT, $0
@@ -49,36 +79,41 @@ TEXT ·haveSSE4_1(SB), NOSPLIT, $0
 //	xmm3	{{.XMM3}}
 //	xmm4	{{.XMM4}}
 //	xmm5	{{.XMM5}}
-//	xmm6	shuffleMask
+//	xmm6	gather
 //	xmm7	offset
+//	xmm8	{{.XMM8}}
+//	xmm9	{{.XMM9}}
+//	xmm10	{{.XMM10}}
 TEXT ·{{.LongName}}SIMD(SB), NOSPLIT, ${{.FrameSize}}-48
 	MOVQ dst_base+0(FP), DI
 	MOVQ dst_len+8(FP), BX
 	MOVQ src_base+24(FP), SI
-	MOVQ src_len+32(FP), CX
+	MOVQ src_len+32(FP), R10
 
 	// Sanity check that len(dst) >= len(src).
-	CMPQ BX, CX
+	CMPQ BX, R10
 	JLT  {{.ShortName}}End
 
-	// CX = len(src) &^ 3
-	// DX = len(src)
-	MOVQ CX, DX
-	ANDQ $-4, CX
+	// R10 = len(src) &^ 3
+	// R11 = len(src)
+	MOVQ R10, R11
+	ANDQ $-4, R10
 
 	{{.Setup}}
 
-	// shuffleMask := XMM(0x0c080400 repeated four times) // PSHUFB shuffle mask.
-	// offset      := XMM(0x00000000 repeated four times) // Cumulative sum.
-	MOVOU shuffleMask<>(SB), X6
+	{{.LoadXMMRegs}}
+
+	// gather := XMM(see above)                      // PSHUFB shuffle mask.
+	// offset := XMM(0x00000000 repeated four times) // Cumulative sum.
+	MOVOU gather<>(SB), X6
 	XORPS X7, X7
 
 	// i := 0
-	MOVQ $0, AX
+	MOVQ $0, R9
 
 {{.ShortName}}Loop4:
 	// for i < (len(src) &^ 3)
-	CMPQ AX, CX
+	CMPQ R9, R10
 	JAE  {{.ShortName}}Loop1
 
 	// x = XMM(s0, s1, s2, s3)
@@ -107,10 +142,7 @@ TEXT ·{{.LongName}}SIMD(SB), NOSPLIT, ${{.FrameSize}}-48
 	// z = convertToInt32(y)
 	{{.ConvertToInt32}}
 
-	// z = shuffleTheLowBytesOfEach4ByteElement(z)
-	// copy(dst[:4], low4BytesOf(z))
-	PSHUFB X6, X2
-	MOVL   X2, (DI)
+	{{.Store4}}
 
 	// offset = XMM(x@3, x@3, x@3, x@3)
 	MOVOU  X1, X7
@@ -119,14 +151,14 @@ TEXT ·{{.LongName}}SIMD(SB), NOSPLIT, ${{.FrameSize}}-48
 	// i += 4
 	// dst = dst[4:]
 	// src = src[4:]
-	ADDQ $4, AX
+	ADDQ $4, R9
 	ADDQ $4, DI
 	ADDQ $16, SI
 	JMP  {{.ShortName}}Loop4
 
 {{.ShortName}}Loop1:
 	// for i < len(src)
-	CMPQ AX, DX
+	CMPQ R9, R11
 	JAE  {{.ShortName}}Cleanup
 
 	// x = src[i] + offset
@@ -138,9 +170,7 @@ TEXT ·{{.LongName}}SIMD(SB), NOSPLIT, ${{.FrameSize}}-48
 	// z = convertToInt32(y)
 	{{.ConvertToInt32}}
 
-	// dst[0] = uint8(z)
-	MOVL X2, BX
-	MOVB BX, (DI)
+	{{.Store1}}
 
 	// offset = x
 	MOVOU X1, X7
@@ -148,7 +178,7 @@ TEXT ·{{.LongName}}SIMD(SB), NOSPLIT, ${{.FrameSize}}-48
 	// i += 1
 	// dst = dst[1:]
 	// src = src[1:]
-	ADDQ $1, AX
+	ADDQ $1, R9
 	ADDQ $1, DI
 	ADDQ $4, SI
 	JMP  {{.ShortName}}Loop1
