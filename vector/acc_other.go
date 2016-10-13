@@ -11,5 +11,7 @@ const haveFloatingAccumulateSIMD = false
 
 func fixedAccumulateOpOverSIMD(dst []uint8, src []uint32)     {}
 func fixedAccumulateOpSrcSIMD(dst []uint8, src []uint32)      {}
+func fixedAccumulateMaskSIMD(buf []uint32)                    {}
 func floatingAccumulateOpOverSIMD(dst []uint8, src []float32) {}
 func floatingAccumulateOpSrcSIMD(dst []uint8, src []float32)  {}
+func floatingAccumulateMaskSIMD(dst []uint32, src []float32)  {}

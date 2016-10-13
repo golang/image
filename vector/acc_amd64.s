@@ -83,6 +83,7 @@ TEXT ·haveSSE4_1(SB), NOSPLIT, $0
 //	xmm9	fxAlmost65536
 //	xmm10	inverseFFFF
 TEXT ·fixedAccumulateOpOverSIMD(SB), NOSPLIT, $0-48
+
 	MOVQ dst_base+0(FP), DI
 	MOVQ dst_len+8(FP), BX
 	MOVQ src_base+24(FP), SI
@@ -100,16 +101,16 @@ TEXT ·fixedAccumulateOpOverSIMD(SB), NOSPLIT, $0-48
 	// fxAlmost65536 := XMM(0x0000ffff repeated four times) // Maximum of an uint16.
 	MOVOU fxAlmost65536<>(SB), X5
 
+	// gather               := XMM(see above)                      // PSHUFB shuffle mask.
 	// scatterAndMulBy0x101 := XMM(see above)                      // PSHUFB shuffle mask.
 	// fxAlmost65536        := XMM(0x0000ffff repeated four times) // 0xffff.
 	// inverseFFFF          := XMM(0x80008001 repeated four times) // Magic constant for dividing by 0xffff.
+	MOVOU gather<>(SB), X6
 	MOVOU scatterAndMulBy0x101<>(SB), X8
 	MOVOU fxAlmost65536<>(SB), X9
 	MOVOU inverseFFFF<>(SB), X10
 
-	// gather := XMM(see above)                      // PSHUFB shuffle mask.
 	// offset := XMM(0x00000000 repeated four times) // Cumulative sum.
-	MOVOU gather<>(SB), X6
 	XORPS X7, X7
 
 	// i := 0
@@ -222,7 +223,7 @@ fxAccOpOverLoop4:
 fxAccOpOverLoop1:
 	// for i < len(src)
 	CMPQ R9, R11
-	JAE  fxAccOpOverCleanup
+	JAE  fxAccOpOverEnd
 
 	// x = src[i] + offset
 	MOVL  (SI), X1
@@ -276,9 +277,6 @@ fxAccOpOverLoop1:
 	ADDQ $4, SI
 	JMP  fxAccOpOverLoop1
 
-fxAccOpOverCleanup:
-	// No-op.
-
 fxAccOpOverEnd:
 	RET
 
@@ -301,6 +299,7 @@ fxAccOpOverEnd:
 //	xmm9	-
 //	xmm10	-
 TEXT ·fixedAccumulateOpSrcSIMD(SB), NOSPLIT, $0-48
+
 	MOVQ dst_base+0(FP), DI
 	MOVQ dst_len+8(FP), BX
 	MOVQ src_base+24(FP), SI
@@ -318,9 +317,10 @@ TEXT ·fixedAccumulateOpSrcSIMD(SB), NOSPLIT, $0-48
 	// fxAlmost256 := XMM(0x000000ff repeated four times) // Maximum of an uint8.
 	MOVOU fxAlmost256<>(SB), X5
 
-	// gather := XMM(see above)                      // PSHUFB shuffle mask.
-	// offset := XMM(0x00000000 repeated four times) // Cumulative sum.
+	// gather := XMM(see above) // PSHUFB shuffle mask.
 	MOVOU gather<>(SB), X6
+
+	// offset := XMM(0x00000000 repeated four times) // Cumulative sum.
 	XORPS X7, X7
 
 	// i := 0
@@ -390,7 +390,7 @@ fxAccOpSrcLoop4:
 fxAccOpSrcLoop1:
 	// for i < len(src)
 	CMPQ R9, R11
-	JAE  fxAccOpSrcCleanup
+	JAE  fxAccOpSrcEnd
 
 	// x = src[i] + offset
 	MOVL  (SI), X1
@@ -429,10 +429,149 @@ fxAccOpSrcLoop1:
 	ADDQ $4, SI
 	JMP  fxAccOpSrcLoop1
 
-fxAccOpSrcCleanup:
+fxAccOpSrcEnd:
+	RET
+
+// ----------------------------------------------------------------------------
+
+// func fixedAccumulateMaskSIMD(buf []uint32)
+//
+// XMM registers. Variable names are per
+// https://github.com/google/font-rs/blob/master/src/accumulate.c
+//
+//	xmm0	scratch
+//	xmm1	x
+//	xmm2	y, z
+//	xmm3	-
+//	xmm4	-
+//	xmm5	fxAlmost65536
+//	xmm6	-
+//	xmm7	offset
+//	xmm8	-
+//	xmm9	-
+//	xmm10	-
+TEXT ·fixedAccumulateMaskSIMD(SB), NOSPLIT, $0-24
+
+	MOVQ buf_base+0(FP), DI
+	MOVQ buf_len+8(FP), BX
+	MOVQ buf_base+0(FP), SI
+	MOVQ buf_len+8(FP), R10
+
+	// R10 = len(src) &^ 3
+	// R11 = len(src)
+	MOVQ R10, R11
+	ANDQ $-4, R10
+
+	// fxAlmost65536 := XMM(0x0000ffff repeated four times) // Maximum of an uint16.
+	MOVOU fxAlmost65536<>(SB), X5
+
+	// offset := XMM(0x00000000 repeated four times) // Cumulative sum.
+	XORPS X7, X7
+
+	// i := 0
+	MOVQ $0, R9
+
+fxAccMaskLoop4:
+	// for i < (len(src) &^ 3)
+	CMPQ R9, R10
+	JAE  fxAccMaskLoop1
+
+	// x = XMM(s0, s1, s2, s3)
+	//
+	// Where s0 is src[i+0], s1 is src[i+1], etc.
+	MOVOU (SI), X1
+
+	// scratch = XMM(0, s0, s1, s2)
+	// x += scratch                                  // yields x == XMM(s0, s0+s1, s1+s2, s2+s3)
+	MOVOU X1, X0
+	PSLLO $4, X0
+	PADDD X0, X1
+
+	// scratch = XMM(0, 0, 0, 0)
+	// scratch = XMM(scratch@0, scratch@0, x@0, x@1) // yields scratch == XMM(0, 0, s0, s0+s1)
+	// x += scratch                                  // yields x == XMM(s0, s0+s1, s0+s1+s2, s0+s1+s2+s3)
+	XORPS  X0, X0
+	SHUFPS $0x40, X1, X0
+	PADDD  X0, X1
+
+	// x += offset
+	PADDD X7, X1
+
+	// y = abs(x)
+	// y >>= 4 // Shift by 2*ϕ - 16.
+	// y = min(y, fxAlmost65536)
+	//
+	// pabsd  %xmm1,%xmm2
+	// psrld  $0x4,%xmm2
+	// pminud %xmm5,%xmm2
+	//
+	// Hopefully we'll get these opcode mnemonics into the assembler for Go
+	// 1.8. https://golang.org/issue/16007 isn't exactly the same thing, but
+	// it's similar.
+	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x1e; BYTE $0xd1
+	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x04
+	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x3b; BYTE $0xd5
+
+	// z = convertToInt32(y)
 	// No-op.
 
-fxAccOpSrcEnd:
+	// copy(dst[:4], z)
+	MOVOU X2, (DI)
+
+	// offset = XMM(x@3, x@3, x@3, x@3)
+	MOVOU  X1, X7
+	SHUFPS $0xff, X1, X7
+
+	// i += 4
+	// dst = dst[4:]
+	// src = src[4:]
+	ADDQ $4, R9
+	ADDQ $16, DI
+	ADDQ $16, SI
+	JMP  fxAccMaskLoop4
+
+fxAccMaskLoop1:
+	// for i < len(src)
+	CMPQ R9, R11
+	JAE  fxAccMaskEnd
+
+	// x = src[i] + offset
+	MOVL  (SI), X1
+	PADDD X7, X1
+
+	// y = abs(x)
+	// y >>= 4 // Shift by 2*ϕ - 16.
+	// y = min(y, fxAlmost65536)
+	//
+	// pabsd  %xmm1,%xmm2
+	// psrld  $0x4,%xmm2
+	// pminud %xmm5,%xmm2
+	//
+	// Hopefully we'll get these opcode mnemonics into the assembler for Go
+	// 1.8. https://golang.org/issue/16007 isn't exactly the same thing, but
+	// it's similar.
+	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x1e; BYTE $0xd1
+	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x04
+	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x3b; BYTE $0xd5
+
+	// z = convertToInt32(y)
+	// No-op.
+
+	// dst[0] = uint32(z)
+	MOVL X2, (DI)
+
+	// offset = x
+	MOVOU X1, X7
+
+	// i += 1
+	// dst = dst[1:]
+	// src = src[1:]
+	ADDQ $1, R9
+	ADDQ $4, DI
+	ADDQ $4, SI
+	JMP  fxAccMaskLoop1
+
+fxAccMaskEnd:
 	RET
 
 // ----------------------------------------------------------------------------
@@ -454,6 +593,7 @@ fxAccOpSrcEnd:
 //	xmm9	fxAlmost65536
 //	xmm10	inverseFFFF
 TEXT ·floatingAccumulateOpOverSIMD(SB), NOSPLIT, $8-48
+
 	MOVQ dst_base+0(FP), DI
 	MOVQ dst_len+8(FP), BX
 	MOVQ src_base+24(FP), SI
@@ -468,12 +608,12 @@ TEXT ·floatingAccumulateOpOverSIMD(SB), NOSPLIT, $8-48
 	MOVQ R10, R11
 	ANDQ $-4, R10
 
-	// Set MXCSR bits 13 and 14, so that the CVTPS2PL below is "Round To Zero".
+	// Prepare to set MXCSR bits 13 and 14, so that the CVTPS2PL below is
+	// "Round To Zero".
 	STMXCSR mxcsrOrig-8(SP)
 	MOVL    mxcsrOrig-8(SP), AX
 	ORL     $0x6000, AX
 	MOVL    AX, mxcsrNew-4(SP)
-	LDMXCSR mxcsrNew-4(SP)
 
 	// flAlmost65536 := XMM(0x477fffff repeated four times) // 255.99998 * 256 as a float32.
 	// flOne         := XMM(0x3f800000 repeated four times) // 1 as a float32.
@@ -482,16 +622,16 @@ TEXT ·floatingAccumulateOpOverSIMD(SB), NOSPLIT, $8-48
 	MOVOU flOne<>(SB), X4
 	MOVOU flSignMask<>(SB), X5
 
+	// gather               := XMM(see above)                      // PSHUFB shuffle mask.
 	// scatterAndMulBy0x101 := XMM(see above)                      // PSHUFB shuffle mask.
 	// fxAlmost65536        := XMM(0x0000ffff repeated four times) // 0xffff.
 	// inverseFFFF          := XMM(0x80008001 repeated four times) // Magic constant for dividing by 0xffff.
+	MOVOU gather<>(SB), X6
 	MOVOU scatterAndMulBy0x101<>(SB), X8
 	MOVOU fxAlmost65536<>(SB), X9
 	MOVOU inverseFFFF<>(SB), X10
 
-	// gather := XMM(see above)                      // PSHUFB shuffle mask.
 	// offset := XMM(0x00000000 repeated four times) // Cumulative sum.
-	MOVOU gather<>(SB), X6
 	XORPS X7, X7
 
 	// i := 0
@@ -532,7 +672,9 @@ flAccOpOverLoop4:
 	MULPS X3, X2
 
 	// z = convertToInt32(y)
+	LDMXCSR  mxcsrNew-4(SP)
 	CVTPS2PL X2, X2
+	LDMXCSR  mxcsrOrig-8(SP)
 
 	// Blend over the dst's prior value. SIMD for i in 0..3:
 	//
@@ -597,7 +739,7 @@ flAccOpOverLoop4:
 flAccOpOverLoop1:
 	// for i < len(src)
 	CMPQ R9, R11
-	JAE  flAccOpOverCleanup
+	JAE  flAccOpOverEnd
 
 	// x = src[i] + offset
 	MOVL  (SI), X1
@@ -612,7 +754,9 @@ flAccOpOverLoop1:
 	MULPS X3, X2
 
 	// z = convertToInt32(y)
+	LDMXCSR  mxcsrNew-4(SP)
 	CVTPS2PL X2, X2
+	LDMXCSR  mxcsrOrig-8(SP)
 
 	// Blend over the dst's prior value.
 	//
@@ -644,9 +788,6 @@ flAccOpOverLoop1:
 	ADDQ $4, SI
 	JMP  flAccOpOverLoop1
 
-flAccOpOverCleanup:
-	LDMXCSR mxcsrOrig-8(SP)
-
 flAccOpOverEnd:
 	RET
 
@@ -669,6 +810,7 @@ flAccOpOverEnd:
 //	xmm9	-
 //	xmm10	-
 TEXT ·floatingAccumulateOpSrcSIMD(SB), NOSPLIT, $8-48
+
 	MOVQ dst_base+0(FP), DI
 	MOVQ dst_len+8(FP), BX
 	MOVQ src_base+24(FP), SI
@@ -683,12 +825,12 @@ TEXT ·floatingAccumulateOpSrcSIMD(SB), NOSPLIT, $8-48
 	MOVQ R10, R11
 	ANDQ $-4, R10
 
-	// Set MXCSR bits 13 and 14, so that the CVTPS2PL below is "Round To Zero".
+	// Prepare to set MXCSR bits 13 and 14, so that the CVTPS2PL below is
+	// "Round To Zero".
 	STMXCSR mxcsrOrig-8(SP)
 	MOVL    mxcsrOrig-8(SP), AX
 	ORL     $0x6000, AX
 	MOVL    AX, mxcsrNew-4(SP)
-	LDMXCSR mxcsrNew-4(SP)
 
 	// flAlmost256 := XMM(0x437fffff repeated four times) // 255.99998 as a float32.
 	// flOne       := XMM(0x3f800000 repeated four times) // 1 as a float32.
@@ -697,9 +839,10 @@ TEXT ·floatingAccumulateOpSrcSIMD(SB), NOSPLIT, $8-48
 	MOVOU flOne<>(SB), X4
 	MOVOU flSignMask<>(SB), X5
 
-	// gather := XMM(see above)                      // PSHUFB shuffle mask.
-	// offset := XMM(0x00000000 repeated four times) // Cumulative sum.
+	// gather := XMM(see above) // PSHUFB shuffle mask.
 	MOVOU gather<>(SB), X6
+
+	// offset := XMM(0x00000000 repeated four times) // Cumulative sum.
 	XORPS X7, X7
 
 	// i := 0
@@ -740,7 +883,9 @@ flAccOpSrcLoop4:
 	MULPS X3, X2
 
 	// z = convertToInt32(y)
+	LDMXCSR  mxcsrNew-4(SP)
 	CVTPS2PL X2, X2
+	LDMXCSR  mxcsrOrig-8(SP)
 
 	// z = shuffleTheLowBytesOfEach4ByteElement(z)
 	// copy(dst[:4], low4BytesOf(z))
@@ -762,7 +907,7 @@ flAccOpSrcLoop4:
 flAccOpSrcLoop1:
 	// for i < len(src)
 	CMPQ R9, R11
-	JAE  flAccOpSrcCleanup
+	JAE  flAccOpSrcEnd
 
 	// x = src[i] + offset
 	MOVL  (SI), X1
@@ -777,7 +922,9 @@ flAccOpSrcLoop1:
 	MULPS X3, X2
 
 	// z = convertToInt32(y)
+	LDMXCSR  mxcsrNew-4(SP)
 	CVTPS2PL X2, X2
+	LDMXCSR  mxcsrOrig-8(SP)
 
 	// dst[0] = uint8(z)
 	MOVL X2, BX
@@ -794,8 +941,152 @@ flAccOpSrcLoop1:
 	ADDQ $4, SI
 	JMP  flAccOpSrcLoop1
 
-flAccOpSrcCleanup:
-	LDMXCSR mxcsrOrig-8(SP)
-
 flAccOpSrcEnd:
+	RET
+
+// ----------------------------------------------------------------------------
+
+// func floatingAccumulateMaskSIMD(dst []uint32, src []float32)
+//
+// XMM registers. Variable names are per
+// https://github.com/google/font-rs/blob/master/src/accumulate.c
+//
+//	xmm0	scratch
+//	xmm1	x
+//	xmm2	y, z
+//	xmm3	flAlmost65536
+//	xmm4	flOne
+//	xmm5	flSignMask
+//	xmm6	-
+//	xmm7	offset
+//	xmm8	-
+//	xmm9	-
+//	xmm10	-
+TEXT ·floatingAccumulateMaskSIMD(SB), NOSPLIT, $8-48
+
+	MOVQ dst_base+0(FP), DI
+	MOVQ dst_len+8(FP), BX
+	MOVQ src_base+24(FP), SI
+	MOVQ src_len+32(FP), R10
+
+	// Sanity check that len(dst) >= len(src).
+	CMPQ BX, R10
+	JLT  flAccMaskEnd
+
+	// R10 = len(src) &^ 3
+	// R11 = len(src)
+	MOVQ R10, R11
+	ANDQ $-4, R10
+
+	// Prepare to set MXCSR bits 13 and 14, so that the CVTPS2PL below is
+	// "Round To Zero".
+	STMXCSR mxcsrOrig-8(SP)
+	MOVL    mxcsrOrig-8(SP), AX
+	ORL     $0x6000, AX
+	MOVL    AX, mxcsrNew-4(SP)
+
+	// flAlmost65536 := XMM(0x477fffff repeated four times) // 255.99998 * 256 as a float32.
+	// flOne         := XMM(0x3f800000 repeated four times) // 1 as a float32.
+	// flSignMask    := XMM(0x7fffffff repeated four times) // All but the sign bit of a float32.
+	MOVOU flAlmost65536<>(SB), X3
+	MOVOU flOne<>(SB), X4
+	MOVOU flSignMask<>(SB), X5
+
+	// offset := XMM(0x00000000 repeated four times) // Cumulative sum.
+	XORPS X7, X7
+
+	// i := 0
+	MOVQ $0, R9
+
+flAccMaskLoop4:
+	// for i < (len(src) &^ 3)
+	CMPQ R9, R10
+	JAE  flAccMaskLoop1
+
+	// x = XMM(s0, s1, s2, s3)
+	//
+	// Where s0 is src[i+0], s1 is src[i+1], etc.
+	MOVOU (SI), X1
+
+	// scratch = XMM(0, s0, s1, s2)
+	// x += scratch                                  // yields x == XMM(s0, s0+s1, s1+s2, s2+s3)
+	MOVOU X1, X0
+	PSLLO $4, X0
+	ADDPS X0, X1
+
+	// scratch = XMM(0, 0, 0, 0)
+	// scratch = XMM(scratch@0, scratch@0, x@0, x@1) // yields scratch == XMM(0, 0, s0, s0+s1)
+	// x += scratch                                  // yields x == XMM(s0, s0+s1, s0+s1+s2, s0+s1+s2+s3)
+	XORPS  X0, X0
+	SHUFPS $0x40, X1, X0
+	ADDPS  X0, X1
+
+	// x += offset
+	ADDPS X7, X1
+
+	// y = x & flSignMask
+	// y = min(y, flOne)
+	// y = mul(y, flAlmost65536)
+	MOVOU X5, X2
+	ANDPS X1, X2
+	MINPS X4, X2
+	MULPS X3, X2
+
+	// z = convertToInt32(y)
+	LDMXCSR  mxcsrNew-4(SP)
+	CVTPS2PL X2, X2
+	LDMXCSR  mxcsrOrig-8(SP)
+
+	// copy(dst[:4], z)
+	MOVOU X2, (DI)
+
+	// offset = XMM(x@3, x@3, x@3, x@3)
+	MOVOU  X1, X7
+	SHUFPS $0xff, X1, X7
+
+	// i += 4
+	// dst = dst[4:]
+	// src = src[4:]
+	ADDQ $4, R9
+	ADDQ $16, DI
+	ADDQ $16, SI
+	JMP  flAccMaskLoop4
+
+flAccMaskLoop1:
+	// for i < len(src)
+	CMPQ R9, R11
+	JAE  flAccMaskEnd
+
+	// x = src[i] + offset
+	MOVL  (SI), X1
+	ADDPS X7, X1
+
+	// y = x & flSignMask
+	// y = min(y, flOne)
+	// y = mul(y, flAlmost65536)
+	MOVOU X5, X2
+	ANDPS X1, X2
+	MINPS X4, X2
+	MULPS X3, X2
+
+	// z = convertToInt32(y)
+	LDMXCSR  mxcsrNew-4(SP)
+	CVTPS2PL X2, X2
+	LDMXCSR  mxcsrOrig-8(SP)
+
+	// dst[0] = uint32(z)
+	MOVL X2, (DI)
+
+	// offset = x
+	MOVOU X1, X7
+
+	// i += 1
+	// dst = dst[1:]
+	// src = src[1:]
+	ADDQ $1, R9
+	ADDQ $4, DI
+	ADDQ $4, SI
+	JMP  flAccMaskLoop1
+
+flAccMaskEnd:
 	RET

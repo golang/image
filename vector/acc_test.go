@@ -201,7 +201,11 @@ func testAcc(t *testing.T, in interface{}, mask []uint32, op string) {
 					}
 				case "mask":
 					copy(got32, in[:n])
-					fixedAccumulateMask(got32)
+					if simd {
+						fixedAccumulateMaskSIMD(got32)
+					} else {
+						fixedAccumulateMask(got32)
+					}
 				}
 			case []float32:
 				switch op {
@@ -218,7 +222,11 @@ func testAcc(t *testing.T, in interface{}, mask []uint32, op string) {
 						floatingAccumulateOpSrc(got8, in[:n])
 					}
 				case "mask":
-					floatingAccumulateMask(got32, in[:n])
+					if simd {
+						floatingAccumulateMaskSIMD(got32, in[:n])
+					} else {
+						floatingAccumulateMask(got32, in[:n])
+					}
 				}
 			}
 
@@ -264,22 +272,26 @@ func BenchmarkFixedAccumulateOpOverSIMD16(b *testing.B)    { benchAcc(b, fxIn16,
 func BenchmarkFixedAccumulateOpSrc16(b *testing.B)         { benchAcc(b, fxIn16, "src", false) }
 func BenchmarkFixedAccumulateOpSrcSIMD16(b *testing.B)     { benchAcc(b, fxIn16, "src", true) }
 func BenchmarkFixedAccumulateMask16(b *testing.B)          { benchAcc(b, fxIn16, "mask", false) }
+func BenchmarkFixedAccumulateMaskSIMD16(b *testing.B)      { benchAcc(b, fxIn16, "mask", true) }
 func BenchmarkFloatingAccumulateOpOver16(b *testing.B)     { benchAcc(b, flIn16, "over", false) }
 func BenchmarkFloatingAccumulateOpOverSIMD16(b *testing.B) { benchAcc(b, flIn16, "over", true) }
 func BenchmarkFloatingAccumulateOpSrc16(b *testing.B)      { benchAcc(b, flIn16, "src", false) }
 func BenchmarkFloatingAccumulateOpSrcSIMD16(b *testing.B)  { benchAcc(b, flIn16, "src", true) }
 func BenchmarkFloatingAccumulateMask16(b *testing.B)       { benchAcc(b, flIn16, "mask", false) }
+func BenchmarkFloatingAccumulateMaskSIMD16(b *testing.B)   { benchAcc(b, flIn16, "mask", true) }
 
 func BenchmarkFixedAccumulateOpOver64(b *testing.B)        { benchAcc(b, fxIn64, "over", false) }
 func BenchmarkFixedAccumulateOpOverSIMD64(b *testing.B)    { benchAcc(b, fxIn64, "over", true) }
 func BenchmarkFixedAccumulateOpSrc64(b *testing.B)         { benchAcc(b, fxIn64, "src", false) }
 func BenchmarkFixedAccumulateOpSrcSIMD64(b *testing.B)     { benchAcc(b, fxIn64, "src", true) }
 func BenchmarkFixedAccumulateMask64(b *testing.B)          { benchAcc(b, fxIn64, "mask", false) }
+func BenchmarkFixedAccumulateMaskSIMD64(b *testing.B)      { benchAcc(b, fxIn64, "mask", true) }
 func BenchmarkFloatingAccumulateOpOver64(b *testing.B)     { benchAcc(b, flIn64, "over", false) }
 func BenchmarkFloatingAccumulateOpOverSIMD64(b *testing.B) { benchAcc(b, flIn64, "over", true) }
 func BenchmarkFloatingAccumulateOpSrc64(b *testing.B)      { benchAcc(b, flIn64, "src", false) }
 func BenchmarkFloatingAccumulateOpSrcSIMD64(b *testing.B)  { benchAcc(b, flIn64, "src", true) }
 func BenchmarkFloatingAccumulateMask64(b *testing.B)       { benchAcc(b, flIn64, "mask", false) }
+func BenchmarkFloatingAccumulateMaskSIMD64(b *testing.B)   { benchAcc(b, flIn64, "mask", true) }
 
 func benchAcc(b *testing.B, in interface{}, op string, simd bool) {
 	var f func()
@@ -308,7 +320,11 @@ func benchAcc(b *testing.B, in interface{}, op string, simd bool) {
 		case "mask":
 			buf := make([]uint32, len(in))
 			copy(buf, in)
-			f = func() { fixedAccumulateMask(buf) }
+			if simd {
+				f = func() { fixedAccumulateMaskSIMD(buf) }
+			} else {
+				f = func() { fixedAccumulateMask(buf) }
+			}
 		}
 
 	case []float32:
@@ -333,7 +349,11 @@ func benchAcc(b *testing.B, in interface{}, op string, simd bool) {
 			}
 		case "mask":
 			dst := make([]uint32, len(in))
-			f = func() { floatingAccumulateMask(dst, in) }
+			if simd {
+				f = func() { floatingAccumulateMaskSIMD(dst, in) }
+			} else {
+				f = func() { floatingAccumulateMask(dst, in) }
+			}
 		}
 	}
 

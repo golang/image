@@ -310,9 +310,17 @@ func (z *Rasterizer) accumulateMask() {
 		} else {
 			z.bufU32 = z.bufU32[:n]
 		}
-		floatingAccumulateMask(z.bufU32, z.bufF32)
+		if haveFloatingAccumulateSIMD {
+			floatingAccumulateMaskSIMD(z.bufU32, z.bufF32)
+		} else {
+			floatingAccumulateMask(z.bufU32, z.bufF32)
+		}
 	} else {
-		fixedAccumulateMask(z.bufU32)
+		if haveFixedAccumulateSIMD {
+			fixedAccumulateMaskSIMD(z.bufU32)
+		} else {
+			fixedAccumulateMask(z.bufU32)
+		}
 	}
 }
 

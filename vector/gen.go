@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"io/ioutil"
 	"log"
+	"strings"
 	"text/template"
 )
 
@@ -54,6 +55,9 @@ func main() {
 		if i != 0 {
 			out.WriteString("\n")
 		}
+		if strings.Contains(v.LoadArgs, "{{.ShortName}}") {
+			v.LoadArgs = strings.Replace(v.LoadArgs, "{{.ShortName}}", v.ShortName, -1)
+		}
 		if err := t.Execute(out, v); err != nil {
 			log.Fatalf("Execute(%q): %v", v.ShortName, err)
 		}
@@ -68,15 +72,19 @@ var instances = []struct {
 	LongName       string
 	ShortName      string
 	FrameSize      string
-	SrcType        string
+	ArgsSize       string
+	Args           string
+	DstElemSize1   int
+	DstElemSize4   int
 	XMM3           string
 	XMM4           string
 	XMM5           string
+	XMM6           string
 	XMM8           string
 	XMM9           string
 	XMM10          string
+	LoadArgs       string
 	Setup          string
-	Cleanup        string
 	LoadXMMRegs    string
 	Add            string
 	ClampAndScale  string
@@ -87,16 +95,20 @@ var instances = []struct {
 	LongName:       "fixedAccumulateOpOver",
 	ShortName:      "fxAccOpOver",
 	FrameSize:      fxFrameSize,
-	SrcType:        fxSrcType,
+	ArgsSize:       twoArgArgsSize,
+	Args:           "dst []uint8, src []uint32",
+	DstElemSize1:   1 * sizeOfUint8,
+	DstElemSize4:   4 * sizeOfUint8,
 	XMM3:           fxXMM3,
 	XMM4:           fxXMM4,
 	XMM5:           fxXMM5_65536,
+	XMM6:           opOverXMM6,
 	XMM8:           opOverXMM8,
 	XMM9:           opOverXMM9,
 	XMM10:          opOverXMM10,
+	LoadArgs:       twoArgLoadArgs,
 	Setup:          fxSetup,
 	LoadXMMRegs:    fxLoadXMMRegs65536 + "\n" + opOverLoadXMMRegs,
-	Cleanup:        fxCleanup,
 	Add:            fxAdd,
 	ClampAndScale:  fxClampAndScale65536,
 	ConvertToInt32: fxConvertToInt32,
@@ -106,35 +118,66 @@ var instances = []struct {
 	LongName:       "fixedAccumulateOpSrc",
 	ShortName:      "fxAccOpSrc",
 	FrameSize:      fxFrameSize,
-	SrcType:        fxSrcType,
+	ArgsSize:       twoArgArgsSize,
+	Args:           "dst []uint8, src []uint32",
+	DstElemSize1:   1 * sizeOfUint8,
+	DstElemSize4:   4 * sizeOfUint8,
 	XMM3:           fxXMM3,
 	XMM4:           fxXMM4,
 	XMM5:           fxXMM5_256,
+	XMM6:           opSrcXMM6,
 	XMM8:           opSrcXMM8,
 	XMM9:           opSrcXMM9,
 	XMM10:          opSrcXMM10,
+	LoadArgs:       twoArgLoadArgs,
 	Setup:          fxSetup,
 	LoadXMMRegs:    fxLoadXMMRegs256 + "\n" + opSrcLoadXMMRegs,
-	Cleanup:        fxCleanup,
 	Add:            fxAdd,
 	ClampAndScale:  fxClampAndScale256,
 	ConvertToInt32: fxConvertToInt32,
 	Store4:         opSrcStore4,
 	Store1:         opSrcStore1,
 }, {
+	LongName:       "fixedAccumulateMask",
+	ShortName:      "fxAccMask",
+	FrameSize:      fxFrameSize,
+	ArgsSize:       oneArgArgsSize,
+	Args:           "buf []uint32",
+	DstElemSize1:   1 * sizeOfUint32,
+	DstElemSize4:   4 * sizeOfUint32,
+	XMM3:           fxXMM3,
+	XMM4:           fxXMM4,
+	XMM5:           fxXMM5_65536,
+	XMM6:           maskXMM6,
+	XMM8:           maskXMM8,
+	XMM9:           maskXMM9,
+	XMM10:          maskXMM10,
+	LoadArgs:       oneArgLoadArgs,
+	Setup:          fxSetup,
+	LoadXMMRegs:    fxLoadXMMRegs65536 + "\n" + maskLoadXMMRegs,
+	Add:            fxAdd,
+	ClampAndScale:  fxClampAndScale65536,
+	ConvertToInt32: fxConvertToInt32,
+	Store4:         maskStore4,
+	Store1:         maskStore1,
+}, {
 	LongName:       "floatingAccumulateOpOver",
 	ShortName:      "flAccOpOver",
 	FrameSize:      flFrameSize,
-	SrcType:        flSrcType,
+	ArgsSize:       twoArgArgsSize,
+	Args:           "dst []uint8, src []float32",
+	DstElemSize1:   1 * sizeOfUint8,
+	DstElemSize4:   4 * sizeOfUint8,
 	XMM3:           flXMM3_65536,
 	XMM4:           flXMM4,
 	XMM5:           flXMM5,
+	XMM6:           opOverXMM6,
 	XMM8:           opOverXMM8,
 	XMM9:           opOverXMM9,
 	XMM10:          opOverXMM10,
+	LoadArgs:       twoArgLoadArgs,
 	Setup:          flSetup,
 	LoadXMMRegs:    flLoadXMMRegs65536 + "\n" + opOverLoadXMMRegs,
-	Cleanup:        flCleanup,
 	Add:            flAdd,
 	ClampAndScale:  flClampAndScale65536,
 	ConvertToInt32: flConvertToInt32,
@@ -144,29 +187,59 @@ var instances = []struct {
 	LongName:       "floatingAccumulateOpSrc",
 	ShortName:      "flAccOpSrc",
 	FrameSize:      flFrameSize,
-	SrcType:        flSrcType,
+	ArgsSize:       twoArgArgsSize,
+	Args:           "dst []uint8, src []float32",
+	DstElemSize1:   1 * sizeOfUint8,
+	DstElemSize4:   4 * sizeOfUint8,
 	XMM3:           flXMM3_256,
 	XMM4:           flXMM4,
 	XMM5:           flXMM5,
+	XMM6:           opSrcXMM6,
 	XMM8:           opSrcXMM8,
 	XMM9:           opSrcXMM9,
 	XMM10:          opSrcXMM10,
+	LoadArgs:       twoArgLoadArgs,
 	Setup:          flSetup,
 	LoadXMMRegs:    flLoadXMMRegs256 + "\n" + opSrcLoadXMMRegs,
-	Cleanup:        flCleanup,
 	Add:            flAdd,
 	ClampAndScale:  flClampAndScale256,
 	ConvertToInt32: flConvertToInt32,
 	Store4:         opSrcStore4,
 	Store1:         opSrcStore1,
+}, {
+	LongName:       "floatingAccumulateMask",
+	ShortName:      "flAccMask",
+	FrameSize:      flFrameSize,
+	ArgsSize:       twoArgArgsSize,
+	Args:           "dst []uint32, src []float32",
+	DstElemSize1:   1 * sizeOfUint32,
+	DstElemSize4:   4 * sizeOfUint32,
+	XMM3:           flXMM3_65536,
+	XMM4:           flXMM4,
+	XMM5:           flXMM5,
+	XMM6:           maskXMM6,
+	XMM8:           maskXMM8,
+	XMM9:           maskXMM9,
+	XMM10:          maskXMM10,
+	LoadArgs:       twoArgLoadArgs,
+	Setup:          flSetup,
+	LoadXMMRegs:    flLoadXMMRegs65536 + "\n" + maskLoadXMMRegs,
+	Add:            flAdd,
+	ClampAndScale:  flClampAndScale65536,
+	ConvertToInt32: flConvertToInt32,
+	Store4:         maskStore4,
+	Store1:         maskStore1,
 }}
 
 const (
 	fxFrameSize = `0`
 	flFrameSize = `8`
 
-	fxSrcType = `[]uint32`
-	flSrcType = `[]float32`
+	oneArgArgsSize = `24`
+	twoArgArgsSize = `48`
+
+	sizeOfUint8  = 1
+	sizeOfUint32 = 4
 
 	fxXMM3       = `-`
 	flXMM3_256   = `flAlmost256`
@@ -179,18 +252,31 @@ const (
 	fxXMM5_65536 = `fxAlmost65536`
 	flXMM5       = `flSignMask`
 
+	oneArgLoadArgs = `
+		MOVQ buf_base+0(FP), DI
+		MOVQ buf_len+8(FP), BX
+		MOVQ buf_base+0(FP), SI
+		MOVQ buf_len+8(FP), R10
+		`
+	twoArgLoadArgs = `
+		MOVQ dst_base+0(FP), DI
+		MOVQ dst_len+8(FP), BX
+		MOVQ src_base+24(FP), SI
+		MOVQ src_len+32(FP), R10
+		// Sanity check that len(dst) >= len(src).
+		CMPQ BX, R10
+		JLT  {{.ShortName}}End
+		`
+
 	fxSetup = ``
 	flSetup = `
-		// Set MXCSR bits 13 and 14, so that the CVTPS2PL below is "Round To Zero".
+		// Prepare to set MXCSR bits 13 and 14, so that the CVTPS2PL below is
+		// "Round To Zero".
 		STMXCSR mxcsrOrig-8(SP)
 		MOVL    mxcsrOrig-8(SP), AX
 		ORL     $0x6000, AX
 		MOVL    AX, mxcsrNew-4(SP)
-		LDMXCSR mxcsrNew-4(SP)
 		`
-
-	fxCleanup = `// No-op.`
-	flCleanup = `LDMXCSR mxcsrOrig-8(SP)`
 
 	fxLoadXMMRegs256 = `
 		// fxAlmost256 := XMM(0x000000ff repeated four times) // Maximum of an uint8.
@@ -271,8 +357,16 @@ const (
 		MULPS X3, X2
 		`
 
-	fxConvertToInt32 = `// No-op.`
-	flConvertToInt32 = `CVTPS2PL X2, X2`
+	fxConvertToInt32 = `
+		// z = convertToInt32(y)
+		// No-op.
+		`
+	flConvertToInt32 = `
+		// z = convertToInt32(y)
+		LDMXCSR  mxcsrNew-4(SP)
+		CVTPS2PL X2, X2
+		LDMXCSR  mxcsrOrig-8(SP)
+		`
 
 	opOverStore4 = `
 		// Blend over the dst's prior value. SIMD for i in 0..3:
@@ -324,6 +418,10 @@ const (
 		PSHUFB X6, X2
 		MOVL   X2, (DI)
 		`
+	maskStore4 = `
+		// copy(dst[:4], z)
+		MOVOU X2, (DI)
+		`
 
 	opOverStore1 = `
 		// Blend over the dst's prior value.
@@ -350,23 +448,40 @@ const (
 		MOVL X2, BX
 		MOVB BX, (DI)
 		`
+	maskStore1 = `
+		// dst[0] = uint32(z)
+		MOVL X2, (DI)
+		`
+
+	opOverXMM6 = `gather`
+	opSrcXMM6  = `gather`
+	maskXMM6   = `-`
 
 	opOverXMM8 = `scatterAndMulBy0x101`
 	opSrcXMM8  = `-`
+	maskXMM8   = `-`
 
 	opOverXMM9 = `fxAlmost65536`
 	opSrcXMM9  = `-`
+	maskXMM9   = `-`
 
 	opOverXMM10 = `inverseFFFF`
 	opSrcXMM10  = `-`
+	maskXMM10   = `-`
 
 	opOverLoadXMMRegs = `
+		// gather               := XMM(see above)                      // PSHUFB shuffle mask.
 		// scatterAndMulBy0x101 := XMM(see above)                      // PSHUFB shuffle mask.
 		// fxAlmost65536        := XMM(0x0000ffff repeated four times) // 0xffff.
 		// inverseFFFF          := XMM(0x80008001 repeated four times) // Magic constant for dividing by 0xffff.
+		MOVOU gather<>(SB), X6
 		MOVOU scatterAndMulBy0x101<>(SB), X8
 		MOVOU fxAlmost65536<>(SB), X9
 		MOVOU inverseFFFF<>(SB), X10
 		`
-	opSrcLoadXMMRegs = ``
+	opSrcLoadXMMRegs = `
+		// gather := XMM(see above) // PSHUFB shuffle mask.
+		MOVOU gather<>(SB), X6
+		`
+	maskLoadXMMRegs = ``
 )
