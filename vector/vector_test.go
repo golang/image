@@ -125,6 +125,27 @@ func TestRasterizeAlmostAxisAligned(t *testing.T) {
 	}
 }
 
+func TestRasterizeWideAlmostHorizontalLines(t *testing.T) {
+	var z Rasterizer
+	for i := uint(3); i < 16; i++ {
+		x := float32(int(1 << i))
+
+		z.Reset(8, 8)
+		z.MoveTo(f32.Vec2{-x, 3})
+		z.LineTo(f32.Vec2{+x, 4})
+		z.LineTo(f32.Vec2{+x, 6})
+		z.LineTo(f32.Vec2{-x, 6})
+		z.ClosePath()
+
+		dst := image.NewAlpha(z.Bounds())
+		z.Draw(dst, dst.Bounds(), image.Opaque, image.Point{})
+
+		if err := checkCornersCenter(dst); err != nil {
+			t.Errorf("i=%d: %v", i, err)
+		}
+	}
+}
+
 // checkCornersCenter checks that the corners of the image are all 0x00 and the
 // center is 0xff.
 func checkCornersCenter(m *image.Alpha) error {

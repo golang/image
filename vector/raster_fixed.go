@@ -176,9 +176,9 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 					//
 					// Convert to int64 to avoid overflow. Without that,
 					// TestRasterizePolygon fails.
-					D := int64(twoOverS << ϕ)
-					D -= int64((fxOneAndAHalf - x0f) << (ϕ + 1))
-					D -= int64((x1i - x0i - 3) << (2*ϕ + 1))
+					D := int64(twoOverS) << ϕ
+					D -= int64((fxOneAndAHalf - x0f)) << (ϕ + 1)
+					D -= int64((x1i - x0i - 3)) << (2*ϕ + 1)
 					D -= int64(x1fSquared)
 					D *= int64(d)
 					D /= int64(twoOverS)
