@@ -19,6 +19,10 @@ const (
 	//
 	// When changing this number, also change the assembly code (search for ϕ
 	// in the .s files).
+	//
+	// TODO: drop ϕ from 10 to 9, so that ±1<<(3*ϕ+2) doesn't overflow an int32
+	// and we can therefore use int32 math instead of the slower int64 math in
+	// Rasterizer.fixedLineTo below.
 	ϕ = 10
 
 	fxOne          int1ϕ = 1 << ϕ
@@ -93,7 +97,7 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 			continue
 		}
 		buf := z.bufU32[y*width:]
-		d := dy * dir
+		d := dy * dir // d ranges up to ±1<<(1*ϕ).
 		x0, x1 := x, xNext
 		if x > xNext {
 			x0, x1 = x1, x0
@@ -131,8 +135,8 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 
 			if i := clamp(x0i, width); i < uint(len(buf)) {
 				// In ideal math: buf[i] += uint32(d * a0)
-				D := oneMinusX0fSquared
-				D *= d
+				D := oneMinusX0fSquared // D ranges up to ±1<<(1*ϕ).
+				D *= d                  // D ranges up to ±1<<(2*ϕ).
 				D /= twoOverS
 				buf[i] += uint32(D)
 			}
@@ -140,9 +144,15 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 			if x1i == x0i+2 {
 				if i := clamp(x0i+1, width); i < uint(len(buf)) {
 					// In ideal math: buf[i] += uint32(d * (fxOne - a0 - am))
-					D := twoOverS<<ϕ - oneMinusX0fSquared - x1fSquared
-					D *= d
-					D /= twoOverS
+					//
+					// (x1i == x0i+2) and (twoOverS == 2 * (x1 - x0)) implies
+					// that int64(twoOverS) ranges up to +1<<(1*ϕ+2).
+					//
+					// Convert to int64 to avoid overflow. Without that,
+					// TestRasterize30Degrees fails.
+					D := int64(twoOverS<<ϕ - oneMinusX0fSquared - x1fSquared) // D ranges up to ±1<<(2*ϕ+2).
+					D *= int64(d)                                             // D ranges up to ±1<<(3*ϕ+2).
+					D /= int64(twoOverS)
 					buf[i] += uint32(D)
 				}
 			} else {
@@ -151,12 +161,44 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 				// a1 := ((fxOneAndAHalf - x0f) << ϕ) / oneOverS
 
 				if i := clamp(x0i+1, width); i < uint(len(buf)) {
-					// In ideal math: buf[i] += uint32(d * (a1 - a0))
+					// In ideal math:
+					//	buf[i] += uint32(d * (a1 - a0))
+					// or equivalently (but better in non-ideal, integer math,
+					// with respect to rounding errors),
+					//	buf[i] += uint32(A * d / twoOverS)
+					// where
+					//	A = (a1 - a0) * twoOverS
+					//	  = a1*twoOverS - a0*twoOverS
+					// Noting that twoOverS/oneOverS equals 2, substituting for
+					// a0 and then a1, given above, yields:
+					//	A = a1*twoOverS - oneMinusX0fSquared
+					//	  = (fxOneAndAHalf-x0f)<<(ϕ+1) - oneMinusX0fSquared
+					//	  = fxOneAndAHalf<<(ϕ+1) - x0f<<(ϕ+1) - oneMinusX0fSquared
+					//
+					// This is a positive number minus two non-negative
+					// numbers. For an upper bound on A, the positive number is
+					//	P = fxOneAndAHalf<<(ϕ+1)
+					//	  < (2*fxOne)<<(ϕ+1)
+					//	  = fxOne<<(ϕ+2)
+					//	  = 1<<(2*ϕ+2)
+					//
+					// For a lower bound on A, the two non-negative numbers are
+					//	N = x0f<<(ϕ+1) + oneMinusX0fSquared
+					//	  ≤ x0f<<(ϕ+1) + fxOne*fxOne
+					//	  = x0f<<(ϕ+1) + 1<<(2*ϕ)
+					//	  < x0f<<(ϕ+1) + 1<<(2*ϕ+1)
+					//	  ≤ fxOne<<(ϕ+1) + 1<<(2*ϕ+1)
+					//	  = 1<<(2*ϕ+1) + 1<<(2*ϕ+1)
+					//	  = 1<<(2*ϕ+2)
+					//
+					// Thus, A ranges up to ±1<<(2*ϕ+2). It is possible to
+					// derive a tighter bound, but this bound is sufficient to
+					// reason about overflow.
 					//
 					// Convert to int64 to avoid overflow. Without that,
 					// TestRasterizePolygon fails.
-					D := int64((fxOneAndAHalf-x0f)<<(ϕ+1) - oneMinusX0fSquared)
-					D *= int64(d)
+					D := int64((fxOneAndAHalf-x0f)<<(ϕ+1) - oneMinusX0fSquared) // D ranges up to ±1<<(2*ϕ+2).
+					D *= int64(d)                                               // D ranges up to ±1<<(3*ϕ+2).
 					D /= int64(twoOverS)
 					buf[i] += uint32(D)
 				}
@@ -172,7 +214,32 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 				// a2 := a1 + (int1ϕ(x1i-x0i-3)<<(2*ϕ))/oneOverS
 
 				if i := clamp(x1i-1, width); i < uint(len(buf)) {
-					// In ideal math: buf[i] += uint32(d * (fxOne - a2 - am))
+					// In ideal math:
+					//	buf[i] += uint32(d * (fxOne - a2 - am))
+					// or equivalently (but better in non-ideal, integer math,
+					// with respect to rounding errors),
+					//	buf[i] += uint32(A * d / twoOverS)
+					// where
+					//	A = (fxOne - a2 - am) * twoOverS
+					//	  = twoOverS<<ϕ - a2*twoOverS - am*twoOverS
+					// Noting that twoOverS/oneOverS equals 2, substituting for
+					// am and then a2, given above, yields:
+					//	A = twoOverS<<ϕ - a2*twoOverS - x1f*x1f
+					//	  = twoOverS<<ϕ - a1*twoOverS - (int1ϕ(x1i-x0i-3)<<(2*ϕ))*2 - x1f*x1f
+					//	  = twoOverS<<ϕ - a1*twoOverS - int1ϕ(x1i-x0i-3)<<(2*ϕ+1) - x1f*x1f
+					// Substituting for a1, given above, yields:
+					//	A = twoOverS<<ϕ - ((fxOneAndAHalf - x0f)<<ϕ)*2 - int1ϕ(x1i-x0i-3)<<(2*ϕ+1) - x1f*x1f
+					//	  = twoOverS<<ϕ - (fxOneAndAHalf - x0f)<<(ϕ+1) - int1ϕ(x1i-x0i-3)<<(2*ϕ+1) - x1f*x1f
+					//
+					// TODO: re-factor that equation some more: twoOverS equals
+					// 2*(x1-x0), so a substantial part of twoOverS<<ϕ and
+					// int1ϕ(x1i-x0i-3)<<(2*ϕ+1) should cancel each other out.
+					// Doing subtract-then-shift instead of shift-then-subtract
+					// could mean that we can use the faster int32 math,
+					// instead of int64, but still avoid overflow:
+					//	A = B<<ϕ - x1f*x1f
+					// where
+					//	B = twoOverS - (fxOneAndAHalf - x0f)<<1 - int1ϕ(x1i-x0i-3)<<(ϕ+1)
 					//
 					// Convert to int64 to avoid overflow. Without that,
 					// TestRasterizePolygon fails.
@@ -188,8 +255,8 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 
 			if i := clamp(x1i, width); i < uint(len(buf)) {
 				// In ideal math: buf[i] += uint32(d * am)
-				D := x1fSquared
-				D *= d
+				D := x1fSquared // D ranges up to ±1<<(2*ϕ).
+				D *= d          // D ranges up to ±1<<(3*ϕ).
 				D /= twoOverS
 				buf[i] += uint32(D)
 			}

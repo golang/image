@@ -13,6 +13,7 @@ import (
 	"image/draw"
 	"image/png"
 	"math"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
@@ -146,9 +147,60 @@ func TestRasterizeWideAlmostHorizontalLines(t *testing.T) {
 	}
 }
 
+func TestRasterize30Degrees(t *testing.T) {
+	z := NewRasterizer(8, 8)
+	z.MoveTo(f32.Vec2{4, 4})
+	z.LineTo(f32.Vec2{8, 4})
+	z.LineTo(f32.Vec2{4, 6})
+	z.ClosePath()
+
+	dst := image.NewAlpha(z.Bounds())
+	z.Draw(dst, dst.Bounds(), image.Opaque, image.Point{})
+
+	if err := checkCornersCenter(dst); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestRasterizeRandomLineTos(t *testing.T) {
+	var z Rasterizer
+	for i := 5; i < 50; i++ {
+		n, rng := 0, rand.New(rand.NewSource(int64(i)))
+
+		z.Reset(i+2, i+2)
+		z.MoveTo(f32.Vec2{float32(i / 2), float32(i / 2)})
+		for ; rng.Intn(16) != 0; n++ {
+			x := 1 + rng.Intn(i)
+			y := 1 + rng.Intn(i)
+			z.LineTo(f32.Vec2{float32(x), float32(y)})
+		}
+		z.ClosePath()
+
+		dst := image.NewAlpha(z.Bounds())
+		z.Draw(dst, dst.Bounds(), image.Opaque, image.Point{})
+
+		if err := checkCorners(dst); err != nil {
+			t.Errorf("i=%d (%d nodes): %v", i, n, err)
+		}
+	}
+}
+
 // checkCornersCenter checks that the corners of the image are all 0x00 and the
 // center is 0xff.
 func checkCornersCenter(m *image.Alpha) error {
+	if err := checkCorners(m); err != nil {
+		return err
+	}
+	size := m.Bounds().Size()
+	center := m.Pix[(size.Y/2)*m.Stride+(size.X/2)]
+	if center != 0xff {
+		return fmt.Errorf("center: got %#02x, want 0xff", center)
+	}
+	return nil
+}
+
+// checkCorners checks that the corners of the image are all 0x00.
+func checkCorners(m *image.Alpha) error {
 	size := m.Bounds().Size()
 	corners := [4]uint8{
 		m.Pix[(0*size.Y+0)*m.Stride+(0*size.X+0)],
@@ -158,10 +210,6 @@ func checkCornersCenter(m *image.Alpha) error {
 	}
 	if corners != [4]uint8{} {
 		return fmt.Errorf("corners were not all zero: %v", corners)
-	}
-	center := m.Pix[(size.Y/2)*m.Stride+(size.X/2)]
-	if center != 0xff {
-		return fmt.Errorf("center: got %#02x, want 0xff", center)
 	}
 	return nil
 }
