@@ -30,7 +30,7 @@ import (
 	"golang.org/x/image/math/f32"
 )
 
-// floatingPointMathThreshold is the width or hight above which the rasterizer
+// floatingPointMathThreshold is the width or height above which the rasterizer
 // chooses to used floating point math instead of fixed point math.
 //
 // Both implementations of line segmentation rasterization (see raster_fixed.go
