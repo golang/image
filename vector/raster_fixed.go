@@ -20,7 +20,7 @@ const (
 	// When changing this number, also change the assembly code (search for ϕ
 	// in the .s files).
 	//
-	// TODO: drop ϕ from 10 to 9, so that ±1<<(3*ϕ+2) doesn't overflow an int32
+	// TODO: drop ϕ from 10 to 9, so that ±1<<(3*ϕ+3) doesn't overflow an int32
 	// and we can therefore use int32 math instead of the slower int64 math in
 	// Rasterizer.fixedLineTo below.
 	ϕ = 10
@@ -228,26 +228,41 @@ func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
 					//	  = twoOverS<<ϕ - a1*twoOverS - (int1ϕ(x1i-x0i-3)<<(2*ϕ))*2 - x1f*x1f
 					//	  = twoOverS<<ϕ - a1*twoOverS - int1ϕ(x1i-x0i-3)<<(2*ϕ+1) - x1f*x1f
 					// Substituting for a1, given above, yields:
-					//	A = twoOverS<<ϕ - ((fxOneAndAHalf - x0f)<<ϕ)*2 - int1ϕ(x1i-x0i-3)<<(2*ϕ+1) - x1f*x1f
-					//	  = twoOverS<<ϕ - (fxOneAndAHalf - x0f)<<(ϕ+1) - int1ϕ(x1i-x0i-3)<<(2*ϕ+1) - x1f*x1f
-					//
-					// TODO: re-factor that equation some more: twoOverS equals
-					// 2*(x1-x0), so a substantial part of twoOverS<<ϕ and
-					// int1ϕ(x1i-x0i-3)<<(2*ϕ+1) should cancel each other out.
-					// Doing subtract-then-shift instead of shift-then-subtract
-					// could mean that we can use the faster int32 math,
-					// instead of int64, but still avoid overflow:
-					//	A = B<<ϕ - x1f*x1f
+					//	A = twoOverS<<ϕ - ((fxOneAndAHalf-x0f)<<ϕ)*2 - int1ϕ(x1i-x0i-3)<<(2*ϕ+1) - x1f*x1f
+					//	  = twoOverS<<ϕ - (fxOneAndAHalf-x0f)<<(ϕ+1) - int1ϕ(x1i-x0i-3)<<(2*ϕ+1) - x1f*x1f
+					//	  = B<<ϕ - x1f*x1f
 					// where
-					//	B = twoOverS - (fxOneAndAHalf - x0f)<<1 - int1ϕ(x1i-x0i-3)<<(ϕ+1)
+					//	B = twoOverS - (fxOneAndAHalf-x0f)<<1 - int1ϕ(x1i-x0i-3)<<(ϕ+1)
+					//	  = (x1-x0)<<1 - (fxOneAndAHalf-x0f)<<1 - int1ϕ(x1i-x0i-3)<<(ϕ+1)
+					//
+					// Re-arranging the defintions given above:
+					//	x0Floor := int1ϕ(x0i) << ϕ
+					//	x0f := x0 - x0Floor
+					//	x1Ceil := int1ϕ(x1i) << ϕ
+					//	x1f := x1 - x1Ceil + fxOne
+					// combined with fxOne = 1<<ϕ yields:
+					//	x0 = x0f + int1ϕ(x0i)<<ϕ
+					//	x1 = x1f + int1ϕ(x1i-1)<<ϕ
+					// so that expanding (x1-x0) yields:
+					//	B = (x1f-x0f + int1ϕ(x1i-x0i-1)<<ϕ)<<1 - (fxOneAndAHalf-x0f)<<1 - int1ϕ(x1i-x0i-3)<<(ϕ+1)
+					//	  = (x1f-x0f)<<1 + int1ϕ(x1i-x0i-1)<<(ϕ+1) - (fxOneAndAHalf-x0f)<<1 - int1ϕ(x1i-x0i-3)<<(ϕ+1)
+					// A large part of the second and fourth terms cancel:
+					//	B = (x1f-x0f)<<1 - (fxOneAndAHalf-x0f)<<1 - int1ϕ(-2)<<(ϕ+1)
+					//	  = (x1f-x0f)<<1 - (fxOneAndAHalf-x0f)<<1 + 1<<(ϕ+2)
+					//	  = (x1f - fxOneAndAHalf)<<1 + 1<<(ϕ+2)
+					// The first term, (x1f - fxOneAndAHalf)<<1, is a negative
+					// number, bounded below by -fxOneAndAHalf<<1, which is
+					// greater than -fxOne<<2, or -1<<(ϕ+2). Thus, B ranges up
+					// to ±1<<(ϕ+2). One final simplification:
+					//	B = x1f<<1 + (1<<(ϕ+2) - fxOneAndAHalf<<1)
 					//
 					// Convert to int64 to avoid overflow. Without that,
 					// TestRasterizePolygon fails.
-					D := int64(twoOverS) << ϕ
-					D -= int64((fxOneAndAHalf - x0f)) << (ϕ + 1)
-					D -= int64((x1i - x0i - 3)) << (2*ϕ + 1)
-					D -= int64(x1fSquared)
-					D *= int64(d)
+					const C = 1<<(ϕ+2) - fxOneAndAHalf<<1
+					D := int64(x1f<<1 + C) // D ranges up to ±1<<(1*ϕ+2).
+					D <<= ϕ                // D ranges up to ±1<<(2*ϕ+2).
+					D -= int64(x1fSquared) // D ranges up to ±1<<(2*ϕ+3).
+					D *= int64(d)          // D ranges up to ±1<<(3*ϕ+3).
 					D /= int64(twoOverS)
 					buf[i] += uint32(D)
 				}
