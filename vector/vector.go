@@ -46,9 +46,9 @@ import (
 //
 // The rationale for this particular value is that TestRasterizePolygon in
 // vector_test.go checks the rendering quality of polygon edges at various
-// angles, inscribed in a circle of diameter 2048. It may be that a higher
-// value would still produce acceptable quality, but 2048 seems to work.
-const floatingPointMathThreshold = 2048
+// angles, inscribed in a circle of diameter 512. It may be that a higher value
+// would still produce acceptable quality, but 512 seems to work.
+const floatingPointMathThreshold = 512
 
 func midPoint(p, q f32.Vec2) f32.Vec2 {
 	return f32.Vec2{
