@@ -88,7 +88,7 @@ func TestRasterizeOutOfBounds(t *testing.T) {
 
 func TestRasterizePolygon(t *testing.T) {
 	var z Rasterizer
-	for radius := 4; radius <= 1024; radius *= 2 {
+	for radius := 4; radius <= 256; radius *= 2 {
 		for n := 3; n <= 19; n += 4 {
 			z.Reset(2*radius, 2*radius)
 			z.MoveTo(f32.Vec2{

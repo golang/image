@@ -143,18 +143,18 @@ fxAccOpOverLoop4:
 	PADDD X7, X1
 
 	// y = abs(x)
-	// y >>= 4 // Shift by 2*ϕ - 16.
+	// y >>= 2 // Shift by 2*ϕ - 16.
 	// y = min(y, fxAlmost65536)
 	//
 	// pabsd  %xmm1,%xmm2
-	// psrld  $0x4,%xmm2
+	// psrld  $0x2,%xmm2
 	// pminud %xmm5,%xmm2
 	//
 	// Hopefully we'll get these opcode mnemonics into the assembler for Go
 	// 1.8. https://golang.org/issue/16007 isn't exactly the same thing, but
 	// it's similar.
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x1e; BYTE $0xd1
-	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x04
+	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x02
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x3b; BYTE $0xd5
 
 	// z = convertToInt32(y)
@@ -230,18 +230,18 @@ fxAccOpOverLoop1:
 	PADDD X7, X1
 
 	// y = abs(x)
-	// y >>= 4 // Shift by 2*ϕ - 16.
+	// y >>= 2 // Shift by 2*ϕ - 16.
 	// y = min(y, fxAlmost65536)
 	//
 	// pabsd  %xmm1,%xmm2
-	// psrld  $0x4,%xmm2
+	// psrld  $0x2,%xmm2
 	// pminud %xmm5,%xmm2
 	//
 	// Hopefully we'll get these opcode mnemonics into the assembler for Go
 	// 1.8. https://golang.org/issue/16007 isn't exactly the same thing, but
 	// it's similar.
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x1e; BYTE $0xd1
-	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x04
+	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x02
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x3b; BYTE $0xd5
 
 	// z = convertToInt32(y)
@@ -353,18 +353,18 @@ fxAccOpSrcLoop4:
 	PADDD X7, X1
 
 	// y = abs(x)
-	// y >>= 12 // Shift by 2*ϕ - 8.
+	// y >>= 10 // Shift by 2*ϕ - 8.
 	// y = min(y, fxAlmost256)
 	//
 	// pabsd  %xmm1,%xmm2
-	// psrld  $0xc,%xmm2
+	// psrld  $0xa,%xmm2
 	// pminud %xmm5,%xmm2
 	//
 	// Hopefully we'll get these opcode mnemonics into the assembler for Go
 	// 1.8. https://golang.org/issue/16007 isn't exactly the same thing, but
 	// it's similar.
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x1e; BYTE $0xd1
-	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x0c
+	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x0a
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x3b; BYTE $0xd5
 
 	// z = convertToInt32(y)
@@ -397,18 +397,18 @@ fxAccOpSrcLoop1:
 	PADDD X7, X1
 
 	// y = abs(x)
-	// y >>= 12 // Shift by 2*ϕ - 8.
+	// y >>= 10 // Shift by 2*ϕ - 8.
 	// y = min(y, fxAlmost256)
 	//
 	// pabsd  %xmm1,%xmm2
-	// psrld  $0xc,%xmm2
+	// psrld  $0xa,%xmm2
 	// pminud %xmm5,%xmm2
 	//
 	// Hopefully we'll get these opcode mnemonics into the assembler for Go
 	// 1.8. https://golang.org/issue/16007 isn't exactly the same thing, but
 	// it's similar.
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x1e; BYTE $0xd1
-	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x0c
+	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x0a
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x3b; BYTE $0xd5
 
 	// z = convertToInt32(y)
@@ -498,18 +498,18 @@ fxAccMaskLoop4:
 	PADDD X7, X1
 
 	// y = abs(x)
-	// y >>= 4 // Shift by 2*ϕ - 16.
+	// y >>= 2 // Shift by 2*ϕ - 16.
 	// y = min(y, fxAlmost65536)
 	//
 	// pabsd  %xmm1,%xmm2
-	// psrld  $0x4,%xmm2
+	// psrld  $0x2,%xmm2
 	// pminud %xmm5,%xmm2
 	//
 	// Hopefully we'll get these opcode mnemonics into the assembler for Go
 	// 1.8. https://golang.org/issue/16007 isn't exactly the same thing, but
 	// it's similar.
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x1e; BYTE $0xd1
-	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x04
+	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x02
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x3b; BYTE $0xd5
 
 	// z = convertToInt32(y)
@@ -540,18 +540,18 @@ fxAccMaskLoop1:
 	PADDD X7, X1
 
 	// y = abs(x)
-	// y >>= 4 // Shift by 2*ϕ - 16.
+	// y >>= 2 // Shift by 2*ϕ - 16.
 	// y = min(y, fxAlmost65536)
 	//
 	// pabsd  %xmm1,%xmm2
-	// psrld  $0x4,%xmm2
+	// psrld  $0x2,%xmm2
 	// pminud %xmm5,%xmm2
 	//
 	// Hopefully we'll get these opcode mnemonics into the assembler for Go
 	// 1.8. https://golang.org/issue/16007 isn't exactly the same thing, but
 	// it's similar.
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x1e; BYTE $0xd1
-	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x04
+	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x02
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x3b; BYTE $0xd5
 
 	// z = convertToInt32(y)
