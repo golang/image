@@ -8,8 +8,6 @@
 
 // fl is short for floating point math. fx is short for fixed point math.
 
-DATA flAlmost256<>+0x00(SB)/8, $0x437fffff437fffff
-DATA flAlmost256<>+0x08(SB)/8, $0x437fffff437fffff
 DATA flAlmost65536<>+0x00(SB)/8, $0x477fffff477fffff
 DATA flAlmost65536<>+0x08(SB)/8, $0x477fffff477fffff
 DATA flOne<>+0x00(SB)/8, $0x3f8000003f800000
@@ -28,30 +26,26 @@ DATA flSignMask<>+0x08(SB)/8, $0x7fffffff7fffffff
 DATA scatterAndMulBy0x101<>+0x00(SB)/8, $0x8080010180800000
 DATA scatterAndMulBy0x101<>+0x08(SB)/8, $0x8080030380800202
 
-// gather is a PSHUFB mask that brings the low byte of the XMM register's four
-// uint32 values to the low four bytes of that register.
+// gather is a PSHUFB mask that brings the second-lowest byte of the XMM
+// register's four uint32 values to the low four bytes of that register.
 //
 // It transforms a little-endian 16-byte XMM value from
-//	i???j???k???l???
+//	?i???j???k???l??
 // to
 //	ijkl000000000000
-DATA gather<>+0x00(SB)/8, $0x808080800c080400
+DATA gather<>+0x00(SB)/8, $0x808080800d090501
 DATA gather<>+0x08(SB)/8, $0x8080808080808080
 
-DATA fxAlmost256<>+0x00(SB)/8, $0x000000ff000000ff
-DATA fxAlmost256<>+0x08(SB)/8, $0x000000ff000000ff
 DATA fxAlmost65536<>+0x00(SB)/8, $0x0000ffff0000ffff
 DATA fxAlmost65536<>+0x08(SB)/8, $0x0000ffff0000ffff
 DATA inverseFFFF<>+0x00(SB)/8, $0x8000800180008001
 DATA inverseFFFF<>+0x08(SB)/8, $0x8000800180008001
 
-GLOBL flAlmost256<>(SB), (NOPTR+RODATA), $16
 GLOBL flAlmost65536<>(SB), (NOPTR+RODATA), $16
 GLOBL flOne<>(SB), (NOPTR+RODATA), $16
 GLOBL flSignMask<>(SB), (NOPTR+RODATA), $16
 GLOBL scatterAndMulBy0x101<>(SB), (NOPTR+RODATA), $16
 GLOBL gather<>(SB), (NOPTR+RODATA), $16
-GLOBL fxAlmost256<>(SB), (NOPTR+RODATA), $16
 GLOBL fxAlmost65536<>(SB), (NOPTR+RODATA), $16
 GLOBL inverseFFFF<>(SB), (NOPTR+RODATA), $16
 
@@ -196,15 +190,12 @@ fxAccOpOverLoop4:
 	PSRLQ $47, X0
 	PSRLQ $47, X11
 
-	// Merge the two registers back to one, X11.
+	// Merge the two registers back to one, X11, and add maskA.
 	PSLLQ $32, X11
 	XORPS X0, X11
-
-	// Add maskA, shift from 16 bit color to 8 bit color.
 	PADDD X11, X2
-	PSRLQ $8, X2
 
-	// As per opSrcStore4, shuffle and copy the low 4 bytes.
+	// As per opSrcStore4, shuffle and copy the 4 second-lowest bytes.
 	PSHUFB X6, X2
 	MOVL   X2, (DI)
 
@@ -292,7 +283,7 @@ fxAccOpOverEnd:
 //	xmm2	y, z
 //	xmm3	-
 //	xmm4	-
-//	xmm5	fxAlmost256
+//	xmm5	fxAlmost65536
 //	xmm6	gather
 //	xmm7	offset
 //	xmm8	-
@@ -314,8 +305,8 @@ TEXT ·fixedAccumulateOpSrcSIMD(SB), NOSPLIT, $0-48
 	MOVQ R10, R11
 	ANDQ $-4, R10
 
-	// fxAlmost256 := XMM(0x000000ff repeated four times) // Maximum of an uint8.
-	MOVOU fxAlmost256<>(SB), X5
+	// fxAlmost65536 := XMM(0x0000ffff repeated four times) // Maximum of an uint16.
+	MOVOU fxAlmost65536<>(SB), X5
 
 	// gather := XMM(see above) // PSHUFB shuffle mask.
 	MOVOU gather<>(SB), X6
@@ -353,24 +344,24 @@ fxAccOpSrcLoop4:
 	PADDD X7, X1
 
 	// y = abs(x)
-	// y >>= 10 // Shift by 2*ϕ - 8.
-	// y = min(y, fxAlmost256)
+	// y >>= 2 // Shift by 2*ϕ - 16.
+	// y = min(y, fxAlmost65536)
 	//
 	// pabsd  %xmm1,%xmm2
-	// psrld  $0xa,%xmm2
+	// psrld  $0x2,%xmm2
 	// pminud %xmm5,%xmm2
 	//
 	// Hopefully we'll get these opcode mnemonics into the assembler for Go
 	// 1.8. https://golang.org/issue/16007 isn't exactly the same thing, but
 	// it's similar.
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x1e; BYTE $0xd1
-	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x0a
+	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x02
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x3b; BYTE $0xd5
 
 	// z = convertToInt32(y)
 	// No-op.
 
-	// z = shuffleTheLowBytesOfEach4ByteElement(z)
+	// z = shuffleTheSecondLowestBytesOfEach4ByteElement(z)
 	// copy(dst[:4], low4BytesOf(z))
 	PSHUFB X6, X2
 	MOVL   X2, (DI)
@@ -397,25 +388,26 @@ fxAccOpSrcLoop1:
 	PADDD X7, X1
 
 	// y = abs(x)
-	// y >>= 10 // Shift by 2*ϕ - 8.
-	// y = min(y, fxAlmost256)
+	// y >>= 2 // Shift by 2*ϕ - 16.
+	// y = min(y, fxAlmost65536)
 	//
 	// pabsd  %xmm1,%xmm2
-	// psrld  $0xa,%xmm2
+	// psrld  $0x2,%xmm2
 	// pminud %xmm5,%xmm2
 	//
 	// Hopefully we'll get these opcode mnemonics into the assembler for Go
 	// 1.8. https://golang.org/issue/16007 isn't exactly the same thing, but
 	// it's similar.
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x1e; BYTE $0xd1
-	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x0a
+	BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x02
 	BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x3b; BYTE $0xd5
 
 	// z = convertToInt32(y)
 	// No-op.
 
-	// dst[0] = uint8(z)
+	// dst[0] = uint8(z>>8)
 	MOVL X2, BX
+	SHRL $8, BX
 	MOVB BX, (DI)
 
 	// offset = x
@@ -712,15 +704,12 @@ flAccOpOverLoop4:
 	PSRLQ $47, X0
 	PSRLQ $47, X11
 
-	// Merge the two registers back to one, X11.
+	// Merge the two registers back to one, X11, and add maskA.
 	PSLLQ $32, X11
 	XORPS X0, X11
-
-	// Add maskA, shift from 16 bit color to 8 bit color.
 	PADDD X11, X2
-	PSRLQ $8, X2
 
-	// As per opSrcStore4, shuffle and copy the low 4 bytes.
+	// As per opSrcStore4, shuffle and copy the 4 second-lowest bytes.
 	PSHUFB X6, X2
 	MOVL   X2, (DI)
 
@@ -801,7 +790,7 @@ flAccOpOverEnd:
 //	xmm0	scratch
 //	xmm1	x
 //	xmm2	y, z
-//	xmm3	flAlmost256
+//	xmm3	flAlmost65536
 //	xmm4	flOne
 //	xmm5	flSignMask
 //	xmm6	gather
@@ -832,10 +821,10 @@ TEXT ·floatingAccumulateOpSrcSIMD(SB), NOSPLIT, $8-48
 	ORL     $0x6000, AX
 	MOVL    AX, mxcsrNew-4(SP)
 
-	// flAlmost256 := XMM(0x437fffff repeated four times) // 255.99998 as a float32.
-	// flOne       := XMM(0x3f800000 repeated four times) // 1 as a float32.
-	// flSignMask  := XMM(0x7fffffff repeated four times) // All but the sign bit of a float32.
-	MOVOU flAlmost256<>(SB), X3
+	// flAlmost65536 := XMM(0x477fffff repeated four times) // 255.99998 * 256 as a float32.
+	// flOne         := XMM(0x3f800000 repeated four times) // 1 as a float32.
+	// flSignMask    := XMM(0x7fffffff repeated four times) // All but the sign bit of a float32.
+	MOVOU flAlmost65536<>(SB), X3
 	MOVOU flOne<>(SB), X4
 	MOVOU flSignMask<>(SB), X5
 
@@ -876,7 +865,7 @@ flAccOpSrcLoop4:
 
 	// y = x & flSignMask
 	// y = min(y, flOne)
-	// y = mul(y, flAlmost256)
+	// y = mul(y, flAlmost65536)
 	MOVOU X5, X2
 	ANDPS X1, X2
 	MINPS X4, X2
@@ -887,7 +876,7 @@ flAccOpSrcLoop4:
 	CVTPS2PL X2, X2
 	LDMXCSR  mxcsrOrig-8(SP)
 
-	// z = shuffleTheLowBytesOfEach4ByteElement(z)
+	// z = shuffleTheSecondLowestBytesOfEach4ByteElement(z)
 	// copy(dst[:4], low4BytesOf(z))
 	PSHUFB X6, X2
 	MOVL   X2, (DI)
@@ -915,7 +904,7 @@ flAccOpSrcLoop1:
 
 	// y = x & flSignMask
 	// y = min(y, flOne)
-	// y = mul(y, flAlmost256)
+	// y = mul(y, flAlmost65536)
 	MOVOU X5, X2
 	ANDPS X1, X2
 	MINPS X4, X2
@@ -926,8 +915,9 @@ flAccOpSrcLoop1:
 	CVTPS2PL X2, X2
 	LDMXCSR  mxcsrOrig-8(SP)
 
-	// dst[0] = uint8(z)
+	// dst[0] = uint8(z>>8)
 	MOVL X2, BX
+	SHRL $8, BX
 	MOVB BX, (DI)
 
 	// offset = x

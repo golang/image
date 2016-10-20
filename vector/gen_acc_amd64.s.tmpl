@@ -10,8 +10,6 @@
 
 // fl is short for floating point math. fx is short for fixed point math.
 
-DATA flAlmost256<>+0x00(SB)/8, $0x437fffff437fffff
-DATA flAlmost256<>+0x08(SB)/8, $0x437fffff437fffff
 DATA flAlmost65536<>+0x00(SB)/8, $0x477fffff477fffff
 DATA flAlmost65536<>+0x08(SB)/8, $0x477fffff477fffff
 DATA flOne<>+0x00(SB)/8, $0x3f8000003f800000
@@ -30,30 +28,26 @@ DATA flSignMask<>+0x08(SB)/8, $0x7fffffff7fffffff
 DATA scatterAndMulBy0x101<>+0x00(SB)/8, $0x8080010180800000
 DATA scatterAndMulBy0x101<>+0x08(SB)/8, $0x8080030380800202
 
-// gather is a PSHUFB mask that brings the low byte of the XMM register's four
-// uint32 values to the low four bytes of that register.
+// gather is a PSHUFB mask that brings the second-lowest byte of the XMM
+// register's four uint32 values to the low four bytes of that register.
 //
 // It transforms a little-endian 16-byte XMM value from
-//	i???j???k???l???
+//	?i???j???k???l??
 // to
 //	ijkl000000000000
-DATA gather<>+0x00(SB)/8, $0x808080800c080400
+DATA gather<>+0x00(SB)/8, $0x808080800d090501
 DATA gather<>+0x08(SB)/8, $0x8080808080808080
 
-DATA fxAlmost256<>+0x00(SB)/8, $0x000000ff000000ff
-DATA fxAlmost256<>+0x08(SB)/8, $0x000000ff000000ff
 DATA fxAlmost65536<>+0x00(SB)/8, $0x0000ffff0000ffff
 DATA fxAlmost65536<>+0x08(SB)/8, $0x0000ffff0000ffff
 DATA inverseFFFF<>+0x00(SB)/8, $0x8000800180008001
 DATA inverseFFFF<>+0x08(SB)/8, $0x8000800180008001
 
-GLOBL flAlmost256<>(SB), (NOPTR+RODATA), $16
 GLOBL flAlmost65536<>(SB), (NOPTR+RODATA), $16
 GLOBL flOne<>(SB), (NOPTR+RODATA), $16
 GLOBL flSignMask<>(SB), (NOPTR+RODATA), $16
 GLOBL scatterAndMulBy0x101<>(SB), (NOPTR+RODATA), $16
 GLOBL gather<>(SB), (NOPTR+RODATA), $16
-GLOBL fxAlmost256<>(SB), (NOPTR+RODATA), $16
 GLOBL fxAlmost65536<>(SB), (NOPTR+RODATA), $16
 GLOBL inverseFFFF<>(SB), (NOPTR+RODATA), $16
 
