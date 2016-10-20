@@ -101,16 +101,16 @@ var instances = []struct {
 	DstElemSize4:   4 * sizeOfUint8,
 	XMM3:           fxXMM3,
 	XMM4:           fxXMM4,
-	XMM5:           fxXMM5_65536,
+	XMM5:           fxXMM5,
 	XMM6:           opOverXMM6,
 	XMM8:           opOverXMM8,
 	XMM9:           opOverXMM9,
 	XMM10:          opOverXMM10,
 	LoadArgs:       twoArgLoadArgs,
 	Setup:          fxSetup,
-	LoadXMMRegs:    fxLoadXMMRegs65536 + "\n" + opOverLoadXMMRegs,
+	LoadXMMRegs:    fxLoadXMMRegs + "\n" + opOverLoadXMMRegs,
 	Add:            fxAdd,
-	ClampAndScale:  fxClampAndScale65536,
+	ClampAndScale:  fxClampAndScale,
 	ConvertToInt32: fxConvertToInt32,
 	Store4:         opOverStore4,
 	Store1:         opOverStore1,
@@ -124,16 +124,16 @@ var instances = []struct {
 	DstElemSize4:   4 * sizeOfUint8,
 	XMM3:           fxXMM3,
 	XMM4:           fxXMM4,
-	XMM5:           fxXMM5_256,
+	XMM5:           fxXMM5,
 	XMM6:           opSrcXMM6,
 	XMM8:           opSrcXMM8,
 	XMM9:           opSrcXMM9,
 	XMM10:          opSrcXMM10,
 	LoadArgs:       twoArgLoadArgs,
 	Setup:          fxSetup,
-	LoadXMMRegs:    fxLoadXMMRegs256 + "\n" + opSrcLoadXMMRegs,
+	LoadXMMRegs:    fxLoadXMMRegs + "\n" + opSrcLoadXMMRegs,
 	Add:            fxAdd,
-	ClampAndScale:  fxClampAndScale256,
+	ClampAndScale:  fxClampAndScale,
 	ConvertToInt32: fxConvertToInt32,
 	Store4:         opSrcStore4,
 	Store1:         opSrcStore1,
@@ -147,16 +147,16 @@ var instances = []struct {
 	DstElemSize4:   4 * sizeOfUint32,
 	XMM3:           fxXMM3,
 	XMM4:           fxXMM4,
-	XMM5:           fxXMM5_65536,
+	XMM5:           fxXMM5,
 	XMM6:           maskXMM6,
 	XMM8:           maskXMM8,
 	XMM9:           maskXMM9,
 	XMM10:          maskXMM10,
 	LoadArgs:       oneArgLoadArgs,
 	Setup:          fxSetup,
-	LoadXMMRegs:    fxLoadXMMRegs65536 + "\n" + maskLoadXMMRegs,
+	LoadXMMRegs:    fxLoadXMMRegs + "\n" + maskLoadXMMRegs,
 	Add:            fxAdd,
-	ClampAndScale:  fxClampAndScale65536,
+	ClampAndScale:  fxClampAndScale,
 	ConvertToInt32: fxConvertToInt32,
 	Store4:         maskStore4,
 	Store1:         maskStore1,
@@ -168,7 +168,7 @@ var instances = []struct {
 	Args:           "dst []uint8, src []float32",
 	DstElemSize1:   1 * sizeOfUint8,
 	DstElemSize4:   4 * sizeOfUint8,
-	XMM3:           flXMM3_65536,
+	XMM3:           flXMM3,
 	XMM4:           flXMM4,
 	XMM5:           flXMM5,
 	XMM6:           opOverXMM6,
@@ -177,9 +177,9 @@ var instances = []struct {
 	XMM10:          opOverXMM10,
 	LoadArgs:       twoArgLoadArgs,
 	Setup:          flSetup,
-	LoadXMMRegs:    flLoadXMMRegs65536 + "\n" + opOverLoadXMMRegs,
+	LoadXMMRegs:    flLoadXMMRegs + "\n" + opOverLoadXMMRegs,
 	Add:            flAdd,
-	ClampAndScale:  flClampAndScale65536,
+	ClampAndScale:  flClampAndScale,
 	ConvertToInt32: flConvertToInt32,
 	Store4:         opOverStore4,
 	Store1:         opOverStore1,
@@ -191,7 +191,7 @@ var instances = []struct {
 	Args:           "dst []uint8, src []float32",
 	DstElemSize1:   1 * sizeOfUint8,
 	DstElemSize4:   4 * sizeOfUint8,
-	XMM3:           flXMM3_256,
+	XMM3:           flXMM3,
 	XMM4:           flXMM4,
 	XMM5:           flXMM5,
 	XMM6:           opSrcXMM6,
@@ -200,9 +200,9 @@ var instances = []struct {
 	XMM10:          opSrcXMM10,
 	LoadArgs:       twoArgLoadArgs,
 	Setup:          flSetup,
-	LoadXMMRegs:    flLoadXMMRegs256 + "\n" + opSrcLoadXMMRegs,
+	LoadXMMRegs:    flLoadXMMRegs + "\n" + opSrcLoadXMMRegs,
 	Add:            flAdd,
-	ClampAndScale:  flClampAndScale256,
+	ClampAndScale:  flClampAndScale,
 	ConvertToInt32: flConvertToInt32,
 	Store4:         opSrcStore4,
 	Store1:         opSrcStore1,
@@ -214,7 +214,7 @@ var instances = []struct {
 	Args:           "dst []uint32, src []float32",
 	DstElemSize1:   1 * sizeOfUint32,
 	DstElemSize4:   4 * sizeOfUint32,
-	XMM3:           flXMM3_65536,
+	XMM3:           flXMM3,
 	XMM4:           flXMM4,
 	XMM5:           flXMM5,
 	XMM6:           maskXMM6,
@@ -223,9 +223,9 @@ var instances = []struct {
 	XMM10:          maskXMM10,
 	LoadArgs:       twoArgLoadArgs,
 	Setup:          flSetup,
-	LoadXMMRegs:    flLoadXMMRegs65536 + "\n" + maskLoadXMMRegs,
+	LoadXMMRegs:    flLoadXMMRegs + "\n" + maskLoadXMMRegs,
 	Add:            flAdd,
-	ClampAndScale:  flClampAndScale65536,
+	ClampAndScale:  flClampAndScale,
 	ConvertToInt32: flConvertToInt32,
 	Store4:         maskStore4,
 	Store1:         maskStore1,
@@ -241,16 +241,14 @@ const (
 	sizeOfUint8  = 1
 	sizeOfUint32 = 4
 
-	fxXMM3       = `-`
-	flXMM3_256   = `flAlmost256`
-	flXMM3_65536 = `flAlmost65536`
+	fxXMM3 = `-`
+	flXMM3 = `flAlmost65536`
 
 	fxXMM4 = `-`
 	flXMM4 = `flOne`
 
-	fxXMM5_256   = `fxAlmost256`
-	fxXMM5_65536 = `fxAlmost65536`
-	flXMM5       = `flSignMask`
+	fxXMM5 = `fxAlmost65536`
+	flXMM5 = `flSignMask`
 
 	oneArgLoadArgs = `
 		MOVQ buf_base+0(FP), DI
@@ -278,23 +276,11 @@ const (
 		MOVL    AX, mxcsrNew-4(SP)
 		`
 
-	fxLoadXMMRegs256 = `
-		// fxAlmost256 := XMM(0x000000ff repeated four times) // Maximum of an uint8.
-		MOVOU fxAlmost256<>(SB), X5
-		`
-	fxLoadXMMRegs65536 = `
+	fxLoadXMMRegs = `
 		// fxAlmost65536 := XMM(0x0000ffff repeated four times) // Maximum of an uint16.
 		MOVOU fxAlmost65536<>(SB), X5
 		`
-	flLoadXMMRegs256 = `
-		// flAlmost256 := XMM(0x437fffff repeated four times) // 255.99998 as a float32.
-		// flOne       := XMM(0x3f800000 repeated four times) // 1 as a float32.
-		// flSignMask  := XMM(0x7fffffff repeated four times) // All but the sign bit of a float32.
-		MOVOU flAlmost256<>(SB), X3
-		MOVOU flOne<>(SB), X4
-		MOVOU flSignMask<>(SB), X5
-		`
-	flLoadXMMRegs65536 = `
+	flLoadXMMRegs = `
 		// flAlmost65536 := XMM(0x477fffff repeated four times) // 255.99998 * 256 as a float32.
 		// flOne         := XMM(0x3f800000 repeated four times) // 1 as a float32.
 		// flSignMask    := XMM(0x7fffffff repeated four times) // All but the sign bit of a float32.
@@ -306,23 +292,7 @@ const (
 	fxAdd = `PADDD`
 	flAdd = `ADDPS`
 
-	fxClampAndScale256 = `
-		// y = abs(x)
-		// y >>= 10 // Shift by 2*ϕ - 8.
-		// y = min(y, fxAlmost256)
-		//
-		// pabsd  %xmm1,%xmm2
-		// psrld  $0xa,%xmm2
-		// pminud %xmm5,%xmm2
-		//
-		// Hopefully we'll get these opcode mnemonics into the assembler for Go
-		// 1.8. https://golang.org/issue/16007 isn't exactly the same thing, but
-		// it's similar.
-		BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x1e; BYTE $0xd1
-		BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x0a
-		BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x3b; BYTE $0xd5
-		`
-	fxClampAndScale65536 = `
+	fxClampAndScale = `
 		// y = abs(x)
 		// y >>= 2 // Shift by 2*ϕ - 16.
 		// y = min(y, fxAlmost65536)
@@ -338,16 +308,7 @@ const (
 		BYTE $0x66; BYTE $0x0f; BYTE $0x72; BYTE $0xd2; BYTE $0x02
 		BYTE $0x66; BYTE $0x0f; BYTE $0x38; BYTE $0x3b; BYTE $0xd5
 		`
-	flClampAndScale256 = `
-		// y = x & flSignMask
-		// y = min(y, flOne)
-		// y = mul(y, flAlmost256)
-		MOVOU X5, X2
-		ANDPS X1, X2
-		MINPS X4, X2
-		MULPS X3, X2
-		`
-	flClampAndScale65536 = `
+	flClampAndScale = `
 		// y = x & flSignMask
 		// y = min(y, flOne)
 		// y = mul(y, flAlmost65536)
@@ -402,18 +363,16 @@ const (
 		BYTE  $0x66; BYTE $0x45; BYTE $0x0f; BYTE $0xf4; BYTE $0xda
 		PSRLQ $47, X0
 		PSRLQ $47, X11
-		// Merge the two registers back to one, X11.
+		// Merge the two registers back to one, X11, and add maskA.
 		PSLLQ $32, X11
 		XORPS X0, X11
-		// Add maskA, shift from 16 bit color to 8 bit color.
-		PADDD  X11, X2
-		PSRLQ  $8, X2
-		// As per opSrcStore4, shuffle and copy the low 4 bytes.
+		PADDD X11, X2
+		// As per opSrcStore4, shuffle and copy the 4 second-lowest bytes.
 		PSHUFB X6, X2
 		MOVL   X2, (DI)
 		`
 	opSrcStore4 = `
-		// z = shuffleTheLowBytesOfEach4ByteElement(z)
+		// z = shuffleTheSecondLowestBytesOfEach4ByteElement(z)
 		// copy(dst[:4], low4BytesOf(z))
 		PSHUFB X6, X2
 		MOVL   X2, (DI)
@@ -444,8 +403,9 @@ const (
 		MOVB    R13, (DI)
 		`
 	opSrcStore1 = `
-		// dst[0] = uint8(z)
+		// dst[0] = uint8(z>>8)
 		MOVL X2, BX
+		SHRL $8, BX
 		MOVB BX, (DI)
 		`
 	maskStore1 = `
