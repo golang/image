@@ -242,13 +242,13 @@ const (
 	sizeOfUint32 = 4
 
 	fxXMM3 = `-`
-	flXMM3 = `flAlmost65536`
+	flXMM3 = `flSignMask`
 
 	fxXMM4 = `-`
 	flXMM4 = `flOne`
 
 	fxXMM5 = `fxAlmost65536`
-	flXMM5 = `flSignMask`
+	flXMM5 = `flAlmost65536`
 
 	oneArgLoadArgs = `
 		MOVQ buf_base+0(FP), DI
@@ -281,12 +281,12 @@ const (
 		MOVOU fxAlmost65536<>(SB), X5
 		`
 	flLoadXMMRegs = `
-		// flAlmost65536 := XMM(0x477fffff repeated four times) // 255.99998 * 256 as a float32.
-		// flOne         := XMM(0x3f800000 repeated four times) // 1 as a float32.
 		// flSignMask    := XMM(0x7fffffff repeated four times) // All but the sign bit of a float32.
-		MOVOU flAlmost65536<>(SB), X3
+		// flOne         := XMM(0x3f800000 repeated four times) // 1 as a float32.
+		// flAlmost65536 := XMM(0x477fffff repeated four times) // 255.99998 * 256 as a float32.
+		MOVOU flSignMask<>(SB), X3
 		MOVOU flOne<>(SB), X4
-		MOVOU flSignMask<>(SB), X5
+		MOVOU flAlmost65536<>(SB), X5
 		`
 
 	fxAdd = `PADDD`
@@ -312,10 +312,10 @@ const (
 		// y = x & flSignMask
 		// y = min(y, flOne)
 		// y = mul(y, flAlmost65536)
-		MOVOU X5, X2
+		MOVOU X3, X2
 		ANDPS X1, X2
 		MINPS X4, X2
-		MULPS X3, X2
+		MULPS X5, X2
 		`
 
 	fxConvertToInt32 = `
