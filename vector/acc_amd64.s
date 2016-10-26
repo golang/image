@@ -2,6 +2,7 @@
 
 // +build !appengine
 // +build gc
+// +build go1.6
 // +build !noasm
 
 #include "textflag.h"
