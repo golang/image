@@ -577,9 +577,9 @@ fxAccMaskEnd:
 //	xmm0	scratch
 //	xmm1	x
 //	xmm2	y, z
-//	xmm3	flAlmost65536
+//	xmm3	flSignMask
 //	xmm4	flOne
-//	xmm5	flSignMask
+//	xmm5	flAlmost65536
 //	xmm6	gather
 //	xmm7	offset
 //	xmm8	scatterAndMulBy0x101
@@ -608,12 +608,12 @@ TEXT ·floatingAccumulateOpOverSIMD(SB), NOSPLIT, $8-48
 	ORL     $0x6000, AX
 	MOVL    AX, mxcsrNew-4(SP)
 
-	// flAlmost65536 := XMM(0x477fffff repeated four times) // 255.99998 * 256 as a float32.
-	// flOne         := XMM(0x3f800000 repeated four times) // 1 as a float32.
 	// flSignMask    := XMM(0x7fffffff repeated four times) // All but the sign bit of a float32.
-	MOVOU flAlmost65536<>(SB), X3
+	// flOne         := XMM(0x3f800000 repeated four times) // 1 as a float32.
+	// flAlmost65536 := XMM(0x477fffff repeated four times) // 255.99998 * 256 as a float32.
+	MOVOU flSignMask<>(SB), X3
 	MOVOU flOne<>(SB), X4
-	MOVOU flSignMask<>(SB), X5
+	MOVOU flAlmost65536<>(SB), X5
 
 	// gather               := XMM(see above)                      // PSHUFB shuffle mask.
 	// scatterAndMulBy0x101 := XMM(see above)                      // PSHUFB shuffle mask.
@@ -659,10 +659,10 @@ flAccOpOverLoop4:
 	// y = x & flSignMask
 	// y = min(y, flOne)
 	// y = mul(y, flAlmost65536)
-	MOVOU X5, X2
+	MOVOU X3, X2
 	ANDPS X1, X2
 	MINPS X4, X2
-	MULPS X3, X2
+	MULPS X5, X2
 
 	// z = convertToInt32(y)
 	LDMXCSR  mxcsrNew-4(SP)
@@ -738,10 +738,10 @@ flAccOpOverLoop1:
 	// y = x & flSignMask
 	// y = min(y, flOne)
 	// y = mul(y, flAlmost65536)
-	MOVOU X5, X2
+	MOVOU X3, X2
 	ANDPS X1, X2
 	MINPS X4, X2
-	MULPS X3, X2
+	MULPS X5, X2
 
 	// z = convertToInt32(y)
 	LDMXCSR  mxcsrNew-4(SP)
@@ -791,9 +791,9 @@ flAccOpOverEnd:
 //	xmm0	scratch
 //	xmm1	x
 //	xmm2	y, z
-//	xmm3	flAlmost65536
+//	xmm3	flSignMask
 //	xmm4	flOne
-//	xmm5	flSignMask
+//	xmm5	flAlmost65536
 //	xmm6	gather
 //	xmm7	offset
 //	xmm8	-
@@ -822,12 +822,12 @@ TEXT ·floatingAccumulateOpSrcSIMD(SB), NOSPLIT, $8-48
 	ORL     $0x6000, AX
 	MOVL    AX, mxcsrNew-4(SP)
 
-	// flAlmost65536 := XMM(0x477fffff repeated four times) // 255.99998 * 256 as a float32.
-	// flOne         := XMM(0x3f800000 repeated four times) // 1 as a float32.
 	// flSignMask    := XMM(0x7fffffff repeated four times) // All but the sign bit of a float32.
-	MOVOU flAlmost65536<>(SB), X3
+	// flOne         := XMM(0x3f800000 repeated four times) // 1 as a float32.
+	// flAlmost65536 := XMM(0x477fffff repeated four times) // 255.99998 * 256 as a float32.
+	MOVOU flSignMask<>(SB), X3
 	MOVOU flOne<>(SB), X4
-	MOVOU flSignMask<>(SB), X5
+	MOVOU flAlmost65536<>(SB), X5
 
 	// gather := XMM(see above) // PSHUFB shuffle mask.
 	MOVOU gather<>(SB), X6
@@ -867,10 +867,10 @@ flAccOpSrcLoop4:
 	// y = x & flSignMask
 	// y = min(y, flOne)
 	// y = mul(y, flAlmost65536)
-	MOVOU X5, X2
+	MOVOU X3, X2
 	ANDPS X1, X2
 	MINPS X4, X2
-	MULPS X3, X2
+	MULPS X5, X2
 
 	// z = convertToInt32(y)
 	LDMXCSR  mxcsrNew-4(SP)
@@ -906,10 +906,10 @@ flAccOpSrcLoop1:
 	// y = x & flSignMask
 	// y = min(y, flOne)
 	// y = mul(y, flAlmost65536)
-	MOVOU X5, X2
+	MOVOU X3, X2
 	ANDPS X1, X2
 	MINPS X4, X2
-	MULPS X3, X2
+	MULPS X5, X2
 
 	// z = convertToInt32(y)
 	LDMXCSR  mxcsrNew-4(SP)
@@ -945,9 +945,9 @@ flAccOpSrcEnd:
 //	xmm0	scratch
 //	xmm1	x
 //	xmm2	y, z
-//	xmm3	flAlmost65536
+//	xmm3	flSignMask
 //	xmm4	flOne
-//	xmm5	flSignMask
+//	xmm5	flAlmost65536
 //	xmm6	-
 //	xmm7	offset
 //	xmm8	-
@@ -976,12 +976,12 @@ TEXT ·floatingAccumulateMaskSIMD(SB), NOSPLIT, $8-48
 	ORL     $0x6000, AX
 	MOVL    AX, mxcsrNew-4(SP)
 
-	// flAlmost65536 := XMM(0x477fffff repeated four times) // 255.99998 * 256 as a float32.
-	// flOne         := XMM(0x3f800000 repeated four times) // 1 as a float32.
 	// flSignMask    := XMM(0x7fffffff repeated four times) // All but the sign bit of a float32.
-	MOVOU flAlmost65536<>(SB), X3
+	// flOne         := XMM(0x3f800000 repeated four times) // 1 as a float32.
+	// flAlmost65536 := XMM(0x477fffff repeated four times) // 255.99998 * 256 as a float32.
+	MOVOU flSignMask<>(SB), X3
 	MOVOU flOne<>(SB), X4
-	MOVOU flSignMask<>(SB), X5
+	MOVOU flAlmost65536<>(SB), X5
 
 	// offset := XMM(0x00000000 repeated four times) // Cumulative sum.
 	XORPS X7, X7
@@ -1018,10 +1018,10 @@ flAccMaskLoop4:
 	// y = x & flSignMask
 	// y = min(y, flOne)
 	// y = mul(y, flAlmost65536)
-	MOVOU X5, X2
+	MOVOU X3, X2
 	ANDPS X1, X2
 	MINPS X4, X2
-	MULPS X3, X2
+	MULPS X5, X2
 
 	// z = convertToInt32(y)
 	LDMXCSR  mxcsrNew-4(SP)
@@ -1055,10 +1055,10 @@ flAccMaskLoop1:
 	// y = x & flSignMask
 	// y = min(y, flOne)
 	// y = mul(y, flAlmost65536)
-	MOVOU X5, X2
+	MOVOU X3, X2
 	ANDPS X1, X2
 	MINPS X4, X2
-	MULPS X3, X2
+	MULPS X5, X2
 
 	// z = convertToInt32(y)
 	LDMXCSR  mxcsrNew-4(SP)
