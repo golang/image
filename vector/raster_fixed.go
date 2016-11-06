@@ -127,8 +127,8 @@ func (z *Rasterizer) fixedLineTo(bx, by float32) {
 
 			if i := clamp(x0i, width); i < uint(len(buf)) {
 				// In ideal math: buf[i] += uint32(d * a0)
-				D := oneMinusX0fSquared // D ranges up to ±1<<(1*ϕ).
-				D *= d                  // D ranges up to ±1<<(2*ϕ).
+				D := oneMinusX0fSquared // D ranges up to ±1<<(2*ϕ).
+				D *= d                  // D ranges up to ±1<<(3*ϕ).
 				D /= twoOverS
 				buf[i] += uint32(D)
 			}
