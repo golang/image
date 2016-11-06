@@ -26,8 +26,6 @@ import (
 	"image/color"
 	"image/draw"
 	"math"
-
-	"golang.org/x/image/math/f32"
 )
 
 // floatingPointMathThreshold is the width or height above which the rasterizer
@@ -50,18 +48,8 @@ import (
 // would still produce acceptable quality, but 512 seems to work.
 const floatingPointMathThreshold = 512
 
-func midPoint(p, q f32.Vec2) f32.Vec2 {
-	return f32.Vec2{
-		(p[0] + q[0]) * 0.5,
-		(p[1] + q[1]) * 0.5,
-	}
-}
-
-func lerp(t float32, p, q f32.Vec2) f32.Vec2 {
-	return f32.Vec2{
-		p[0] + t*(q[0]-p[0]),
-		p[1] + t*(q[1]-p[1]),
-	}
+func lerp(t, px, py, qx, qy float32) (x, y float32) {
+	return px + t*(qx-px), py + t*(qy-py)
 }
 
 func clamp(i, width int32) uint {
@@ -106,9 +94,11 @@ type Rasterizer struct {
 
 	useFloatingPointMath bool
 
-	size  image.Point
-	first f32.Vec2
-	pen   f32.Vec2
+	size   image.Point
+	firstX float32
+	firstY float32
+	penX   float32
+	penY   float32
 
 	// DrawOp is the operator used for the Draw method.
 	//
@@ -124,8 +114,10 @@ type Rasterizer struct {
 // This includes setting z.DrawOp to draw.Over.
 func (z *Rasterizer) Reset(w, h int) {
 	z.size = image.Point{w, h}
-	z.first = f32.Vec2{}
-	z.pen = f32.Vec2{}
+	z.firstX = 0
+	z.firstY = 0
+	z.penX = 0
+	z.penY = 0
 	z.DrawOp = draw.Over
 
 	z.setUseFloatingPointMath(w > floatingPointMathThreshold || h > floatingPointMathThreshold)
@@ -169,63 +161,66 @@ func (z *Rasterizer) Bounds() image.Rectangle {
 
 // Pen returns the location of the path-drawing pen: the last argument to the
 // most recent XxxTo call.
-func (z *Rasterizer) Pen() f32.Vec2 {
-	return z.pen
+func (z *Rasterizer) Pen() (x, y float32) {
+	return z.penX, z.penY
 }
 
 // ClosePath closes the current path.
 func (z *Rasterizer) ClosePath() {
-	z.LineTo(z.first)
+	z.LineTo(z.firstX, z.firstY)
 }
 
-// MoveTo starts a new path and moves the pen to a.
+// MoveTo starts a new path and moves the pen to (ax, ay).
 //
 // The coordinates are allowed to be out of the Rasterizer's bounds.
-func (z *Rasterizer) MoveTo(a f32.Vec2) {
-	z.first = a
-	z.pen = a
+func (z *Rasterizer) MoveTo(ax, ay float32) {
+	z.firstX = ax
+	z.firstY = ay
+	z.penX = ax
+	z.penY = ay
 }
 
-// LineTo adds a line segment, from the pen to b, and moves the pen to b.
+// LineTo adds a line segment, from the pen to (bx, by), and moves the pen to
+// (bx, by).
 //
 // The coordinates are allowed to be out of the Rasterizer's bounds.
-func (z *Rasterizer) LineTo(b f32.Vec2) {
+func (z *Rasterizer) LineTo(bx, by float32) {
 	if z.useFloatingPointMath {
-		z.floatingLineTo(b)
+		z.floatingLineTo(bx, by)
 	} else {
-		z.fixedLineTo(b)
+		z.fixedLineTo(bx, by)
 	}
 }
 
-// QuadTo adds a quadratic Bézier segment, from the pen via b to c, and moves
-// the pen to c.
+// QuadTo adds a quadratic Bézier segment, from the pen via (bx, by) to (cx,
+// cy), and moves the pen to (cx, cy).
 //
 // The coordinates are allowed to be out of the Rasterizer's bounds.
-func (z *Rasterizer) QuadTo(b, c f32.Vec2) {
-	a := z.pen
-	devsq := devSquared(a, b, c)
+func (z *Rasterizer) QuadTo(bx, by, cx, cy float32) {
+	ax, ay := z.penX, z.penY
+	devsq := devSquared(ax, ay, bx, by, cx, cy)
 	if devsq >= 0.333 {
 		const tol = 3
 		n := 1 + int(math.Sqrt(math.Sqrt(tol*float64(devsq))))
 		t, nInv := float32(0), 1/float32(n)
 		for i := 0; i < n-1; i++ {
 			t += nInv
-			ab := lerp(t, a, b)
-			bc := lerp(t, b, c)
-			z.LineTo(lerp(t, ab, bc))
+			abx, aby := lerp(t, ax, ay, bx, by)
+			bcx, bcy := lerp(t, bx, by, cx, cy)
+			z.LineTo(lerp(t, abx, aby, bcx, bcy))
 		}
 	}
-	z.LineTo(c)
+	z.LineTo(cx, cy)
 }
 
-// CubeTo adds a cubic Bézier segment, from the pen via b and c to d, and moves
-// the pen to d.
+// CubeTo adds a cubic Bézier segment, from the pen via (bx, by) and (cx, cy)
+// to (dx, dy), and moves the pen to (dx, dy).
 //
 // The coordinates are allowed to be out of the Rasterizer's bounds.
-func (z *Rasterizer) CubeTo(b, c, d f32.Vec2) {
-	a := z.pen
-	devsq := devSquared(a, b, d)
-	if devsqAlt := devSquared(a, c, d); devsq < devsqAlt {
+func (z *Rasterizer) CubeTo(bx, by, cx, cy, dx, dy float32) {
+	ax, ay := z.penX, z.penY
+	devsq := devSquared(ax, ay, bx, by, dx, dy)
+	if devsqAlt := devSquared(ax, ay, cx, cy, dx, dy); devsq < devsqAlt {
 		devsq = devsqAlt
 	}
 	if devsq >= 0.333 {
@@ -234,19 +229,20 @@ func (z *Rasterizer) CubeTo(b, c, d f32.Vec2) {
 		t, nInv := float32(0), 1/float32(n)
 		for i := 0; i < n-1; i++ {
 			t += nInv
-			ab := lerp(t, a, b)
-			bc := lerp(t, b, c)
-			cd := lerp(t, c, d)
-			abc := lerp(t, ab, bc)
-			bcd := lerp(t, bc, cd)
-			z.LineTo(lerp(t, abc, bcd))
+			abx, aby := lerp(t, ax, ay, bx, by)
+			bcx, bcy := lerp(t, bx, by, cx, cy)
+			cdx, cdy := lerp(t, cx, cy, dx, dy)
+			abcx, abcy := lerp(t, abx, aby, bcx, bcy)
+			bcdx, bcdy := lerp(t, bcx, bcy, cdx, cdy)
+			z.LineTo(lerp(t, abcx, abcy, bcdx, bcdy))
 		}
 	}
-	z.LineTo(d)
+	z.LineTo(dx, dy)
 }
 
-// devSquared returns a measure of how curvy the sequnce a to b to c is. It
-// determines how many line segments will approximate a Bézier curve segment.
+// devSquared returns a measure of how curvy the sequence (ax, ay) to (bx, by)
+// to (cx, cy) is. It determines how many line segments will approximate a
+// Bézier curve segment.
 //
 // http://lists.nongnu.org/archive/html/freetype-devel/2016-08/msg00080.html
 // gives the rationale for this evenly spaced heuristic instead of a recursive
@@ -258,9 +254,9 @@ func (z *Rasterizer) CubeTo(b, c, d f32.Vec2) {
 // Taking a circular arc as a simplifying assumption (ie a spherical cow),
 // where I get n, a recursive approach would get 2^⌈lg n⌉, which, if I haven't
 // made any horrible mistakes, is expected to be 33% more in the limit.
-func devSquared(a, b, c f32.Vec2) float32 {
-	devx := a[0] - 2*b[0] + c[0]
-	devy := a[1] - 2*b[1] + c[1]
+func devSquared(ax, ay, bx, by, cx, cy float32) float32 {
+	devx := ax - 2*bx + cx
+	devy := ay - 2*by + cy
 	return devx*devx + devy*devy
 }
 

@@ -481,11 +481,11 @@ func makeInXxx(height int, useFloatingPointMath bool) *Rasterizer {
 	for _, d := range data {
 		switch d.n {
 		case 0:
-			z.MoveTo(d.p)
+			z.MoveTo(d.px, d.py)
 		case 1:
-			z.LineTo(d.p)
+			z.LineTo(d.px, d.py)
 		case 2:
-			z.QuadTo(d.p, d.q)
+			z.QuadTo(d.px, d.py, d.qx, d.qy)
 		}
 	}
 	return z

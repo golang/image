@@ -7,10 +7,6 @@ package vector
 // This file contains a fixed point math implementation of the vector
 // graphics rasterizer.
 
-import (
-	"golang.org/x/image/math/f32"
-)
-
 const (
 	// ϕ is the number of binary digits after the fixed point.
 	//
@@ -58,35 +54,35 @@ func fixedMin(x, y int1ϕ) int1ϕ {
 func fixedFloor(x int1ϕ) int32 { return int32(x >> ϕ) }
 func fixedCeil(x int1ϕ) int32  { return int32((x + fxOneMinusIota) >> ϕ) }
 
-func (z *Rasterizer) fixedLineTo(b f32.Vec2) {
-	a := z.pen
-	z.pen = b
+func (z *Rasterizer) fixedLineTo(bx, by float32) {
+	ax, ay := z.penX, z.penY
+	z.penX, z.penY = bx, by
 	dir := int1ϕ(1)
-	if a[1] > b[1] {
-		dir, a, b = -1, b, a
+	if ay > by {
+		dir, ax, ay, bx, by = -1, bx, by, ax, ay
 	}
 	// Horizontal line segments yield no change in coverage. Almost horizontal
 	// segments would yield some change, in ideal math, but the computation
-	// further below, involving 1 / (b[1] - a[1]), is unstable in fixed point
-	// math, so we treat the segment as if it was perfectly horizontal.
-	if b[1]-a[1] <= 0.000001 {
+	// further below, involving 1 / (by - ay), is unstable in fixed point math,
+	// so we treat the segment as if it was perfectly horizontal.
+	if by-ay <= 0.000001 {
 		return
 	}
-	dxdy := (b[0] - a[0]) / (b[1] - a[1])
+	dxdy := (bx - ax) / (by - ay)
 
-	ay := int1ϕ(a[1] * float32(fxOne))
-	by := int1ϕ(b[1] * float32(fxOne))
+	ayϕ := int1ϕ(ay * float32(fxOne))
+	byϕ := int1ϕ(by * float32(fxOne))
 
-	x := int1ϕ(a[0] * float32(fxOne))
-	y := fixedFloor(ay)
-	yMax := fixedCeil(by)
+	x := int1ϕ(ax * float32(fxOne))
+	y := fixedFloor(ayϕ)
+	yMax := fixedCeil(byϕ)
 	if yMax > int32(z.size.Y) {
 		yMax = int32(z.size.Y)
 	}
 	width := int32(z.size.X)
 
 	for ; y < yMax; y++ {
-		dy := fixedMin(int1ϕ(y+1)<<ϕ, by) - fixedMax(int1ϕ(y)<<ϕ, ay)
+		dy := fixedMin(int1ϕ(y+1)<<ϕ, byϕ) - fixedMax(int1ϕ(y)<<ϕ, ayϕ)
 		xNext := x + int1ϕ(float32(dy)*dxdy)
 		if y < 0 {
 			x = xNext
