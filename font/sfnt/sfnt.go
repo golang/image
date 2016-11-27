@@ -10,6 +10,9 @@ package sfnt // import "golang.org/x/image/font/sfnt"
 // https://www.microsoft.com/en-us/Typography/OpenTypeSpecification.aspx
 // specification. Additional documentation is at
 // http://developer.apple.com/fonts/TTRefMan/
+//
+// The pyftinspect tool from https://github.com/fonttools/fonttools is useful
+// for inspecting SFNT fonts.
 
 import (
 	"errors"
@@ -26,17 +29,21 @@ const (
 )
 
 var (
+	errGlyphIndexOutOfRange = errors.New("sfnt: glyph index out of range")
+
 	errInvalidBounds        = errors.New("sfnt: invalid bounds")
+	errInvalidCFFTable      = errors.New("sfnt: invalid CFF table")
 	errInvalidHeadTable     = errors.New("sfnt: invalid head table")
+	errInvalidLocationData  = errors.New("sfnt: invalid location data")
 	errInvalidMaxpTable     = errors.New("sfnt: invalid maxp table")
 	errInvalidSourceData    = errors.New("sfnt: invalid source data")
 	errInvalidTableOffset   = errors.New("sfnt: invalid table offset")
 	errInvalidTableTagOrder = errors.New("sfnt: invalid table tag order")
 	errInvalidVersion       = errors.New("sfnt: invalid version")
 
+	errUnsupportedCFFVersion        = errors.New("sfnt: unsupported CFF version")
 	errUnsupportedNumberOfTables    = errors.New("sfnt: unsupported number of tables")
 	errUnsupportedTableOffsetLength = errors.New("sfnt: unsupported table offset or length")
-	errUnsupportedVersion           = errors.New("sfnt: unsupported version")
 )
 
 // Units are an integral number of abstract, scalable "font units". The em
@@ -174,7 +181,8 @@ type Font struct {
 	// https://www.microsoft.com/typography/otspec/otff.htm#otttables
 	// "Tables Related to PostScript Outlines".
 	//
-	// TODO: cff, cff2, vorg?
+	// TODO: cff2, vorg?
+	cff table
 
 	// https://www.microsoft.com/typography/otspec/otff.htm#otttables
 	// "Advanced Typographic Tables".
@@ -187,13 +195,17 @@ type Font struct {
 	// TODO: hdmx, kern, vmtx? Others?
 
 	cached struct {
-		numGlyphs  int
-		unitsPerEm Units
+		isPostScript bool
+		unitsPerEm   Units
+
+		// The glyph data for the glyph index i is in
+		// src[locations[i+0]:locations[i+1]].
+		locations []uint32
 	}
 }
 
 // NumGlyphs returns the number of glyphs in f.
-func (f *Font) NumGlyphs() int { return f.cached.numGlyphs }
+func (f *Font) NumGlyphs() int { return len(f.cached.locations) - 1 }
 
 // UnitsPerEm returns the number of units per em for f.
 func (f *Font) UnitsPerEm() Units { return f.cached.unitsPerEm }
@@ -217,8 +229,7 @@ func (f *Font) initialize() error {
 	case 0x00010000:
 		// No-op.
 	case 0x4f54544f: // "OTTO".
-		// TODO: support CFF fonts.
-		return errUnsupportedVersion
+		f.cached.isPostScript = true
 	}
 	numTables := int(u16(buf[4:]))
 	if numTables > maxNumTables {
@@ -252,6 +263,8 @@ func (f *Font) initialize() error {
 
 		// Match the 4-byte tag as a uint32. For example, "OS/2" is 0x4f532f32.
 		switch tag {
+		case 0x43464620:
+			f.cff = table{o, n}
 		case 0x4f532f32:
 			f.os2 = table{o, n}
 		case 0x636d6170:
@@ -291,14 +304,47 @@ func (f *Font) initialize() error {
 	f.cached.unitsPerEm = Units(u)
 
 	// https://www.microsoft.com/typography/otspec/maxp.htm
-	if f.maxp.length != 32 {
-		return errInvalidMaxpTable
+	if f.cached.isPostScript {
+		if f.maxp.length != 6 {
+			return errInvalidMaxpTable
+		}
+	} else {
+		if f.maxp.length != 32 {
+			return errInvalidMaxpTable
+		}
 	}
 	u, err = f.src.u16(buf, f.maxp, 4)
 	if err != nil {
 		return err
 	}
-	f.cached.numGlyphs = int(u)
+	numGlyphs := int(u)
 
+	if f.cached.isPostScript {
+		p := cffParser{
+			src:    &f.src,
+			base:   int(f.cff.offset),
+			offset: int(f.cff.offset),
+			end:    int(f.cff.offset + f.cff.length),
+		}
+		f.cached.locations, err = p.parse()
+		if err != nil {
+			return err
+		}
+	} else {
+		// TODO: locaParser for TrueType fonts.
+		f.cached.locations = make([]uint32, numGlyphs+1)
+	}
+	if len(f.cached.locations) != numGlyphs+1 {
+		return errInvalidLocationData
+	}
 	return nil
+}
+
+func (f *Font) viewGlyphData(buf []byte, glyphIndex int) ([]byte, error) {
+	if glyphIndex < 0 || f.NumGlyphs() <= glyphIndex {
+		return nil, errGlyphIndexOutOfRange
+	}
+	i := f.cached.locations[glyphIndex+0]
+	j := f.cached.locations[glyphIndex+1]
+	return f.src.view(buf, int(i), int(j-i))
 }
