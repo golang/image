@@ -22,7 +22,9 @@ import (
 // These constants are not part of the specifications, but are limitations used
 // by this implementation.
 const (
-	maxNumTables = 256
+	maxNumTables        = 256
+	maxRealNumberStrLen = 64 // Maximum length in bytes of the "-123.456E-7" representation.
+
 	// (maxTableOffset + maxTableLength) will not overflow an int32.
 	maxTableLength = 1 << 29
 	maxTableOffset = 1 << 29
@@ -41,9 +43,10 @@ var (
 	errInvalidTableTagOrder = errors.New("sfnt: invalid table tag order")
 	errInvalidVersion       = errors.New("sfnt: invalid version")
 
-	errUnsupportedCFFVersion        = errors.New("sfnt: unsupported CFF version")
-	errUnsupportedNumberOfTables    = errors.New("sfnt: unsupported number of tables")
-	errUnsupportedTableOffsetLength = errors.New("sfnt: unsupported table offset or length")
+	errUnsupportedCFFVersion         = errors.New("sfnt: unsupported CFF version")
+	errUnsupportedRealNumberEncoding = errors.New("sfnt: unsupported real number encoding")
+	errUnsupportedNumberOfTables     = errors.New("sfnt: unsupported number of tables")
+	errUnsupportedTableOffsetLength  = errors.New("sfnt: unsupported table offset or length")
 )
 
 // Units are an integral number of abstract, scalable "font units". The em

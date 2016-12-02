@@ -20,9 +20,8 @@ package sfnt
 //	- push the number 800
 //	- FontBBox operator
 //	- etc
-// defines a DICT that maps "version" to the String ID (SID) 379, the copyright
-// "Notice" to the SID 392, the font bounding box "FontBBox" to the four
-// numbers [100, 0, 500, 800], etc.
+// defines a DICT that maps "version" to the String ID (SID) 379, "Notice" to
+// the SID 392, "FontBBox" to the four numbers [100, 0, 500, 800], etc.
 //
 // The first 391 String IDs (starting at 0) are predefined as per the CFF spec
 // Appendix A, in 5176.CFF.pdf referenced below. For example, 379 means
@@ -50,6 +49,8 @@ package sfnt
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 )
 
 const (
@@ -80,9 +81,12 @@ type cffParser struct {
 	base   int
 	offset int
 	end    int
-	buf    []byte
 	err    error
+
+	buf    []byte
 	locBuf [2]uint32
+
+	parseNumberBuf [maxRealNumberStrLen]byte
 
 	instructions []byte
 
@@ -265,8 +269,12 @@ func (p *cffParser) parseIndexLocations(dst []uint32, count, offSize int32) (ok 
 // stack or executing an operator.
 func (p *cffParser) step() {
 	if number, res := p.parseNumber(); res != prNone {
-		if res == prBad || p.stack.top == psStackSize {
-			p.err = errInvalidCFFTable
+		if res < 0 || p.stack.top == psStackSize {
+			if res == prUnsupportedRNE {
+				p.err = errUnsupportedRealNumberEncoding
+			} else {
+				p.err = errInvalidCFFTable
+			}
 			return
 		}
 		p.stack.a[p.stack.top] = number
@@ -276,33 +284,54 @@ func (p *cffParser) step() {
 
 	b0 := p.instructions[0]
 	p.instructions = p.instructions[1:]
-	if int(b0) < len(cff1ByteOperators) {
-		if op := cff1ByteOperators[b0]; op.name != "" {
-			if p.stack.top < op.numPop {
+
+	for b, escaped, operators := b0, false, topDictOperators[0]; ; {
+		if b == escapeByte && !escaped {
+			if len(p.instructions) <= 0 {
 				p.err = errInvalidCFFTable
 				return
 			}
-			if op.run != nil {
-				op.run(p)
-			}
-			if op.numPop < 0 {
-				p.stack.top = 0
-			} else {
-				p.stack.top -= op.numPop
-			}
-			return
+			b = p.instructions[0]
+			p.instructions = p.instructions[1:]
+			escaped = true
+			operators = topDictOperators[1]
+			continue
 		}
-	}
 
-	p.err = fmt.Errorf("sfnt: unrecognized CFF 1-byte operator %d", b0)
+		if int(b) < len(operators) {
+			if op := operators[b]; op.name != "" {
+				if p.stack.top < op.numPop {
+					p.err = errInvalidCFFTable
+					return
+				}
+				if op.run != nil {
+					op.run(p)
+				}
+				if op.numPop < 0 {
+					p.stack.top = 0
+				} else {
+					p.stack.top -= op.numPop
+				}
+				return
+			}
+		}
+
+		if escaped {
+			p.err = fmt.Errorf("sfnt: unrecognized CFF 2-byte operator (12 %d)", b)
+		} else {
+			p.err = fmt.Errorf("sfnt: unrecognized CFF 1-byte operator (%d)", b)
+		}
+		return
+	}
 }
 
 type parseResult int32
 
 const (
-	prBad  parseResult = -1
-	prNone parseResult = +0
-	prGood parseResult = +1
+	prUnsupportedRNE parseResult = -2
+	prInvalid        parseResult = -1
+	prNone           parseResult = +0
+	prGood           parseResult = +1
 )
 
 // See 5176.CFF.pdf section 4 "DICT Data".
@@ -314,7 +343,7 @@ func (p *cffParser) parseNumber() (number int32, res parseResult) {
 	switch b0 := p.instructions[0]; {
 	case b0 == 28:
 		if len(p.instructions) < 3 {
-			return 0, prBad
+			return 0, prInvalid
 		}
 		number = int32(int16(u16(p.instructions[1:])))
 		p.instructions = p.instructions[3:]
@@ -322,11 +351,47 @@ func (p *cffParser) parseNumber() (number int32, res parseResult) {
 
 	case b0 == 29:
 		if len(p.instructions) < 5 {
-			return 0, prBad
+			return 0, prInvalid
 		}
 		number = int32(u32(p.instructions[1:]))
 		p.instructions = p.instructions[5:]
 		return number, prGood
+
+	case b0 == 30:
+		// Parse a real number. This isn't listed in 5176.CFF.pdf Table 3
+		// "Operand Encoding" but that table lists integer encodings. Further
+		// down the page it says "A real number operand is provided in addition
+		// to integer operands. This operand begins with a byte value of 30
+		// followed by a variable-length sequence of bytes."
+
+		s := p.parseNumberBuf[:0]
+		p.instructions = p.instructions[1:]
+		for {
+			if len(p.instructions) == 0 {
+				return 0, prInvalid
+			}
+			b := p.instructions[0]
+			p.instructions = p.instructions[1:]
+			// Process b's two nibbles, high then low.
+			for i := 0; i < 2; i++ {
+				nib := b >> 4
+				b = b << 4
+				if nib == 0x0f {
+					f, err := strconv.ParseFloat(string(s), 32)
+					if err != nil {
+						return 0, prInvalid
+					}
+					return int32(math.Float32bits(float32(f))), prGood
+				}
+				if nib == 0x0d {
+					return 0, prInvalid
+				}
+				if len(s)+maxNibbleDefsLength > len(p.parseNumberBuf) {
+					return 0, prUnsupportedRNE
+				}
+				s = append(s, nibbleDefs[nib]...)
+			}
+		}
 
 	case b0 < 32:
 		// No-op.
@@ -337,7 +402,7 @@ func (p *cffParser) parseNumber() (number int32, res parseResult) {
 
 	case b0 < 251:
 		if len(p.instructions) < 2 {
-			return 0, prBad
+			return 0, prInvalid
 		}
 		b1 := p.instructions[1]
 		p.instructions = p.instructions[2:]
@@ -345,7 +410,7 @@ func (p *cffParser) parseNumber() (number int32, res parseResult) {
 
 	case b0 < 255:
 		if len(p.instructions) < 2 {
-			return 0, prBad
+			return 0, prInvalid
 		}
 		b1 := p.instructions[1]
 		p.instructions = p.instructions[2:]
@@ -353,6 +418,28 @@ func (p *cffParser) parseNumber() (number int32, res parseResult) {
 	}
 
 	return 0, prNone
+}
+
+const maxNibbleDefsLength = len("E-")
+
+// nibbleDefs encodes 5176.CFF.pdf Table 5 "Nibble Definitions".
+var nibbleDefs = [16]string{
+	0x00: "0",
+	0x01: "1",
+	0x02: "2",
+	0x03: "3",
+	0x04: "4",
+	0x05: "5",
+	0x06: "6",
+	0x07: "7",
+	0x08: "8",
+	0x09: "9",
+	0x0a: ".",
+	0x0b: "E",
+	0x0c: "E-",
+	0x0d: "",
+	0x0e: "-",
+	0x0f: "",
 }
 
 type cffOperator struct {
@@ -367,9 +454,11 @@ type cffOperator struct {
 	run func(*cffParser)
 }
 
-// cff1ByteOperators encodes the subset of 5176.CFF.pdf Table 9 "Top DICT
-// Operator Entries" used by this implementation.
-var cff1ByteOperators = [...]cffOperator{
+// topDictOperators encodes the subset of 5176.CFF.pdf Table 9 "Top DICT
+// Operator Entries" and Table 10 "CIDFont Operator Extensions" used by this
+// implementation.
+var topDictOperators = [2][]cffOperator{{
+	// 1-byte operators.
 	0:  {+1, "version", nil},
 	1:  {+1, "Notice", nil},
 	2:  {+1, "FullName", nil},
@@ -384,6 +473,32 @@ var cff1ByteOperators = [...]cffOperator{
 		p.saved.charStrings = p.stack.a[p.stack.top-1]
 	}},
 	18: {+2, "Private", nil},
-}
+}, {
+	// 2-byte operators. The first byte is the escape byte.
+	0:  {+1, "Copyright", nil},
+	1:  {+1, "isFixedPitch", nil},
+	2:  {+1, "ItalicAngle", nil},
+	3:  {+1, "UnderlinePosition", nil},
+	4:  {+1, "UnderlineThickness", nil},
+	5:  {+1, "PaintType", nil},
+	6:  {+1, "CharstringType", nil},
+	7:  {-1, "FontMatrix", nil},
+	8:  {+1, "StrokeWidth", nil},
+	20: {+1, "SyntheticBase", nil},
+	21: {+1, "PostScript", nil},
+	22: {+1, "BaseFontName", nil},
+	23: {-2, "BaseFontBlend", nil},
+	30: {+3, "ROS", nil},
+	31: {+1, "CIDFontVersion", nil},
+	32: {+1, "CIDFontRevision", nil},
+	33: {+1, "CIDFontType", nil},
+	34: {+1, "CIDCount", nil},
+	35: {+1, "UIDBase", nil},
+	36: {+1, "FDArray", nil},
+	37: {+1, "FDSelect", nil},
+	38: {+1, "FontName", nil},
+}}
 
-// TODO: 2-byte operators.
+// 5176.CFF.pdf section 4 "DICT Data" says that "Two-byte operators have an
+// initial escape byte of 12".
+const escapeByte = 12
