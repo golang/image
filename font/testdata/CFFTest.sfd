@@ -5,7 +5,7 @@ FamilyName: CFFTest
 Weight: Regular
 Copyright: Copyright 2016 The Go Authors. All rights reserved.\nUse of this font is governed by a BSD-style license that can be found at https://golang.org/LICENSE.
 Version: 001.000
-ItalicAngle: 0
+ItalicAngle: -11.25
 UnderlinePosition: -100
 UnderlineWidth: 50
 Ascent: 800
@@ -19,7 +19,7 @@ OS2Version: 0
 OS2_WeightWidthSlopeOnly: 0
 OS2_UseTypoMetrics: 1
 CreationTime: 1479626795
-ModificationTime: 1480238616
+ModificationTime: 1480661567
 PfmFamily: 17
 TTFWeight: 400
 TTFWidth: 5
