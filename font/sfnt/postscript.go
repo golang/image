@@ -51,6 +51,8 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+
+	"golang.org/x/image/math/fixed"
 )
 
 const (
@@ -86,18 +88,7 @@ type cffParser struct {
 	buf    []byte
 	locBuf [2]uint32
 
-	parseNumberBuf [maxRealNumberStrLen]byte
-
-	instructions []byte
-
-	stack struct {
-		a   [psStackSize]int32
-		top int32
-	}
-
-	saved struct {
-		charStrings int32
-	}
+	psi psInterpreter
 }
 
 func (p *cffParser) parse() (locations []uint32, err error) {
@@ -145,20 +136,17 @@ func (p *cffParser) parse() (locations []uint32, err error) {
 		if !p.read(int(p.locBuf[1] - p.locBuf[0])) {
 			return nil, p.err
 		}
-
-		for p.instructions = p.buf; len(p.instructions) > 0; {
-			p.step()
-			if p.err != nil {
-				return nil, p.err
-			}
+		p.psi.topDict.initialize()
+		if p.err = p.psi.run(psContextTopDict, p.buf); p.err != nil {
+			return nil, p.err
 		}
 	}
 
 	// Parse the CharStrings INDEX, whose location was found in the Top DICT.
-	if p.saved.charStrings <= 0 || int32(p.end-p.base) < p.saved.charStrings {
+	if p.psi.topDict.charStrings <= 0 || int32(p.end-p.base) < p.psi.topDict.charStrings {
 		return nil, errInvalidCFFTable
 	}
-	p.offset = p.base + int(p.saved.charStrings)
+	p.offset = p.base + int(p.psi.topDict.charStrings)
 	count, offSize, ok := p.parseIndexHeader()
 	if !ok {
 		return nil, p.err
@@ -265,99 +253,129 @@ func (p *cffParser) parseIndexLocations(dst []uint32, count, offSize int32) (ok 
 	return p.err == nil
 }
 
-// step executes a single operation, whether pushing a numeric operand onto the
-// stack or executing an operator.
-func (p *cffParser) step() {
-	if number, res := p.parseNumber(); res != prNone {
-		if res < 0 || p.stack.top == psStackSize {
-			if res == prUnsupportedRNE {
-				p.err = errUnsupportedRealNumberEncoding
-			} else {
-				p.err = errInvalidCFFTable
-			}
-			return
-		}
-		p.stack.a[p.stack.top] = number
-		p.stack.top++
-		return
-	}
+type psContext uint32
 
-	b0 := p.instructions[0]
-	p.instructions = p.instructions[1:]
+const (
+	psContextTopDict psContext = iota
+	psContextType2Charstring
+)
 
-	for b, escaped, operators := b0, false, topDictOperators[0]; ; {
-		if b == escapeByte && !escaped {
-			if len(p.instructions) <= 0 {
-				p.err = errInvalidCFFTable
-				return
-			}
-			b = p.instructions[0]
-			p.instructions = p.instructions[1:]
-			escaped = true
-			operators = topDictOperators[1]
-			continue
-		}
+// psTopDictData contains fields specific to the Top DICT context.
+type psTopDictData struct {
+	charStrings int32
+}
 
-		if int(b) < len(operators) {
-			if op := operators[b]; op.name != "" {
-				if p.stack.top < op.numPop {
-					p.err = errInvalidCFFTable
-					return
-				}
-				if op.run != nil {
-					op.run(p)
-				}
-				if op.numPop < 0 {
-					p.stack.top = 0
-				} else {
-					p.stack.top -= op.numPop
-				}
-				return
-			}
-		}
+func (d *psTopDictData) initialize() {
+	*d = psTopDictData{}
+}
 
-		if escaped {
-			p.err = fmt.Errorf("sfnt: unrecognized CFF 2-byte operator (12 %d)", b)
-		} else {
-			p.err = fmt.Errorf("sfnt: unrecognized CFF 1-byte operator (%d)", b)
-		}
-		return
+// psType2CharstringsData contains fields specific to the Type 2 Charstrings
+// context.
+type psType2CharstringsData struct {
+	segments  []Segment
+	x, y      int32
+	hintBits  int32
+	seenWidth bool
+}
+
+func (d *psType2CharstringsData) initialize(segments []Segment) {
+	*d = psType2CharstringsData{
+		segments: segments,
 	}
 }
 
-type parseResult int32
+// psInterpreter is a PostScript interpreter.
+type psInterpreter struct {
+	ctx          psContext
+	instructions []byte
+	stack        struct {
+		a   [psStackSize]int32
+		top int32
+	}
+	parseNumberBuf   [maxRealNumberStrLen]byte
+	topDict          psTopDictData
+	type2Charstrings psType2CharstringsData
+}
 
-const (
-	prUnsupportedRNE parseResult = -2
-	prInvalid        parseResult = -1
-	prNone           parseResult = +0
-	prGood           parseResult = +1
-)
+func (p *psInterpreter) run(ctx psContext, instructions []byte) error {
+	p.ctx = ctx
+	p.instructions = instructions
+	p.stack.top = 0
+
+loop:
+	for len(p.instructions) > 0 {
+		// Push a numeric operand on the stack, if applicable.
+		if hasResult, err := p.parseNumber(); hasResult {
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Otherwise, execute an operator.
+		b := p.instructions[0]
+		p.instructions = p.instructions[1:]
+
+		for escaped, ops := false, psOperators[ctx][0]; ; {
+			if b == escapeByte && !escaped {
+				if len(p.instructions) <= 0 {
+					return errInvalidCFFTable
+				}
+				b = p.instructions[0]
+				p.instructions = p.instructions[1:]
+				escaped = true
+				ops = psOperators[ctx][1]
+				continue
+			}
+
+			if int(b) < len(ops) {
+				if op := ops[b]; op.name != "" {
+					if p.stack.top < op.numPop {
+						return errInvalidCFFTable
+					}
+					if op.run != nil {
+						if err := op.run(p); err != nil {
+							return err
+						}
+					}
+					if op.numPop < 0 {
+						p.stack.top = 0
+					} else {
+						p.stack.top -= op.numPop
+					}
+					continue loop
+				}
+			}
+
+			if escaped {
+				return fmt.Errorf("sfnt: unrecognized CFF 2-byte operator (12 %d)", b)
+			} else {
+				return fmt.Errorf("sfnt: unrecognized CFF 1-byte operator (%d)", b)
+			}
+		}
+	}
+	return nil
+}
 
 // See 5176.CFF.pdf section 4 "DICT Data".
-func (p *cffParser) parseNumber() (number int32, res parseResult) {
-	if len(p.instructions) == 0 {
-		return 0, prNone
-	}
-
-	switch b0 := p.instructions[0]; {
-	case b0 == 28:
+func (p *psInterpreter) parseNumber() (hasResult bool, err error) {
+	number := int32(0)
+	switch b := p.instructions[0]; {
+	case b == 28:
 		if len(p.instructions) < 3 {
-			return 0, prInvalid
+			return true, errInvalidCFFTable
 		}
-		number = int32(int16(u16(p.instructions[1:])))
+		number, hasResult = int32(int16(u16(p.instructions[1:]))), true
 		p.instructions = p.instructions[3:]
-		return number, prGood
 
-	case b0 == 29:
+	case b == 29 && p.ctx == psContextTopDict:
 		if len(p.instructions) < 5 {
-			return 0, prInvalid
+			return true, errInvalidCFFTable
 		}
-		number = int32(u32(p.instructions[1:]))
+		number, hasResult = int32(u32(p.instructions[1:])), true
 		p.instructions = p.instructions[5:]
-		return number, prGood
 
-	case b0 == 30:
+	case b == 30 && p.ctx == psContextTopDict:
 		// Parse a real number. This isn't listed in 5176.CFF.pdf Table 3
 		// "Operand Encoding" but that table lists integer encodings. Further
 		// down the page it says "A real number operand is provided in addition
@@ -366,9 +384,10 @@ func (p *cffParser) parseNumber() (number int32, res parseResult) {
 
 		s := p.parseNumberBuf[:0]
 		p.instructions = p.instructions[1:]
+	loop:
 		for {
 			if len(p.instructions) == 0 {
-				return 0, prInvalid
+				return true, errInvalidCFFTable
 			}
 			b := p.instructions[0]
 			p.instructions = p.instructions[1:]
@@ -379,45 +398,60 @@ func (p *cffParser) parseNumber() (number int32, res parseResult) {
 				if nib == 0x0f {
 					f, err := strconv.ParseFloat(string(s), 32)
 					if err != nil {
-						return 0, prInvalid
+						return true, errInvalidCFFTable
 					}
-					return int32(math.Float32bits(float32(f))), prGood
+					number, hasResult = int32(math.Float32bits(float32(f))), true
+					break loop
 				}
 				if nib == 0x0d {
-					return 0, prInvalid
+					return true, errInvalidCFFTable
 				}
 				if len(s)+maxNibbleDefsLength > len(p.parseNumberBuf) {
-					return 0, prUnsupportedRNE
+					return true, errUnsupportedRealNumberEncoding
 				}
 				s = append(s, nibbleDefs[nib]...)
 			}
 		}
 
-	case b0 < 32:
+	case b < 32:
 		// No-op.
 
-	case b0 < 247:
+	case b < 247:
 		p.instructions = p.instructions[1:]
-		return int32(b0) - 139, prGood
+		number, hasResult = int32(b)-139, true
 
-	case b0 < 251:
+	case b < 251:
 		if len(p.instructions) < 2 {
-			return 0, prInvalid
+			return true, errInvalidCFFTable
 		}
 		b1 := p.instructions[1]
 		p.instructions = p.instructions[2:]
-		return +int32(b0-247)*256 + int32(b1) + 108, prGood
+		number, hasResult = +int32(b-247)*256+int32(b1)+108, true
 
-	case b0 < 255:
+	case b < 255:
 		if len(p.instructions) < 2 {
-			return 0, prInvalid
+			return true, errInvalidCFFTable
 		}
 		b1 := p.instructions[1]
 		p.instructions = p.instructions[2:]
-		return -int32(b0-251)*256 - int32(b1) - 108, prGood
+		number, hasResult = -int32(b-251)*256-int32(b1)-108, true
+
+	case b == 255 && p.ctx == psContextType2Charstring:
+		if len(p.instructions) < 5 {
+			return true, errInvalidCFFTable
+		}
+		number, hasResult = int32(u32(p.instructions[1:])), true
+		p.instructions = p.instructions[5:]
 	}
 
-	return 0, prNone
+	if hasResult {
+		if p.stack.top == psStackSize {
+			return true, errInvalidCFFTable
+		}
+		p.stack.a[p.stack.top] = number
+		p.stack.top++
+	}
+	return hasResult, nil
 }
 
 const maxNibbleDefsLength = len("E-")
@@ -442,7 +476,7 @@ var nibbleDefs = [16]string{
 	0x0f: "",
 }
 
-type cffOperator struct {
+type psOperator struct {
 	// numPop is the number of stack values to pop. -1 means "array" and -2
 	// means "delta" as per 5176.CFF.pdf Table 6 "Operand Types".
 	numPop int32
@@ -451,54 +485,364 @@ type cffOperator struct {
 	name string
 	// run is the function that implements the operator. Nil means that we
 	// ignore the operator, other than popping its arguments off the stack.
-	run func(*cffParser)
+	run func(*psInterpreter) error
 }
 
-// topDictOperators encodes the subset of 5176.CFF.pdf Table 9 "Top DICT
-// Operator Entries" and Table 10 "CIDFont Operator Extensions" used by this
-// implementation.
-var topDictOperators = [2][]cffOperator{{
-	// 1-byte operators.
-	0:  {+1, "version", nil},
-	1:  {+1, "Notice", nil},
-	2:  {+1, "FullName", nil},
-	3:  {+1, "FamilyName", nil},
-	4:  {+1, "Weight", nil},
-	5:  {-1, "FontBBox", nil},
-	13: {+1, "UniqueID", nil},
-	14: {-1, "XUID", nil},
-	15: {+1, "charset", nil},
-	16: {+1, "Encoding", nil},
-	17: {+1, "CharStrings", func(p *cffParser) {
-		p.saved.charStrings = p.stack.a[p.stack.top-1]
+// psOperators holds the 1-byte and 2-byte operators for PostScript interpreter
+// contexts.
+var psOperators = [...][2][]psOperator{
+	// The Top DICT operators are defined by 5176.CFF.pdf Table 9 "Top DICT
+	// Operator Entries" and Table 10 "CIDFont Operator Extensions".
+	psContextTopDict: {{
+		// 1-byte operators.
+		0:  {+1, "version", nil},
+		1:  {+1, "Notice", nil},
+		2:  {+1, "FullName", nil},
+		3:  {+1, "FamilyName", nil},
+		4:  {+1, "Weight", nil},
+		5:  {-1, "FontBBox", nil},
+		13: {+1, "UniqueID", nil},
+		14: {-1, "XUID", nil},
+		15: {+1, "charset", nil},
+		16: {+1, "Encoding", nil},
+		17: {+1, "CharStrings", func(p *psInterpreter) error {
+			p.topDict.charStrings = p.stack.a[p.stack.top-1]
+			return nil
+		}},
+		18: {+2, "Private", nil},
+	}, {
+		// 2-byte operators. The first byte is the escape byte.
+		0:  {+1, "Copyright", nil},
+		1:  {+1, "isFixedPitch", nil},
+		2:  {+1, "ItalicAngle", nil},
+		3:  {+1, "UnderlinePosition", nil},
+		4:  {+1, "UnderlineThickness", nil},
+		5:  {+1, "PaintType", nil},
+		6:  {+1, "CharstringType", nil},
+		7:  {-1, "FontMatrix", nil},
+		8:  {+1, "StrokeWidth", nil},
+		20: {+1, "SyntheticBase", nil},
+		21: {+1, "PostScript", nil},
+		22: {+1, "BaseFontName", nil},
+		23: {-2, "BaseFontBlend", nil},
+		30: {+3, "ROS", nil},
+		31: {+1, "CIDFontVersion", nil},
+		32: {+1, "CIDFontRevision", nil},
+		33: {+1, "CIDFontType", nil},
+		34: {+1, "CIDCount", nil},
+		35: {+1, "UIDBase", nil},
+		36: {+1, "FDArray", nil},
+		37: {+1, "FDSelect", nil},
+		38: {+1, "FontName", nil},
 	}},
-	18: {+2, "Private", nil},
-}, {
-	// 2-byte operators. The first byte is the escape byte.
-	0:  {+1, "Copyright", nil},
-	1:  {+1, "isFixedPitch", nil},
-	2:  {+1, "ItalicAngle", nil},
-	3:  {+1, "UnderlinePosition", nil},
-	4:  {+1, "UnderlineThickness", nil},
-	5:  {+1, "PaintType", nil},
-	6:  {+1, "CharstringType", nil},
-	7:  {-1, "FontMatrix", nil},
-	8:  {+1, "StrokeWidth", nil},
-	20: {+1, "SyntheticBase", nil},
-	21: {+1, "PostScript", nil},
-	22: {+1, "BaseFontName", nil},
-	23: {-2, "BaseFontBlend", nil},
-	30: {+3, "ROS", nil},
-	31: {+1, "CIDFontVersion", nil},
-	32: {+1, "CIDFontRevision", nil},
-	33: {+1, "CIDFontType", nil},
-	34: {+1, "CIDCount", nil},
-	35: {+1, "UIDBase", nil},
-	36: {+1, "FDArray", nil},
-	37: {+1, "FDSelect", nil},
-	38: {+1, "FontName", nil},
-}}
+
+	// The Type 2 Charstring operators are defined by 5177.Type2.pdf Appendix A
+	// "Type 2 Charstring Command Codes".
+	psContextType2Charstring: {{
+		// 1-byte operators.
+		0:  {}, // Reserved.
+		1:  {-1, "hstem", t2CStem},
+		2:  {}, // Reserved.
+		3:  {-1, "vstem", t2CStem},
+		4:  {-1, "vmoveto", t2CVmoveto},
+		5:  {-1, "rlineto", t2CRlineto},
+		6:  {-1, "hlineto", t2CHlineto},
+		7:  {-1, "vlineto", t2CVlineto},
+		8:  {}, // rrcurveto.
+		9:  {}, // Reserved.
+		10: {}, // callsubr.
+		11: {}, // return.
+		12: {}, // escape.
+		13: {}, // Reserved.
+		14: {-1, "endchar", t2CEndchar},
+		15: {}, // Reserved.
+		16: {}, // Reserved.
+		17: {}, // Reserved.
+		18: {-1, "hstemhm", t2CStem},
+		19: {-1, "hintmask", t2CMask},
+		20: {-1, "cntrmask", t2CMask},
+		21: {-1, "rmoveto", t2CRmoveto},
+		22: {-1, "hmoveto", t2CHmoveto},
+		23: {-1, "vstemhm", t2CStem},
+		24: {}, // rcurveline.
+		25: {}, // rlinecurve.
+		26: {}, // vvcurveto.
+		27: {}, // hhcurveto.
+		28: {}, // shortint.
+		29: {}, // callgsubr.
+		30: {-1, "vhcurveto", t2CVhcurveto},
+		31: {-1, "hvcurveto", t2CHvcurveto},
+	}, {
+		// 2-byte operators. The first byte is the escape byte.
+		0: {}, // Reserved.
+		// TODO: more operators.
+	}},
+}
 
 // 5176.CFF.pdf section 4 "DICT Data" says that "Two-byte operators have an
 // initial escape byte of 12".
 const escapeByte = 12
+
+// t2CReadWidth reads the optional width adjustment. If present, it is on the
+// bottom of the stack.
+//
+// 5177.Type2.pdf page 16 Note 4 says: "The first stack-clearing operator,
+// which must be one of hstem, hstemhm, vstem, vstemhm, cntrmask, hintmask,
+// hmoveto, vmoveto, rmoveto, or endchar, takes an additional argument — the
+// width... which may be expressed as zero or one numeric argument."
+func t2CReadWidth(p *psInterpreter, nArgs int32) {
+	if p.type2Charstrings.seenWidth {
+		return
+	}
+	p.type2Charstrings.seenWidth = true
+	switch nArgs {
+	case 0:
+		if p.stack.top != 1 {
+			return
+		}
+	case 1:
+		if p.stack.top <= 1 {
+			return
+		}
+	default:
+		if p.stack.top%nArgs != 1 {
+			return
+		}
+	}
+	// When parsing a standalone CFF, we'd save the value of p.stack.a[0] here
+	// as it defines the glyph's width (horizontal advance). Specifically, if
+	// present, it is a delta to the font-global nominalWidthX value found in
+	// the Private DICT. If absent, the glyph's width is the defaultWidthX
+	// value in that dict. See 5176.CFF.pdf section 15 "Private DICT Data".
+	//
+	// For a CFF embedded in an SFNT font (i.e. an OpenType font), glyph widths
+	// are already stored in the hmtx table, separate to the CFF table, and it
+	// is simpler to parse that table for all OpenType fonts (PostScript and
+	// TrueType). We therefore ignore the width value here, and just remove it
+	// from the bottom of the stack.
+	copy(p.stack.a[:p.stack.top-1], p.stack.a[1:p.stack.top])
+	p.stack.top--
+}
+
+func t2CStem(p *psInterpreter) error {
+	t2CReadWidth(p, 2)
+	if p.stack.top%2 != 0 {
+		return errInvalidCFFTable
+	}
+	// We update the number of hintBits need to parse hintmask and cntrmask
+	// instructions, but this Type 2 Charstring implementation otherwise
+	// ignores the stem hints.
+	p.type2Charstrings.hintBits += p.stack.top / 2
+	if p.type2Charstrings.hintBits > maxHintBits {
+		return errUnsupportedNumberOfHints
+	}
+	return nil
+}
+
+func t2CMask(p *psInterpreter) error {
+	hintBytes := (p.type2Charstrings.hintBits + 7) / 8
+	t2CReadWidth(p, hintBytes)
+	if len(p.instructions) < int(hintBytes) {
+		return errInvalidCFFTable
+	}
+	p.instructions = p.instructions[hintBytes:]
+	return nil
+}
+
+func t2CAppendMoveto(p *psInterpreter) {
+	p.type2Charstrings.segments = append(p.type2Charstrings.segments, Segment{
+		Op: SegmentOpMoveTo,
+		Args: [6]fixed.Int26_6{
+			0: fixed.Int26_6(p.type2Charstrings.x) << 6,
+			1: fixed.Int26_6(p.type2Charstrings.y) << 6,
+		},
+	})
+}
+
+func t2CAppendLineto(p *psInterpreter) {
+	p.type2Charstrings.segments = append(p.type2Charstrings.segments, Segment{
+		Op: SegmentOpLineTo,
+		Args: [6]fixed.Int26_6{
+			0: fixed.Int26_6(p.type2Charstrings.x) << 6,
+			1: fixed.Int26_6(p.type2Charstrings.y) << 6,
+		},
+	})
+}
+
+func t2CAppendCubeto(p *psInterpreter, dxa, dya, dxb, dyb, dxc, dyc int32) {
+	p.type2Charstrings.x += dxa
+	p.type2Charstrings.y += dya
+	xa := p.type2Charstrings.x
+	ya := p.type2Charstrings.y
+	p.type2Charstrings.x += dxb
+	p.type2Charstrings.y += dyb
+	xb := p.type2Charstrings.x
+	yb := p.type2Charstrings.y
+	p.type2Charstrings.x += dxc
+	p.type2Charstrings.y += dyc
+	xc := p.type2Charstrings.x
+	yc := p.type2Charstrings.y
+	p.type2Charstrings.segments = append(p.type2Charstrings.segments, Segment{
+		Op: SegmentOpCubeTo,
+		Args: [6]fixed.Int26_6{
+			0: fixed.Int26_6(xa) << 6,
+			1: fixed.Int26_6(ya) << 6,
+			2: fixed.Int26_6(xb) << 6,
+			3: fixed.Int26_6(yb) << 6,
+			4: fixed.Int26_6(xc) << 6,
+			5: fixed.Int26_6(yc) << 6,
+		},
+	})
+}
+
+func t2CHmoveto(p *psInterpreter) error {
+	t2CReadWidth(p, 1)
+	if p.stack.top < 1 {
+		return errInvalidCFFTable
+	}
+	for i := int32(0); i < p.stack.top; i++ {
+		p.type2Charstrings.x += p.stack.a[i]
+	}
+	t2CAppendMoveto(p)
+	return nil
+}
+
+func t2CVmoveto(p *psInterpreter) error {
+	t2CReadWidth(p, 1)
+	if p.stack.top < 1 {
+		return errInvalidCFFTable
+	}
+	for i := int32(0); i < p.stack.top; i++ {
+		p.type2Charstrings.y += p.stack.a[i]
+	}
+	t2CAppendMoveto(p)
+	return nil
+}
+
+func t2CRmoveto(p *psInterpreter) error {
+	t2CReadWidth(p, 2)
+	if p.stack.top < 2 || p.stack.top%2 != 0 {
+		return errInvalidCFFTable
+	}
+	for i := int32(0); i < p.stack.top; i += 2 {
+		p.type2Charstrings.x += p.stack.a[i+0]
+		p.type2Charstrings.y += p.stack.a[i+1]
+	}
+	t2CAppendMoveto(p)
+	return nil
+}
+
+func t2CHlineto(p *psInterpreter) error { return t2CLineto(p, false) }
+func t2CVlineto(p *psInterpreter) error { return t2CLineto(p, true) }
+
+func t2CLineto(p *psInterpreter, vertical bool) error {
+	if !p.type2Charstrings.seenWidth {
+		return errInvalidCFFTable
+	}
+	if p.stack.top < 1 {
+		return errInvalidCFFTable
+	}
+	for i := int32(0); i < p.stack.top; i, vertical = i+1, !vertical {
+		if vertical {
+			p.type2Charstrings.y += p.stack.a[i]
+		} else {
+			p.type2Charstrings.x += p.stack.a[i]
+		}
+		t2CAppendLineto(p)
+	}
+	return nil
+}
+
+func t2CRlineto(p *psInterpreter) error {
+	if !p.type2Charstrings.seenWidth {
+		return errInvalidCFFTable
+	}
+	if p.stack.top < 2 || p.stack.top%2 != 0 {
+		return errInvalidCFFTable
+	}
+	for i := int32(0); i < p.stack.top; i += 2 {
+		p.type2Charstrings.x += p.stack.a[i+0]
+		p.type2Charstrings.y += p.stack.a[i+1]
+		t2CAppendLineto(p)
+	}
+	return nil
+}
+
+// As per 5177.Type2.pdf section 4.1 "Path Construction Operators",
+//
+// hvcurveto is one of:
+//	- dx1 dx2 dy2 dy3 {dya dxb dyb dxc dxd dxe dye dyf}* dxf?
+//	- {dxa dxb dyb dyc dyd dxe dye dxf}+ dyf?
+//
+// vhcurveto is one of:
+//	- dy1 dx2 dy2 dx3 {dxa dxb dyb dyc dyd dxe dye dxf}* dyf?
+//	- {dya dxb dyb dxc dxd dxe dye dyf}+ dxf?
+
+func t2CHvcurveto(p *psInterpreter) error { return t2CCurveto(p, false) }
+func t2CVhcurveto(p *psInterpreter) error { return t2CCurveto(p, true) }
+
+func t2CCurveto(p *psInterpreter, vertical bool) error {
+	if !p.type2Charstrings.seenWidth || p.stack.top < 4 {
+		return errInvalidCFFTable
+	}
+	for i := int32(0); i != p.stack.top; vertical = !vertical {
+		if vertical {
+			i = t2CVcurveto(p, i)
+		} else {
+			i = t2CHcurveto(p, i)
+		}
+		if i < 0 {
+			return errInvalidCFFTable
+		}
+	}
+	return nil
+}
+
+func t2CHcurveto(p *psInterpreter, i int32) (j int32) {
+	if i+4 > p.stack.top {
+		return -1
+	}
+	dxa := p.stack.a[i+0]
+	dxb := p.stack.a[i+1]
+	dyb := p.stack.a[i+2]
+	dyc := p.stack.a[i+3]
+	dxc := int32(0)
+	i += 4
+	if i+1 == p.stack.top {
+		dxc = p.stack.a[i]
+		i++
+	}
+	t2CAppendCubeto(p, dxa, 0, dxb, dyb, dxc, dyc)
+	return i
+}
+
+func t2CVcurveto(p *psInterpreter, i int32) (j int32) {
+	if i+4 > p.stack.top {
+		return -1
+	}
+	dya := p.stack.a[i+0]
+	dxb := p.stack.a[i+1]
+	dyb := p.stack.a[i+2]
+	dxc := p.stack.a[i+3]
+	dyc := int32(0)
+	i += 4
+	if i+1 == p.stack.top {
+		dyc = p.stack.a[i]
+		i++
+	}
+	t2CAppendCubeto(p, 0, dya, dxb, dyb, dxc, dyc)
+	return i
+}
+
+func t2CEndchar(p *psInterpreter) error {
+	t2CReadWidth(p, 0)
+	if p.stack.top != 0 || len(p.instructions) != 0 {
+		if p.stack.top == 4 {
+			// TODO: process the implicit "seac" command as per 5177.Type2.pdf
+			// Appendix C "Compatibility and Deprecated Operators".
+			return errUnsupportedType2Charstring
+		}
+		return errInvalidCFFTable
+	}
+	return nil
+}
