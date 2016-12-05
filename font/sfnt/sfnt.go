@@ -17,11 +17,14 @@ package sfnt // import "golang.org/x/image/font/sfnt"
 import (
 	"errors"
 	"io"
+
+	"golang.org/x/image/math/fixed"
 )
 
 // These constants are not part of the specifications, but are limitations used
 // by this implementation.
 const (
+	maxHintBits         = 256
 	maxNumTables        = 256
 	maxRealNumberStrLen = 64 // Maximum length in bytes of the "-123.456E-7" representation.
 
@@ -45,9 +48,14 @@ var (
 
 	errUnsupportedCFFVersion         = errors.New("sfnt: unsupported CFF version")
 	errUnsupportedRealNumberEncoding = errors.New("sfnt: unsupported real number encoding")
+	errUnsupportedNumberOfHints      = errors.New("sfnt: unsupported number of hints")
 	errUnsupportedNumberOfTables     = errors.New("sfnt: unsupported number of tables")
 	errUnsupportedTableOffsetLength  = errors.New("sfnt: unsupported table offset or length")
+	errUnsupportedType2Charstring    = errors.New("sfnt: unsupported Type 2 Charstring")
 )
+
+// GlyphIndex is a glyph index in a Font.
+type GlyphIndex uint16
 
 // Units are an integral number of abstract, scalable "font units". The em
 // square is typically 1000 or 2048 "font units". This would map to a certain
@@ -83,6 +91,16 @@ type source struct {
 // valid returns whether exactly one of s.b and s.r is nil.
 func (s *source) valid() bool {
 	return (s.b == nil) != (s.r == nil)
+}
+
+// viewBufferWritable returns whether the []byte returned by source.view can be
+// written to by the caller, including by passing it to the same method
+// (source.view) on other receivers (i.e. different sources).
+//
+// In other words, it returns whether the source's underlying data is an
+// io.ReaderAt, not a []byte.
+func (s *source) viewBufferWritable() bool {
+	return s.b == nil
 }
 
 // view returns the length bytes at the given offset. buf is an optional
@@ -159,6 +177,11 @@ func ParseReaderAt(src io.ReaderAt) (*Font, error) {
 }
 
 // Font is an SFNT font.
+//
+// All of its methods are safe to call concurrently, although the method
+// arguments may have further restrictions. For example, it is valid to have
+// multiple concurrent Font.LoadGlyph calls to the same *Font receiver, as long
+// as each call has a different Buffer.
 type Font struct {
 	src source
 
@@ -343,11 +366,78 @@ func (f *Font) initialize() error {
 	return nil
 }
 
-func (f *Font) viewGlyphData(buf []byte, glyphIndex int) ([]byte, error) {
-	if glyphIndex < 0 || f.NumGlyphs() <= glyphIndex {
+// TODO: func (f *Font) GlyphIndex(r rune) (x GlyphIndex, ok bool)
+// This will require parsing the cmap table.
+
+func (f *Font) viewGlyphData(buf []byte, x GlyphIndex) ([]byte, error) {
+	xx := int(x)
+	if f.NumGlyphs() <= xx {
 		return nil, errGlyphIndexOutOfRange
 	}
-	i := f.cached.locations[glyphIndex+0]
-	j := f.cached.locations[glyphIndex+1]
+	i := f.cached.locations[xx+0]
+	j := f.cached.locations[xx+1]
 	return f.src.view(buf, int(i), int(j-i))
 }
+
+// LoadGlyphOptions are the options to the Font.LoadGlyph method.
+type LoadGlyphOptions struct {
+	// TODO: scale / transform / hinting.
+}
+
+// LoadGlyph loads the glyphs vectors for the x'th glyph into b.Segments.
+func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, opts *LoadGlyphOptions) error {
+	buf, err := f.viewGlyphData(b.buf, x)
+	if err != nil {
+		return err
+	}
+	// Only update b.buf if it is safe to re-use buf.
+	if f.src.viewBufferWritable() {
+		b.buf = buf
+	}
+
+	b.Segments = b.Segments[:0]
+	if f.cached.isPostScript {
+		b.psi.type2Charstrings.initialize(b.Segments)
+		if err := b.psi.run(psContextType2Charstring, buf); err != nil {
+			return err
+		}
+		b.Segments = b.psi.type2Charstrings.segments
+	} else {
+		return errors.New("sfnt: TODO: load glyf data")
+	}
+
+	// TODO: look at opts to scale / transform / hint the Buffer.Segments.
+
+	return nil
+}
+
+// Buffer holds the result of the Font.LoadGlyph method. It is valid to re-use
+// a Buffer with multiple Font.LoadGlyph calls, even with different *Font
+// receivers, as long as they are not concurrent calls.
+//
+// It is also valid to have multiple concurrent Font.LoadGlyph calls to the
+// same *Font receiver, as long as each call has a different Buffer.
+type Buffer struct {
+	Segments []Segment
+	// buf is a byte buffer for when a Font's source is an io.ReaderAt.
+	buf []byte
+	// psi is a PostScript interpreter for when the Font is an OpenType/CFF
+	// font.
+	psi psInterpreter
+}
+
+// Segment is a segment of a vector path.
+type Segment struct {
+	Op   SegmentOp
+	Args [6]fixed.Int26_6
+}
+
+// SegmentOp is a vector path segment's operator.
+type SegmentOp uint32
+
+const (
+	SegmentOpMoveTo SegmentOp = iota
+	SegmentOpLineTo
+	SegmentOpQuadTo
+	SegmentOpCubeTo
+)
