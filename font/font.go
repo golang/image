@@ -126,6 +126,8 @@ type Drawer struct {
 // vertical line? Should DrawString return the number of runes drawn?
 
 // DrawBytes draws s at the dot and advances the dot's location.
+//
+// It is equivalent to DrawString(string(s)) but may be more efficient.
 func (d *Drawer) DrawBytes(s []byte) {
 	prevC := rune(-1)
 	for len(s) > 0 {
@@ -168,6 +170,8 @@ func (d *Drawer) DrawString(s string) {
 }
 
 // MeasureBytes returns how far dot would advance by drawing s.
+//
+// It is equivalent to MeasureString(string(s)) but may be more efficient.
 func (d *Drawer) MeasureBytes(s []byte) (advance fixed.Int26_6) {
 	return MeasureBytes(d.Face, s)
 }
@@ -178,6 +182,8 @@ func (d *Drawer) MeasureString(s string) (advance fixed.Int26_6) {
 }
 
 // MeasureBytes returns how far dot would advance by drawing s with f.
+//
+// It is equivalent to MeasureString(string(s)) but may be more efficient.
 func MeasureBytes(f Face, s []byte) (advance fixed.Int26_6) {
 	prevC := rune(-1)
 	for len(s) > 0 {
