@@ -548,7 +548,7 @@ var psOperators = [...][2][]psOperator{
 		5:  {-1, "rlineto", t2CRlineto},
 		6:  {-1, "hlineto", t2CHlineto},
 		7:  {-1, "vlineto", t2CVlineto},
-		8:  {}, // rrcurveto.
+		8:  {-1, "rrcurveto", t2CRrcurveto},
 		9:  {}, // Reserved.
 		10: {}, // callsubr.
 		11: {}, // return.
@@ -832,6 +832,23 @@ func t2CVcurveto(p *psInterpreter, i int32) (j int32) {
 	}
 	t2CAppendCubeto(p, 0, dya, dxb, dyb, dxc, dyc)
 	return i
+}
+
+func t2CRrcurveto(p *psInterpreter) error {
+	if !p.type2Charstrings.seenWidth || p.stack.top < 6 || p.stack.top%6 != 0 {
+		return errInvalidCFFTable
+	}
+	for i := int32(0); i != p.stack.top; i += 6 {
+		t2CAppendCubeto(p,
+			p.stack.a[i+0],
+			p.stack.a[i+1],
+			p.stack.a[i+2],
+			p.stack.a[i+3],
+			p.stack.a[i+4],
+			p.stack.a[i+5],
+		)
+	}
+	return nil
 }
 
 func t2CEndchar(p *psInterpreter) error {
