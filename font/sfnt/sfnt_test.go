@@ -126,6 +126,20 @@ func TestPostScript(t *testing.T) {
 		lineTo(300, 800),
 		lineTo(100, 800),
 	}, {
+		// Q
+		// - contour #0
+		moveTo(657, 237),
+		lineTo(289, 387),
+		lineTo(519, 615),
+		// - contour #1
+		moveTo(792, 169),
+		cubeTo(867, 263, 926, 502, 791, 665),
+		cubeTo(645, 840, 380, 831, 228, 673),
+		cubeTo(71, 509, 110, 231, 242, 93),
+		cubeTo(369, -39, 641, 18, 722, 93),
+		lineTo(802, 3),
+		lineTo(864, 83),
+	}, {
 		// uni4E2D
 		// - contour #0
 		moveTo(141, 520),
