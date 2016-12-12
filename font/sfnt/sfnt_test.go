@@ -87,8 +87,13 @@ func TestPostScript(t *testing.T) {
 	}
 
 	// wants' vectors correspond 1-to-1 to what's in the CFFTest.sfd file,
-	// although for some unknown reason, FontForge reverses the order somewhere
-	// along the way when converting from SFD to OpenType/CFF.
+	// although OpenType/CFF and FontForge's SFD have reversed orders.
+	// https://fontforge.github.io/validation.html says that "All paths must be
+	// drawn in a consistent direction. Clockwise for external paths,
+	// anti-clockwise for internal paths. (Actually PostScript requires the
+	// exact opposite, but FontForge reverses PostScript contours when it loads
+	// them so that everything is consistant internally -- and reverses them
+	// again when it saves them, of course)."
 	//
 	// The .notdef glyph isn't explicitly in the SFD file, but for some unknown
 	// reason, FontForge generates a .notdef glyph in the OpenType/CFF file.
