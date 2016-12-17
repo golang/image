@@ -19,6 +19,7 @@ import (
 	"io"
 
 	"golang.org/x/image/math/fixed"
+	"golang.org/x/text/encoding/charmap"
 )
 
 // These constants are not part of the specifications, but are limitations used
@@ -34,22 +35,26 @@ const (
 )
 
 var (
-	errGlyphIndexOutOfRange = errors.New("sfnt: glyph index out of range")
+	// ErrNotFound indicates that the requested value was not found.
+	ErrNotFound = errors.New("sfnt: not found")
 
 	errInvalidBounds        = errors.New("sfnt: invalid bounds")
 	errInvalidCFFTable      = errors.New("sfnt: invalid CFF table")
 	errInvalidHeadTable     = errors.New("sfnt: invalid head table")
 	errInvalidLocationData  = errors.New("sfnt: invalid location data")
 	errInvalidMaxpTable     = errors.New("sfnt: invalid maxp table")
+	errInvalidNameTable     = errors.New("sfnt: invalid name table")
 	errInvalidSourceData    = errors.New("sfnt: invalid source data")
 	errInvalidTableOffset   = errors.New("sfnt: invalid table offset")
 	errInvalidTableTagOrder = errors.New("sfnt: invalid table tag order")
+	errInvalidUCS2String    = errors.New("sfnt: invalid UCS-2 string")
 	errInvalidVersion       = errors.New("sfnt: invalid version")
 
 	errUnsupportedCFFVersion         = errors.New("sfnt: unsupported CFF version")
 	errUnsupportedRealNumberEncoding = errors.New("sfnt: unsupported real number encoding")
 	errUnsupportedNumberOfHints      = errors.New("sfnt: unsupported number of hints")
 	errUnsupportedNumberOfTables     = errors.New("sfnt: unsupported number of tables")
+	errUnsupportedPlatformEncoding   = errors.New("sfnt: unsupported platform encoding")
 	errUnsupportedTableOffsetLength  = errors.New("sfnt: unsupported table offset or length")
 	errUnsupportedType2Charstring    = errors.New("sfnt: unsupported Type 2 Charstring")
 )
@@ -57,11 +62,56 @@ var (
 // GlyphIndex is a glyph index in a Font.
 type GlyphIndex uint16
 
+// NameID identifies a name table entry.
+//
+// See the "Name IDs" section of
+// https://www.microsoft.com/typography/otspec/name.htm
+type NameID uint16
+
+const (
+	NameIDCopyright                  NameID = 0
+	NameIDFamily                            = 1
+	NameIDSubfamily                         = 2
+	NameIDUniqueIdentifier                  = 3
+	NameIDFull                              = 4
+	NameIDVersion                           = 5
+	NameIDPostScript                        = 6
+	NameIDTrademark                         = 7
+	NameIDManufacturer                      = 8
+	NameIDDesigner                          = 9
+	NameIDDescription                       = 10
+	NameIDVendorURL                         = 11
+	NameIDDesignerURL                       = 12
+	NameIDLicense                           = 13
+	NameIDLicenseURL                        = 14
+	NameIDTypographicFamily                 = 16
+	NameIDTypographicSubfamily              = 17
+	NameIDCompatibleFull                    = 18
+	NameIDSampleText                        = 19
+	NameIDPostScriptCID                     = 20
+	NameIDWWSFamily                         = 21
+	NameIDWWSSubfamily                      = 22
+	NameIDLightBackgroundPalette            = 23
+	NameIDDarkBackgroundPalette             = 24
+	NameIDVariationsPostScriptPrefix        = 25
+)
+
 // Units are an integral number of abstract, scalable "font units". The em
 // square is typically 1000 or 2048 "font units". This would map to a certain
 // number (e.g. 30 pixels) of physical pixels, depending on things like the
 // display resolution (DPI) and font size (e.g. a 12 point font).
 type Units int32
+
+// Platform IDs and Platform Specific IDs as per
+// https://www.microsoft.com/typography/otspec/name.htm
+const (
+	pidMacintosh = 1
+	pidWindows   = 3
+
+	psidMacintoshRoman = 0
+
+	psidWindowsUCS2 = 1
+)
 
 func u16(b []byte) uint16 {
 	_ = b[1] // Bounds check hint to compiler.
@@ -178,10 +228,20 @@ func ParseReaderAt(src io.ReaderAt) (*Font, error) {
 
 // Font is an SFNT font.
 //
-// All of its methods are safe to call concurrently, although the method
-// arguments may have further restrictions. For example, it is valid to have
-// multiple concurrent Font.LoadGlyph calls to the same *Font receiver, as long
-// as each call has a different Buffer.
+// Many of its methods take a *Buffer argument, as re-using buffers can reduce
+// the total memory allocation of repeated Font method calls, such as measuring
+// and rasterizing every unique glyph in a string of text. If efficiency is not
+// a concern, passing a nil *Buffer is valid, and implies using a temporary
+// buffer for a single call.
+//
+// It is valid to re-use a *Buffer with multiple Font method calls, even with
+// different *Font receivers, as long as they are not concurrent calls.
+//
+// All of the Font methods are safe to call concurrently, as long as each call
+// has a different *Buffer (or nil).
+//
+// The Font methods that don't take a *Buffer argument are always safe to call
+// concurrently.
 type Font struct {
 	src source
 
@@ -369,14 +429,14 @@ func (f *Font) initialize() error {
 // TODO: func (f *Font) GlyphIndex(r rune) (x GlyphIndex, ok bool)
 // This will require parsing the cmap table.
 
-func (f *Font) viewGlyphData(buf []byte, x GlyphIndex) ([]byte, error) {
+func (f *Font) viewGlyphData(b *Buffer, x GlyphIndex) ([]byte, error) {
 	xx := int(x)
 	if f.NumGlyphs() <= xx {
-		return nil, errGlyphIndexOutOfRange
+		return nil, ErrNotFound
 	}
 	i := f.cached.locations[xx+0]
 	j := f.cached.locations[xx+1]
-	return f.src.view(buf, int(i), int(j-i))
+	return b.view(&f.src, int(i), int(j-i))
 }
 
 // LoadGlyphOptions are the options to the Font.LoadGlyph method.
@@ -384,46 +444,143 @@ type LoadGlyphOptions struct {
 	// TODO: scale / transform / hinting.
 }
 
-// LoadGlyph loads the glyphs vectors for the x'th glyph into b.Segments.
-func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, opts *LoadGlyphOptions) error {
-	buf, err := f.viewGlyphData(b.buf, x)
+// LoadGlyph returns the vector segments for the x'th glyph.
+//
+// If b is non-nil, the segments become invalid to use once b is re-used.
+//
+// It returns ErrNotFound if the glyph index is out of range.
+func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, opts *LoadGlyphOptions) ([]Segment, error) {
+	if b == nil {
+		b = &Buffer{}
+	}
+
+	buf, err := f.viewGlyphData(b, x)
 	if err != nil {
-		return err
-	}
-	// Only update b.buf if it is safe to re-use buf.
-	if f.src.viewBufferWritable() {
-		b.buf = buf
+		return nil, err
 	}
 
-	b.Segments = b.Segments[:0]
+	b.segments = b.segments[:0]
 	if f.cached.isPostScript {
-		b.psi.type2Charstrings.initialize(b.Segments)
+		b.psi.type2Charstrings.initialize(b.segments)
 		if err := b.psi.run(psContextType2Charstring, buf); err != nil {
-			return err
+			return nil, err
 		}
-		b.Segments = b.psi.type2Charstrings.segments
+		b.segments = b.psi.type2Charstrings.segments
 	} else {
-		return errors.New("sfnt: TODO: load glyf data")
+		return nil, errors.New("sfnt: TODO: load glyf data")
 	}
 
-	// TODO: look at opts to scale / transform / hint the Buffer.Segments.
+	// TODO: look at opts to scale / transform / hint the Buffer.segments.
 
-	return nil
+	return b.segments, nil
 }
 
-// Buffer holds the result of the Font.LoadGlyph method. It is valid to re-use
-// a Buffer with multiple Font.LoadGlyph calls, even with different *Font
-// receivers, as long as they are not concurrent calls.
+// Name returns the name value keyed by the given NameID.
 //
-// It is also valid to have multiple concurrent Font.LoadGlyph calls to the
-// same *Font receiver, as long as each call has a different Buffer.
+// It returns ErrNotFound if there is no value for that key.
+func (f *Font) Name(b *Buffer, id NameID) (string, error) {
+	if b == nil {
+		b = &Buffer{}
+	}
+
+	const headerSize, entrySize = 6, 12
+	if f.name.length < headerSize {
+		return "", errInvalidNameTable
+	}
+	buf, err := b.view(&f.src, int(f.name.offset), headerSize)
+	if err != nil {
+		return "", err
+	}
+	nSubtables := u16(buf[2:])
+	if f.name.length < headerSize+entrySize*uint32(nSubtables) {
+		return "", errInvalidNameTable
+	}
+	stringOffset := u16(buf[4:])
+
+	seen := false
+	for i, n := 0, int(nSubtables); i < n; i++ {
+		buf, err := b.view(&f.src, int(f.name.offset)+headerSize+entrySize*i, entrySize)
+		if err != nil {
+			return "", err
+		}
+		if u16(buf[6:]) != uint16(id) {
+			continue
+		}
+		seen = true
+
+		var stringify func([]byte) (string, error)
+		switch u32(buf) {
+		default:
+			continue
+		case pidMacintosh<<16 | psidMacintoshRoman:
+			stringify = stringifyMacintosh
+		case pidWindows<<16 | psidWindowsUCS2:
+			stringify = stringifyUCS2
+		}
+
+		nameLength := u16(buf[8:])
+		nameOffset := u16(buf[10:])
+		buf, err = b.view(&f.src, int(f.name.offset)+int(nameOffset)+int(stringOffset), int(nameLength))
+		if err != nil {
+			return "", err
+		}
+		return stringify(buf)
+	}
+
+	if seen {
+		return "", errUnsupportedPlatformEncoding
+	}
+	return "", ErrNotFound
+}
+
+func stringifyMacintosh(b []byte) (string, error) {
+	for _, c := range b {
+		if c >= 0x80 {
+			// b contains some non-ASCII bytes.
+			s, _ := charmap.Macintosh.NewDecoder().Bytes(b)
+			return string(s), nil
+		}
+	}
+	// b contains only ASCII bytes.
+	return string(b), nil
+}
+
+func stringifyUCS2(b []byte) (string, error) {
+	if len(b)&1 != 0 {
+		return "", errInvalidUCS2String
+	}
+	r := make([]rune, len(b)/2)
+	for i := range r {
+		r[i] = rune(u16(b))
+		b = b[2:]
+	}
+	return string(r), nil
+}
+
+// Buffer holds re-usable buffers that can reduce the total memory allocation
+// of repeated Font method calls.
+//
+// See the Font type's documentation comment for more details.
 type Buffer struct {
-	Segments []Segment
 	// buf is a byte buffer for when a Font's source is an io.ReaderAt.
 	buf []byte
+	// segments holds glyph vector path segments.
+	segments []Segment
 	// psi is a PostScript interpreter for when the Font is an OpenType/CFF
 	// font.
 	psi psInterpreter
+}
+
+func (b *Buffer) view(src *source, offset, length int) ([]byte, error) {
+	buf, err := src.view(b.buf, offset, length)
+	if err != nil {
+		return nil, err
+	}
+	// Only update b.buf if it is safe to re-use buf.
+	if src.viewBufferWritable() {
+		b.buf = buf
+	}
+	return buf, nil
 }
 
 // Segment is a segment of a vector path.

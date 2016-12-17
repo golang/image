@@ -166,11 +166,11 @@ func TestPostScript(t *testing.T) {
 	var b Buffer
 loop:
 	for i, want := range wants {
-		if err := f.LoadGlyph(&b, GlyphIndex(i), nil); err != nil {
+		got, err := f.LoadGlyph(&b, GlyphIndex(i), nil)
+		if err != nil {
 			t.Errorf("i=%d: LoadGlyph: %v", i, err)
 			continue
 		}
-		got := b.Segments
 		if len(got) != len(want) {
 			t.Errorf("i=%d: got %d elements, want %d\noverall:\ngot  %v\nwant %v",
 				i, len(got), len(want), got, want)
@@ -183,5 +183,15 @@ loop:
 				continue loop
 			}
 		}
+	}
+	if _, err := f.LoadGlyph(nil, 0xffff, nil); err != ErrNotFound {
+		t.Errorf("LoadGlyph(..., 0xffff, ...):\ngot  %v\nwant %v", err, ErrNotFound)
+	}
+
+	name, err := f.Name(nil, NameIDFamily)
+	if err != nil {
+		t.Errorf("Name: %v", err)
+	} else if want := "CFFTest"; name != want {
+		t.Errorf("Name:\ngot  %q\nwant %q", name, want)
 	}
 }
