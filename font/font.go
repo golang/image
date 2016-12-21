@@ -220,7 +220,9 @@ func BoundBytes(f Face, s []byte) (bounds fixed.Rectangle26_6, advance fixed.Int
 			// TODO: set prevC = '\ufffd'?
 			continue
 		}
-		bounds = grow(bounds, b, advance)
+		b.Min.X += advance
+		b.Max.X += advance
+		bounds = grow(bounds, b)
 		advance += a
 		prevC = c
 	}
@@ -242,25 +244,36 @@ func BoundString(f Face, s string) (bounds fixed.Rectangle26_6, advance fixed.In
 			// TODO: set prevC = '\ufffd'?
 			continue
 		}
-		bounds = grow(bounds, b, advance)
+		b.Min.X += advance
+		b.Max.X += advance
+		bounds = grow(bounds, b)
 		advance += a
 		prevC = c
 	}
 	return
 }
 
-// grow returns the smallest rectangle containing both b and b2+shift.
-func grow(b, b2 fixed.Rectangle26_6, shift fixed.Int26_6) fixed.Rectangle26_6 {
-	x := b2.Min.X + shift
-	if b.Min.X > x {
-		b.Min.X = x
+func empty(r fixed.Rectangle26_6) bool {
+	return r.Min.X >= r.Max.X || r.Min.Y >= r.Max.Y
+}
+
+// grow returns the smallest rectangle containing both b and b2.
+func grow(b, b2 fixed.Rectangle26_6) fixed.Rectangle26_6 {
+	if empty(b) {
+		return b2
+	}
+	if empty(b2) {
+		return b
+	}
+
+	if b.Min.X > b2.Min.X {
+		b.Min.X = b2.Min.X
 	}
 	if b.Min.Y > b2.Min.Y {
 		b.Min.Y = b2.Min.Y
 	}
-	x = b2.Max.X + shift
-	if b.Max.X < x {
-		b.Max.X = x
+	if b.Max.X < b2.Max.X {
+		b.Max.X = b2.Max.X
 	}
 	if b.Max.Y < b2.Max.Y {
 		b.Max.Y = b2.Max.Y
