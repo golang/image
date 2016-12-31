@@ -222,7 +222,7 @@ func BoundBytes(f Face, s []byte) (bounds fixed.Rectangle26_6, advance fixed.Int
 		}
 		b.Min.X += advance
 		b.Max.X += advance
-		bounds = grow(bounds, b)
+		bounds = bounds.Union(b)
 		advance += a
 		prevC = c
 	}
@@ -246,39 +246,11 @@ func BoundString(f Face, s string) (bounds fixed.Rectangle26_6, advance fixed.In
 		}
 		b.Min.X += advance
 		b.Max.X += advance
-		bounds = grow(bounds, b)
+		bounds = bounds.Union(b)
 		advance += a
 		prevC = c
 	}
 	return
-}
-
-func empty(r fixed.Rectangle26_6) bool {
-	return r.Min.X >= r.Max.X || r.Min.Y >= r.Max.Y
-}
-
-// grow returns the smallest rectangle containing both b and b2.
-func grow(b, b2 fixed.Rectangle26_6) fixed.Rectangle26_6 {
-	if empty(b) {
-		return b2
-	}
-	if empty(b2) {
-		return b
-	}
-
-	if b.Min.X > b2.Min.X {
-		b.Min.X = b2.Min.X
-	}
-	if b.Min.Y > b2.Min.Y {
-		b.Min.Y = b2.Min.Y
-	}
-	if b.Max.X < b2.Max.X {
-		b.Max.X = b2.Max.X
-	}
-	if b.Max.Y < b2.Max.Y {
-		b.Max.Y = b2.Max.Y
-	}
-	return b
 }
 
 // MeasureBytes returns how far dot would advance by drawing s with f.
