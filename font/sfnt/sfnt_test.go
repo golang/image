@@ -34,6 +34,18 @@ func lineTo(xa, ya int) Segment {
 	}
 }
 
+func quadTo(xa, ya, xb, yb int) Segment {
+	return Segment{
+		Op: SegmentOpQuadTo,
+		Args: [6]fixed.Int26_6{
+			0: fixed.I(xa),
+			1: fixed.I(ya),
+			2: fixed.I(xb),
+			3: fixed.I(yb),
+		},
+	}
+}
+
 func cubeTo(xa, ya, xb, yb, xc, yc int) Segment {
 	return Segment{
 		Op: SegmentOpCubeTo,
@@ -76,16 +88,7 @@ func testTrueType(t *testing.T, f *Font) {
 	}
 }
 
-func TestPostScript(t *testing.T) {
-	data, err := ioutil.ReadFile(filepath.Join("..", "testdata", "CFFTest.otf"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	f, err := Parse(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+func TestPostScriptSegments(t *testing.T) {
 	// wants' vectors correspond 1-to-1 to what's in the CFFTest.sfd file,
 	// although OpenType/CFF and FontForge's SFD have reversed orders.
 	// https://fontforge.github.io/validation.html says that "All paths must be
@@ -96,8 +99,8 @@ func TestPostScript(t *testing.T) {
 	// again when it saves them, of course)."
 	//
 	// The .notdef glyph isn't explicitly in the SFD file, but for some unknown
-	// reason, FontForge generates a .notdef glyph in the OpenType/CFF file.
-	wants := [...][]Segment{{
+	// reason, FontForge generates it in the OpenType/CFF file.
+	wants := [][]Segment{{
 		// .notdef
 		// - contour #0
 		moveTo(50, 0),
@@ -158,7 +161,79 @@ func TestPostScript(t *testing.T) {
 		lineTo(331, 758),
 		lineTo(243, 752),
 		lineTo(235, 562),
+		// TODO: explicitly (not implicitly) close these contours?
 	}}
+
+	testSegments(t, "CFFTest.otf", wants)
+}
+
+func TestTrueTypeSegments(t *testing.T) {
+	// wants' vectors correspond 1-to-1 to what's in the glyfTest.sfd file,
+	// although FontForge's SFD format stores quadratic Bézier curves as cubics
+	// with duplicated off-curve points. quadTo(bx, by, cx, cy) is stored as
+	// "bx by bx by cx cy".
+	//
+	// The .notdef, .null and nonmarkingreturn glyphs aren't explicitly in the
+	// SFD file, but for some unknown reason, FontForge generates them in the
+	// TrueType file.
+	wants := [][]Segment{{
+		// .notdef
+		// - contour #0
+		moveTo(68, 0),
+		lineTo(68, 1365),
+		lineTo(612, 1365),
+		lineTo(612, 0),
+		lineTo(68, 0),
+		// - contour #1
+		moveTo(136, 68),
+		lineTo(544, 68),
+		lineTo(544, 1297),
+		lineTo(136, 1297),
+		lineTo(136, 68),
+	}, {
+	// .null
+	// Empty glyph.
+	}, {
+	// nonmarkingreturn
+	// Empty glyph.
+	}, {
+		// zero
+		// - contour #0
+		moveTo(614, 1434),
+		quadTo(369, 1434, 369, 614),
+		quadTo(369, 471, 435, 338),
+		quadTo(502, 205, 614, 205),
+		quadTo(860, 205, 860, 1024),
+		quadTo(860, 1167, 793, 1300),
+		quadTo(727, 1434, 614, 1434),
+		// - contour #1
+		moveTo(614, 1638),
+		quadTo(1024, 1638, 1024, 819),
+		quadTo(1024, 0, 614, 0),
+		quadTo(205, 0, 205, 819),
+		quadTo(205, 1638, 614, 1638),
+	}, {
+		// one
+		// - contour #0
+		moveTo(205, 0),
+		lineTo(205, 1638),
+		lineTo(614, 1638),
+		lineTo(614, 0),
+		lineTo(205, 0),
+	}}
+
+	testSegments(t, "glyfTest.ttf", wants)
+}
+
+func testSegments(t *testing.T, filename string, wants [][]Segment) {
+	data, err := ioutil.ReadFile(filepath.Join("..", "testdata", filename))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if ng := f.NumGlyphs(); ng != len(wants) {
 		t.Fatalf("NumGlyphs: got %d, want %d", ng, len(wants))
@@ -191,7 +266,7 @@ loop:
 	name, err := f.Name(nil, NameIDFamily)
 	if err != nil {
 		t.Errorf("Name: %v", err)
-	} else if want := "CFFTest"; name != want {
+	} else if want := filename[:len(filename)-len(".ttf")]; name != want {
 		t.Errorf("Name:\ngot  %q\nwant %q", name, want)
 	}
 }
