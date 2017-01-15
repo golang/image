@@ -25,6 +25,7 @@ import (
 // These constants are not part of the specifications, but are limitations used
 // by this implementation.
 const (
+	maxGlyphDataLength  = 64 * 1024
 	maxHintBits         = 256
 	maxNumTables        = 256
 	maxRealNumberStrLen = 64 // Maximum length in bytes of the "-123.456E-7" representation.
@@ -40,7 +41,9 @@ var (
 
 	errInvalidBounds        = errors.New("sfnt: invalid bounds")
 	errInvalidCFFTable      = errors.New("sfnt: invalid CFF table")
+	errInvalidGlyphData     = errors.New("sfnt: invalid glyph data")
 	errInvalidHeadTable     = errors.New("sfnt: invalid head table")
+	errInvalidLocaTable     = errors.New("sfnt: invalid loca table")
 	errInvalidLocationData  = errors.New("sfnt: invalid location data")
 	errInvalidMaxpTable     = errors.New("sfnt: invalid maxp table")
 	errInvalidNameTable     = errors.New("sfnt: invalid name table")
@@ -51,6 +54,8 @@ var (
 	errInvalidVersion       = errors.New("sfnt: invalid version")
 
 	errUnsupportedCFFVersion         = errors.New("sfnt: unsupported CFF version")
+	errUnsupportedCompoundGlyph      = errors.New("sfnt: unsupported compound glyph")
+	errUnsupportedGlyphDataLength    = errors.New("sfnt: unsupported glyph data length")
 	errUnsupportedRealNumberEncoding = errors.New("sfnt: unsupported real number encoding")
 	errUnsupportedNumberOfHints      = errors.New("sfnt: unsupported number of hints")
 	errUnsupportedNumberOfTables     = errors.New("sfnt: unsupported number of tables")
@@ -281,8 +286,9 @@ type Font struct {
 	// TODO: hdmx, kern, vmtx? Others?
 
 	cached struct {
-		isPostScript bool
-		unitsPerEm   Units
+		indexToLocFormat bool // false means short, true means long.
+		isPostScript     bool
+		unitsPerEm       Units
 
 		// The glyph data for the glyph index i is in
 		// src[locations[i+0]:locations[i+1]].
@@ -388,6 +394,11 @@ func (f *Font) initialize() error {
 		return errInvalidHeadTable
 	}
 	f.cached.unitsPerEm = Units(u)
+	u, err = f.src.u16(buf, f.head, 50)
+	if err != nil {
+		return err
+	}
+	f.cached.indexToLocFormat = u != 0
 
 	// https://www.microsoft.com/typography/otspec/maxp.htm
 	if f.cached.isPostScript {
@@ -417,8 +428,11 @@ func (f *Font) initialize() error {
 			return err
 		}
 	} else {
-		// TODO: locaParser for TrueType fonts.
-		f.cached.locations = make([]uint32, numGlyphs+1)
+		f.cached.locations, err = parseLoca(
+			&f.src, f.loca, f.glyf.offset, f.cached.indexToLocFormat, numGlyphs)
+		if err != nil {
+			return err
+		}
 	}
 	if len(f.cached.locations) != numGlyphs+1 {
 		return errInvalidLocationData
@@ -436,6 +450,9 @@ func (f *Font) viewGlyphData(b *Buffer, x GlyphIndex) ([]byte, error) {
 	}
 	i := f.cached.locations[xx+0]
 	j := f.cached.locations[xx+1]
+	if j-i > maxGlyphDataLength {
+		return nil, errUnsupportedGlyphDataLength
+	}
 	return b.view(&f.src, int(i), int(j-i))
 }
 
@@ -467,7 +484,11 @@ func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, opts *LoadGlyphOptions) ([]Seg
 		}
 		b.segments = b.psi.type2Charstrings.segments
 	} else {
-		return nil, errors.New("sfnt: TODO: load glyf data")
+		segments, err := appendGlyfSegments(b.segments, buf)
+		if err != nil {
+			return nil, err
+		}
+		b.segments = segments
 	}
 
 	// TODO: look at opts to scale / transform / hint the Buffer.segments.
