@@ -88,6 +88,74 @@ func testTrueType(t *testing.T, f *Font) {
 	}
 }
 
+func TestGlyphIndex(t *testing.T) {
+	data, err := ioutil.ReadFile(filepath.FromSlash("../testdata/CFFTest.otf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, format := range []int{-1, 0, 4} {
+		testGlyphIndex(t, data, format)
+	}
+}
+
+func testGlyphIndex(t *testing.T, data []byte, cmapFormat int) {
+	if cmapFormat >= 0 {
+		originalSupportedCmapFormat := supportedCmapFormat
+		defer func() {
+			supportedCmapFormat = originalSupportedCmapFormat
+		}()
+		supportedCmapFormat = func(format, pid, psid uint16) bool {
+			return int(format) == cmapFormat && originalSupportedCmapFormat(format, pid, psid)
+		}
+	}
+
+	f, err := Parse(data)
+	if err != nil {
+		t.Errorf("cmapFormat=%d: %v", cmapFormat, err)
+		return
+	}
+
+	testCases := []struct {
+		r    rune
+		want GlyphIndex
+	}{
+		{'0', 1},
+		{'1', 2},
+		{'Q', 3},
+		// TODO: add the U+00E0 non-ASCII Latin-1 Supplement rune to
+		// CFFTest.otf and change 0 to something non-zero.
+		{'\u00e0', 0},
+		{'\u4e2d', 4},
+		// TODO: add a rune >= U+00010000 to CFFTest.otf?
+
+		// Glyphs that aren't present in CFFTest.otf.
+		{'?', 0},
+		{'\ufffd', 0},
+		{'\U0001f4a9', 0},
+	}
+
+	var b Buffer
+	for _, tc := range testCases {
+		want := tc.want
+		// cmap format 0, with the Macintosh Roman encoding, can't represent
+		// U+4E2D.
+		if cmapFormat == 0 && tc.r == '\u4e2d' {
+			want = 0
+		}
+
+		got, err := f.GlyphIndex(&b, tc.r)
+		if err != nil {
+			t.Errorf("cmapFormat=%d, r=%q: %v", cmapFormat, tc.r, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("cmapFormat=%d, r=%q: got %d, want %d", cmapFormat, tc.r, got, want)
+			continue
+		}
+	}
+}
+
 func TestPostScriptSegments(t *testing.T) {
 	// wants' vectors correspond 1-to-1 to what's in the CFFTest.sfd file,
 	// although OpenType/CFF and FontForge's SFD have reversed orders.
@@ -226,7 +294,7 @@ func TestTrueTypeSegments(t *testing.T) {
 }
 
 func testSegments(t *testing.T, filename string, wants [][]Segment) {
-	data, err := ioutil.ReadFile(filepath.Join("..", "testdata", filename))
+	data, err := ioutil.ReadFile(filepath.FromSlash("../testdata/" + filename))
 	if err != nil {
 		t.Fatal(err)
 	}
