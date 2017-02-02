@@ -89,7 +89,7 @@ func testTrueType(t *testing.T, f *Font) {
 }
 
 func TestGlyphIndex(t *testing.T) {
-	data, err := ioutil.ReadFile(filepath.FromSlash("../testdata/CFFTest.otf"))
+	data, err := ioutil.ReadFile(filepath.FromSlash("../testdata/cmapTest.ttf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,27 +120,64 @@ func testGlyphIndex(t *testing.T, data []byte, cmapFormat int) {
 		r    rune
 		want GlyphIndex
 	}{
-		{'0', 1},
-		{'1', 2},
-		{'Q', 3},
-		// TODO: add the U+00E0 non-ASCII Latin-1 Supplement rune to
-		// CFFTest.otf and change 0 to something non-zero.
-		{'\u00e0', 0},
-		{'\u4e2d', 4},
-		// TODO: add a rune >= U+00010000 to CFFTest.otf?
-
-		// Glyphs that aren't present in CFFTest.otf.
+		// Glyphs that aren't present in cmapTest.ttf.
 		{'?', 0},
 		{'\ufffd', 0},
 		{'\U0001f4a9', 0},
+
+		// For a .TTF file, FontForge maps:
+		//	- ".notdef"          to glyph index 0.
+		//	- ".null"            to glyph index 1.
+		//	- "nonmarkingreturn" to glyph index 2.
+
+		{'/', 0},
+		{'0', 3},
+		{'1', 4},
+		{'2', 5},
+		{'3', 0},
+
+		{'@', 0},
+		{'A', 6},
+		{'B', 7},
+		{'C', 0},
+
+		{'`', 0},
+		{'a', 8},
+		{'b', 0},
+
+		// Of the remaining runes, only U+00FF LATIN SMALL LETTER Y WITH
+		// DIAERESIS is in both the Mac Roman encoding and the cmapTest.ttf
+		// font file.
+		{'\u00fe', 0},
+		{'\u00ff', 9},
+		{'\u0100', 10},
+		{'\u0101', 11},
+		{'\u0102', 0},
+
+		{'\u4e2c', 0},
+		{'\u4e2d', 12},
+		{'\u4e2e', 0},
+
+		/*
+			TODO: support runes above U+FFFF, i.e. cmap format 12.
+
+			{'\U0001f0a0', 0},
+			{'\U0001f0a1', 13},
+			{'\U0001f0a2', 0},
+
+			{'\U0001f0b0', 0},
+			{'\U0001f0b1', 14},
+			{'\U0001f0b2', 15},
+			{'\U0001f0b3', 0},
+		*/
 	}
 
 	var b Buffer
 	for _, tc := range testCases {
 		want := tc.want
-		// cmap format 0, with the Macintosh Roman encoding, can't represent
-		// U+4E2D.
-		if cmapFormat == 0 && tc.r == '\u4e2d' {
+		// cmap format 0, with the Macintosh Roman encoding, can only represent
+		// a limited set of non-ASCII runes, e.g. U+00FF.
+		if cmapFormat == 0 && tc.r > '\u007f' && tc.r != '\u00ff' {
 			want = 0
 		}
 
