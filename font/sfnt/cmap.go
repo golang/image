@@ -19,6 +19,9 @@ const (
 
 	psidUnicode2BMPOnly        = 3
 	psidUnicode2FullRepertoire = 4
+	// Note that FontForge may generate a bogus Platform Specific ID (value 10)
+	// for the Unicode Platform ID (value 0). See
+	// https://github.com/fontforge/fontforge/issues/2728
 
 	psidMacintoshRoman = 0
 
