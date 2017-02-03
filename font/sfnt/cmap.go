@@ -80,7 +80,7 @@ var supportedCmapFormat = func(format, pid, psid uint16) bool {
 	case 4:
 		return true
 	case 12:
-		// TODO: implement.
+		return true
 	}
 	return false
 }
@@ -92,7 +92,7 @@ func (f *Font) makeCachedGlyphIndex(buf []byte, offset, length uint32, format ui
 	case 4:
 		return f.makeCachedGlyphIndexFormat4(buf, offset, length)
 	case 12:
-		// TODO: implement, including a cmapEntry32 type (32, not 16).
+		return f.makeCachedGlyphIndexFormat12(buf, offset, length)
 	}
 	panic("unreachable")
 }
@@ -196,6 +196,68 @@ func (f *Font) makeCachedGlyphIndexFormat4(buf []byte, offset, length uint32) ([
 	return buf, nil
 }
 
+func (f *Font) makeCachedGlyphIndexFormat12(buf []byte, offset, _ uint32) ([]byte, error) {
+	const headerSize = 16
+	if offset+headerSize > f.cmap.length {
+		return nil, errInvalidCmapTable
+	}
+	var err error
+	buf, err = f.src.view(buf, int(f.cmap.offset+offset), headerSize)
+	if err != nil {
+		return nil, err
+	}
+	offset += headerSize
+
+	length := u32(buf[4:])
+	numGroups := u32(buf[12:])
+	if f.cmap.length < offset || length > f.cmap.length-offset {
+		return nil, errInvalidCmapTable
+	}
+	if numGroups > maxCmapSegments {
+		return nil, errUnsupportedNumberOfCmapSegments
+	}
+
+	eLength := 12 * numGroups
+	if headerSize+eLength != length {
+		return nil, errInvalidCmapTable
+	}
+	buf, err = f.src.view(buf, int(f.cmap.offset+offset), int(eLength))
+	if err != nil {
+		return nil, err
+	}
+	offset += eLength
+
+	entries := make([]cmapEntry32, numGroups)
+	for i := range entries {
+		entries[i] = cmapEntry32{
+			start: u32(buf[0+12*i:]),
+			end:   u32(buf[4+12*i:]),
+			delta: u32(buf[8+12*i:]),
+		}
+	}
+
+	f.cached.glyphIndex = func(f *Font, b *Buffer, r rune) (GlyphIndex, error) {
+		c := uint32(r)
+		for i, j := 0, len(entries); i < j; {
+			h := i + (j-i)/2
+			entry := &entries[h]
+			if c < entry.start {
+				j = h
+			} else if entry.end < c {
+				i = h + 1
+			} else {
+				return GlyphIndex(c - entry.start + entry.delta), nil
+			}
+		}
+		return 0, nil
+	}
+	return buf, nil
+}
+
 type cmapEntry16 struct {
 	end, start, delta, offset uint16
+}
+
+type cmapEntry32 struct {
+	start, end, delta uint32
 }
