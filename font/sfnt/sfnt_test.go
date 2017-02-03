@@ -94,7 +94,7 @@ func TestGlyphIndex(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, format := range []int{-1, 0, 4} {
+	for _, format := range []int{-1, 0, 4, 12} {
 		testGlyphIndex(t, data, format)
 	}
 }
@@ -158,26 +158,26 @@ func testGlyphIndex(t *testing.T, data []byte, cmapFormat int) {
 		{'\u4e2d', 12},
 		{'\u4e2e', 0},
 
-		/*
-			TODO: support runes above U+FFFF, i.e. cmap format 12.
+		{'\U0001f0a0', 0},
+		{'\U0001f0a1', 13},
+		{'\U0001f0a2', 0},
 
-			{'\U0001f0a0', 0},
-			{'\U0001f0a1', 13},
-			{'\U0001f0a2', 0},
-
-			{'\U0001f0b0', 0},
-			{'\U0001f0b1', 14},
-			{'\U0001f0b2', 15},
-			{'\U0001f0b3', 0},
-		*/
+		{'\U0001f0b0', 0},
+		{'\U0001f0b1', 14},
+		{'\U0001f0b2', 15},
+		{'\U0001f0b3', 0},
 	}
 
 	var b Buffer
 	for _, tc := range testCases {
 		want := tc.want
-		// cmap format 0, with the Macintosh Roman encoding, can only represent
-		// a limited set of non-ASCII runes, e.g. U+00FF.
-		if cmapFormat == 0 && tc.r > '\u007f' && tc.r != '\u00ff' {
+		switch {
+		case cmapFormat == 0 && tc.r > '\u007f' && tc.r != '\u00ff':
+			// cmap format 0, with the Macintosh Roman encoding, can only
+			// represent a limited set of non-ASCII runes, e.g. U+00FF.
+			want = 0
+		case cmapFormat == 4 && tc.r > '\uffff':
+			// cmap format 4 only supports the Basic Multilingual Plane (BMP).
 			want = 0
 		}
 
