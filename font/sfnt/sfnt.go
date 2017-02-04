@@ -28,7 +28,11 @@ import (
 // These constants are not part of the specifications, but are limitations used
 // by this implementation.
 const (
-	maxCmapSegments     = 1024
+	// This value is arbitrary, but defends against parsing malicious font
+	// files causing excessive memory allocations. For reference, Adobe's
+	// SourceHanSansSC-Regular.otf has 65535 glyphs and 1581 cmap segments.
+	maxCmapSegments = 4096
+
 	maxGlyphDataLength  = 64 * 1024
 	maxHintBits         = 256
 	maxNumTables        = 256
