@@ -167,6 +167,8 @@ func (f *Font) makeCachedGlyphIndexFormat4(buf []byte, offset, length uint32) ([
 			offset: u16(buf[6*len(entries)+2+2*i:]),
 		}
 	}
+	indexesBase := f.cmap.offset + offset
+	indexesLength := f.cmap.length - offset
 
 	f.cached.glyphIndex = func(f *Font, b *Buffer, r rune) (GlyphIndex, error) {
 		if uint32(r) > 0xffff {
@@ -184,11 +186,15 @@ func (f *Font) makeCachedGlyphIndexFormat4(buf []byte, offset, length uint32) ([
 			} else if entry.offset == 0 {
 				return GlyphIndex(c + entry.delta), nil
 			} else {
-				// TODO: support the glyphIdArray as per
-				// https://www.microsoft.com/typography/OTSPEC/cmap.htm
-				//
-				// This will probably use the *Font and *Buffer arguments.
-				return 0, errUnsupportedCmapFormat
+				offset := uint32(entry.offset) + 2*uint32(h-len(entries)+int(c-entry.start))
+				if offset > indexesLength || offset+2 > indexesLength {
+					return 0, errInvalidCmapTable
+				}
+				x, err := b.view(&f.src, int(indexesBase+offset), 2)
+				if err != nil {
+					return 0, err
+				}
+				return GlyphIndex(u16(x)), nil
 			}
 		}
 		return 0, nil

@@ -88,6 +88,62 @@ func testTrueType(t *testing.T, f *Font) {
 	}
 }
 
+func TestGoRegularGlyphIndex(t *testing.T) {
+	f, err := Parse(goregular.TTF)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	testCases := []struct {
+		r    rune
+		want GlyphIndex
+	}{
+		// Glyphs that aren't present in Go Regular.
+		{'\u001f', 0}, // U+001F <control>
+		{'\u0200', 0}, // U+0200 LATIN CAPITAL LETTER A WITH DOUBLE GRAVE
+		{'\u2000', 0}, // U+2000 EN QUAD
+
+		// The want values below can be verified by running the ttx tool on
+		// Go-Regular.ttf.
+		//
+		// The actual values are ad hoc, and result from whatever tools the
+		// Bigelow & Holmes type foundry used and the order in which they
+		// crafted the glyphs. They may change over time as newer versions of
+		// the font are released. In practice, though, running this test with
+		// coverage analysis suggests that it covers both the zero and non-zero
+		// cmapEntry16.offset cases for a format-4 cmap table.
+
+		{'\u0020', 3},   // U+0020 SPACE
+		{'\u0021', 4},   // U+0021 EXCLAMATION MARK
+		{'\u0022', 5},   // U+0022 QUOTATION MARK
+		{'\u0023', 6},   // U+0023 NUMBER SIGN
+		{'\u0024', 223}, // U+0024 DOLLAR SIGN
+		{'\u0025', 7},   // U+0025 PERCENT SIGN
+		{'\u0026', 8},   // U+0026 AMPERSAND
+		{'\u0027', 9},   // U+0027 APOSTROPHE
+
+		{'\u03bd', 423}, // U+03BD GREEK SMALL LETTER NU
+		{'\u03be', 424}, // U+03BE GREEK SMALL LETTER XI
+		{'\u03bf', 438}, // U+03BF GREEK SMALL LETTER OMICRON
+		{'\u03c0', 208}, // U+03C0 GREEK SMALL LETTER PI
+		{'\u03c1', 425}, // U+03C1 GREEK SMALL LETTER RHO
+		{'\u03c2', 426}, // U+03C2 GREEK SMALL LETTER FINAL SIGMA
+	}
+
+	var b Buffer
+	for _, tc := range testCases {
+		got, err := f.GlyphIndex(&b, tc.r)
+		if err != nil {
+			t.Errorf("r=%q: %v", tc.r, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("r=%q: got %d, want %d", tc.r, got, tc.want)
+			continue
+		}
+	}
+}
+
 func TestGlyphIndex(t *testing.T) {
 	data, err := ioutil.ReadFile(filepath.FromSlash("../testdata/cmapTest.ttf"))
 	if err != nil {
