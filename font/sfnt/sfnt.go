@@ -73,7 +73,6 @@ var (
 
 	errUnsupportedCFFVersion           = errors.New("sfnt: unsupported CFF version")
 	errUnsupportedCmapEncodings        = errors.New("sfnt: unsupported cmap encodings")
-	errUnsupportedCmapFormat           = errors.New("sfnt: unsupported cmap format")
 	errUnsupportedCompoundGlyph        = errors.New("sfnt: unsupported compound glyph")
 	errUnsupportedGlyphDataLength      = errors.New("sfnt: unsupported glyph data length")
 	errUnsupportedRealNumberEncoding   = errors.New("sfnt: unsupported real number encoding")
