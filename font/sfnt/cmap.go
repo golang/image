@@ -206,13 +206,13 @@ func (f *Font) makeCachedGlyphIndexFormat12(buf []byte, offset, _ uint32) ([]byt
 	if err != nil {
 		return nil, err
 	}
-	offset += headerSize
-
 	length := u32(buf[4:])
-	numGroups := u32(buf[12:])
 	if f.cmap.length < offset || length > f.cmap.length-offset {
 		return nil, errInvalidCmapTable
 	}
+	offset += headerSize
+
+	numGroups := u32(buf[12:])
 	if numGroups > maxCmapSegments {
 		return nil, errUnsupportedNumberOfCmapSegments
 	}
