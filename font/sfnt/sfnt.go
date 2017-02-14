@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+//go:generate go run gen.go
+
 // Package sfnt implements a decoder for SFNT font file formats, including
 // TrueType and OpenType.
 package sfnt // import "golang.org/x/image/font/sfnt"
@@ -65,6 +67,7 @@ var (
 	errInvalidLocationData  = errors.New("sfnt: invalid location data")
 	errInvalidMaxpTable     = errors.New("sfnt: invalid maxp table")
 	errInvalidNameTable     = errors.New("sfnt: invalid name table")
+	errInvalidPostTable     = errors.New("sfnt: invalid post table")
 	errInvalidSourceData    = errors.New("sfnt: invalid source data")
 	errInvalidTableOffset   = errors.New("sfnt: invalid table offset")
 	errInvalidTableTagOrder = errors.New("sfnt: invalid table tag order")
@@ -80,6 +83,7 @@ var (
 	errUnsupportedNumberOfHints        = errors.New("sfnt: unsupported number of hints")
 	errUnsupportedNumberOfTables       = errors.New("sfnt: unsupported number of tables")
 	errUnsupportedPlatformEncoding     = errors.New("sfnt: unsupported platform encoding")
+	errUnsupportedPostTable            = errors.New("sfnt: unsupported post table")
 	errUnsupportedTableOffsetLength    = errors.New("sfnt: unsupported table offset or length")
 	errUnsupportedType2Charstring      = errors.New("sfnt: unsupported Type 2 Charstring")
 )
@@ -217,6 +221,20 @@ func (s *source) u16(buf []byte, t table, i int) (uint16, error) {
 	return u16(buf), nil
 }
 
+// u32 returns the uint32 in the table t at the relative offset i.
+//
+// buf is an optional scratch buffer as per the source.view method.
+func (s *source) u32(buf []byte, t table, i int) (uint32, error) {
+	if i < 0 || uint(t.length) < uint(i+4) {
+		return 0, errInvalidBounds
+	}
+	buf, err := s.view(buf, int(t.offset)+i, 4)
+	if err != nil {
+		return 0, err
+	}
+	return u32(buf), nil
+}
+
 // table is a section of the font data.
 type table struct {
 	offset, length uint32
@@ -298,6 +316,7 @@ type Font struct {
 		glyphIndex       func(f *Font, b *Buffer, r rune) (GlyphIndex, error)
 		indexToLocFormat bool // false means short, true means long.
 		isPostScript     bool
+		postTableVersion uint32
 		unitsPerEm       Units
 
 		// The glyph data for the glyph index i is in
@@ -320,6 +339,13 @@ func (f *Font) initialize() error {
 	if err != nil {
 		return err
 	}
+
+	// The order of these parseXxx calls matters. Later calls may depend on
+	// f.cached state set up by earlier calls, such as the number of glyphs in
+	// the font being parsed by parseMaxp.
+
+	// TODO: make state dependencies explicit instead of implicit.
+
 	buf, err = f.parseHead(buf)
 	if err != nil {
 		return err
@@ -329,6 +355,10 @@ func (f *Font) initialize() error {
 		return err
 	}
 	buf, err = f.parseCmap(buf)
+	if err != nil {
+		return err
+	}
+	buf, err = f.parsePost(buf)
 	if err != nil {
 		return err
 	}
@@ -538,6 +568,31 @@ func (f *Font) parseMaxp(buf []byte) ([]byte, error) {
 	return buf, nil
 }
 
+func (f *Font) parsePost(buf []byte) ([]byte, error) {
+	// https://www.microsoft.com/typography/otspec/post.htm
+
+	const headerSize = 32
+	if f.post.length < headerSize {
+		return nil, errInvalidPostTable
+	}
+	u, err := f.src.u32(buf, f.post, 0)
+	if err != nil {
+		return nil, err
+	}
+	switch u {
+	case 0x20000:
+		if f.post.length < headerSize+2+2*uint32(f.NumGlyphs()) {
+			return nil, errInvalidPostTable
+		}
+	case 0x30000:
+		// No-op.
+	default:
+		return nil, errUnsupportedPostTable
+	}
+	f.cached.postTableVersion = u
+	return buf, nil
+}
+
 // TODO: API for looking up glyph variants?? For example, some fonts may
 // provide both slashed and dotted zero glyphs ('0'), or regular and 'old
 // style' numerals, and users can direct software to choose a variant.
@@ -604,6 +659,78 @@ func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, opts *LoadGlyphOptions) ([]Seg
 	// TODO: look at opts to scale / transform / hint the Buffer.segments.
 
 	return b.segments, nil
+}
+
+// GlyphName returns the name of the x'th glyph.
+//
+// Not every font contains glyph names. If not present, GlyphName will return
+// ("", nil).
+//
+// If present, the glyph name, provided by the font, is assumed to follow the
+// Adobe Glyph List Specification:
+// https://github.com/adobe-type-tools/agl-specification/blob/master/README.md
+//
+// This is also known as the "Adobe Glyph Naming convention", the "Adobe
+// document [for] Unicode and Glyph Names" or "PostScript glyph names".
+//
+// It returns ErrNotFound if the glyph index is out of range.
+func (f *Font) GlyphName(b *Buffer, x GlyphIndex) (string, error) {
+	if int(x) >= f.NumGlyphs() {
+		return "", ErrNotFound
+	}
+	if f.cached.postTableVersion != 0x20000 {
+		return "", nil
+	}
+	if b == nil {
+		b = &Buffer{}
+	}
+
+	// The wire format for a Version 2 post table is documented at:
+	// https://www.microsoft.com/typography/otspec/post.htm
+	const glyphNameIndexOffset = 34
+
+	buf, err := b.view(&f.src, int(f.post.offset)+glyphNameIndexOffset+2*int(x), 2)
+	if err != nil {
+		return "", err
+	}
+	u := u16(buf)
+	if u < numBuiltInPostNames {
+		i := builtInPostNamesOffsets[u+0]
+		j := builtInPostNamesOffsets[u+1]
+		return builtInPostNamesData[i:j], nil
+	}
+	// https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6post.html
+	// says that "32768 through 65535 are reserved for future use".
+	if u > 32767 {
+		return "", errUnsupportedPostTable
+	}
+	u -= numBuiltInPostNames
+
+	// Iterate through the list of Pascal-formatted strings. A linear scan is
+	// clearly O(u), which isn't great (as the obvious loop, calling
+	// Font.GlyphName, to get all of the glyph names in a font has quadratic
+	// complexity), but the wire format doesn't suggest a better alternative.
+
+	offset := glyphNameIndexOffset + 2*f.NumGlyphs()
+	buf, err = b.view(&f.src, int(f.post.offset)+offset, int(f.post.length)-offset)
+	if err != nil {
+		return "", err
+	}
+
+	for {
+		if len(buf) == 0 {
+			return "", errInvalidPostTable
+		}
+		n := 1 + int(buf[0])
+		if len(buf) < n {
+			return "", errInvalidPostTable
+		}
+		if u == 0 {
+			return string(buf[1:n]), nil
+		}
+		buf = buf[n:]
+		u--
+	}
 }
 
 // Name returns the name value keyed by the given NameID.

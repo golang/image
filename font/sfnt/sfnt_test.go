@@ -431,3 +431,77 @@ loop:
 		t.Errorf("Name:\ngot  %q\nwant %q", name, want)
 	}
 }
+
+func TestGlyphName(t *testing.T) {
+	f, err := Parse(goregular.TTF)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+
+	testCases := []struct {
+		r    rune
+		want string
+	}{
+		{'\x00', "NULL"},
+		{'!', "exclam"},
+		{'A', "A"},
+		{'{', "braceleft"},
+		{'\u00c4', "Adieresis"}, // U+00C4 LATIN CAPITAL LETTER A WITH DIAERESIS
+		{'\u2020', "dagger"},    // U+2020 DAGGER
+		{'\u2660', "spade"},     // U+2660 BLACK SPADE SUIT
+		{'\uf800', "gopher"},    // U+F800 <Private Use>
+		{'\ufffe', ".notdef"},   // Not in the Go Regular font, so GlyphIndex returns (0, nil).
+	}
+
+	var b Buffer
+	for _, tc := range testCases {
+		x, err := f.GlyphIndex(&b, tc.r)
+		if err != nil {
+			t.Errorf("r=%q: GlyphIndex: %v", tc.r, err)
+			continue
+		}
+		got, err := f.GlyphName(&b, x)
+		if err != nil {
+			t.Errorf("r=%q: GlyphName: %v", tc.r, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("r=%q: got %q, want %q", tc.r, got, tc.want)
+			continue
+		}
+	}
+}
+
+func TestBuiltInPostNames(t *testing.T) {
+	testCases := []struct {
+		x    GlyphIndex
+		want string
+	}{
+		{0, ".notdef"},
+		{1, ".null"},
+		{2, "nonmarkingreturn"},
+		{13, "asterisk"},
+		{36, "A"},
+		{93, "z"},
+		{123, "ocircumflex"},
+		{202, "Edieresis"},
+		{255, "Ccaron"},
+		{256, "ccaron"},
+		{257, "dcroat"},
+		{258, ""},
+		{999, ""},
+		{0xffff, ""},
+	}
+
+	for _, tc := range testCases {
+		if tc.x >= numBuiltInPostNames {
+			continue
+		}
+		i := builtInPostNamesOffsets[tc.x+0]
+		j := builtInPostNamesOffsets[tc.x+1]
+		got := builtInPostNamesData[i:j]
+		if got != tc.want {
+			t.Errorf("x=%d: got %q, want %q", tc.x, got, tc.want)
+		}
+	}
+}
