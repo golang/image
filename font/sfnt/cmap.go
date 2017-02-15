@@ -25,8 +25,9 @@ const (
 
 	psidMacintoshRoman = 0
 
-	psidWindowsUCS2 = 1
-	psidWindowsUCS4 = 10
+	psidWindowsSymbol = 0
+	psidWindowsUCS2   = 1
+	psidWindowsUCS4   = 10
 )
 
 // platformEncodingWidth returns the number of bytes per character assumed by
@@ -61,6 +62,8 @@ func platformEncodingWidth(pid, psid uint16) int {
 
 	case pidWindows:
 		switch psid {
+		case psidWindowsSymbol:
+			return 2
 		case psidWindowsUCS2:
 			return 2
 		case psidWindowsUCS4:
