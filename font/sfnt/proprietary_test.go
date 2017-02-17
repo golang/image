@@ -135,13 +135,29 @@ func testProprietary(t *testing.T, proprietor, filename string, minNumGlyphs, fi
 		t.Fatalf("Parse: %v", err)
 	}
 	ppem := fixed.Int26_6(f.UnitsPerEm()) << 6
+	qualifiedFilename := proprietor + "/" + filename
+	var buf Buffer
+
+	// Some of the tests below, such as which glyph index a particular rune
+	// maps to, can depend on the specific version of the proprietary font. If
+	// tested against a different version of that font, the test might (but not
+	// necessarily will) fail, even though the Go code is good. If so, log a
+	// message, but don't automatically fail (i.e. dont' call t.Fatalf).
+	gotVersion, err := f.Name(&buf, NameIDVersion)
+	if err != nil {
+		t.Fatalf("Name: %v", err)
+	}
+	wantVersion := proprietaryVersions[qualifiedFilename]
+	if gotVersion != wantVersion {
+		t.Logf("font version provided differs from the one the tests were written against:"+
+			"\ngot  %q\nwant %q", gotVersion, wantVersion)
+	}
 
 	numGlyphs := f.NumGlyphs()
 	if numGlyphs < minNumGlyphs {
 		t.Fatalf("NumGlyphs: got %d, want at least %d", numGlyphs, minNumGlyphs)
 	}
 
-	var buf Buffer
 	iMax := numGlyphs
 	if firstUnsupportedGlyph >= 0 {
 		iMax = firstUnsupportedGlyph
@@ -156,7 +172,7 @@ func testProprietary(t *testing.T, proprietor, filename string, minNumGlyphs, fi
 		}
 	}
 
-	for r, want := range proprietaryGlyphIndexTestCases[proprietor+"/"+filename] {
+	for r, want := range proprietaryGlyphIndexTestCases[qualifiedFilename] {
 		got, err := f.GlyphIndex(&buf, r)
 		if err != nil {
 			t.Errorf("GlyphIndex(%q): %v", r, err)
@@ -167,6 +183,26 @@ func testProprietary(t *testing.T, proprietor, filename string, minNumGlyphs, fi
 			continue
 		}
 	}
+}
+
+// proprietaryVersions holds the expected version string of each proprietary
+// font tested. If third parties such as Adobe or Microsoft update their fonts,
+// and the tests subsequently fail, these versions should be updated too.
+//
+// Updates are expected to be infrequent. For example, as of 2017, the fonts
+// installed by the Debian ttf-mscorefonts-installer package have last modified
+// times no later than 2001.
+var proprietaryVersions = map[string]string{
+	"adobe/SourceCodePro-Regular.otf":   "Version 2.030;PS 1.0;hotconv 16.6.51;makeotf.lib2.5.65220",
+	"adobe/SourceCodePro-Regular.ttf":   "Version 2.030;PS 1.000;hotconv 16.6.51;makeotf.lib2.5.65220",
+	"adobe/SourceHanSansSC-Regular.otf": "Version 1.004;PS 1.004;hotconv 1.0.82;makeotf.lib2.5.63406",
+	"adobe/SourceSansPro-Regular.otf":   "Version 2.020;PS 2.0;hotconv 1.0.86;makeotf.lib2.5.63406",
+	"adobe/SourceSansPro-Regular.ttf":   "Version 2.020;PS 2.000;hotconv 1.0.86;makeotf.lib2.5.63406",
+
+	"microsoft/Arial.ttf":           "Version 2.82",
+	"microsoft/Comic_Sans_MS.ttf":   "Version 2.10",
+	"microsoft/Times_New_Roman.ttf": "Version 2.82",
+	"microsoft/Webdings.ttf":        "Version 1.03",
 }
 
 // proprietaryGlyphIndexTestCases hold a sample of each font's rune to glyph
