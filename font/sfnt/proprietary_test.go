@@ -80,11 +80,7 @@ func TestProprietaryAdobeSourceSansProOTF(t *testing.T) {
 }
 
 func TestProprietaryAdobeSourceSansProTTF(t *testing.T) {
-	// The 1000 here is smaller than the 1800 above. For some reason, the TTF
-	// version of the file has fewer glyphs than the (presumably canonical) OTF
-	// version. The number of glyphs in the .otf and .ttf files can be verified
-	// with the ttx tool.
-	testProprietary(t, "adobe", "SourceSansPro-Regular.ttf", 1000, 56)
+	testProprietary(t, "adobe", "SourceSansPro-Regular.ttf", 1800, 54)
 }
 
 func TestProprietaryMicrosoftArial(t *testing.T) {
@@ -212,10 +208,10 @@ var proprietaryGlyphIndexTestCases = map[string]map[rune]GlyphIndex{
 		'\u2030': 1728, // U+2030 PER MILLE SIGN
 	},
 	"adobe/SourceSansPro-Regular.ttf": {
-		'\u0041': 4,   // U+0041 LATIN CAPITAL LETTER A
-		'\u03a3': 0,   // U+03A3 GREEK CAPITAL LETTER SIGMA
-		'\u0435': 0,   // U+0435 CYRILLIC SMALL LETTER IE
-		'\u2030': 675, // U+2030 PER MILLE SIGN
+		'\u0041': 2,    // U+0041 LATIN CAPITAL LETTER A
+		'\u03a3': 592,  // U+03A3 GREEK CAPITAL LETTER SIGMA
+		'\u0435': 999,  // U+0435 CYRILLIC SMALL LETTER IE
+		'\u2030': 1728, // U+2030 PER MILLE SIGN
 	},
 
 	"microsoft/Arial.ttf": {
