@@ -35,6 +35,8 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"testing"
+
+	"golang.org/x/image/math/fixed"
 )
 
 var (
@@ -132,6 +134,7 @@ func testProprietary(t *testing.T, proprietor, filename string, minNumGlyphs, fi
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
+	ppem := fixed.Int26_6(f.UnitsPerEm()) << 6
 
 	numGlyphs := f.NumGlyphs()
 	if numGlyphs < minNumGlyphs {
@@ -144,7 +147,7 @@ func testProprietary(t *testing.T, proprietor, filename string, minNumGlyphs, fi
 		iMax = firstUnsupportedGlyph
 	}
 	for i, numErrors := 0, 0; i < iMax; i++ {
-		if _, err := f.LoadGlyph(&buf, GlyphIndex(i), nil); err != nil {
+		if _, err := f.LoadGlyph(&buf, GlyphIndex(i), ppem, nil); err != nil {
 			t.Errorf("LoadGlyph(%d): %v", i, err)
 			numErrors++
 		}

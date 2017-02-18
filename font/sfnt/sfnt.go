@@ -131,6 +131,17 @@ const (
 // display resolution (DPI) and font size (e.g. a 12 point font).
 type Units int32
 
+// scale returns x divided by unitsPerEm, rounded to the nearest fixed.Int26_6
+// value (1/64th of a pixel).
+func scale(x fixed.Int26_6, unitsPerEm Units) fixed.Int26_6 {
+	if x >= 0 {
+		x += fixed.Int26_6(unitsPerEm) / 2
+	} else {
+		x -= fixed.Int26_6(unitsPerEm) / 2
+	}
+	return x / fixed.Int26_6(unitsPerEm)
+}
+
 func u16(b []byte) uint16 {
 	_ = b[1] // Bounds check hint to compiler.
 	return uint16(b[0])<<8 | uint16(b[1])<<0
@@ -274,6 +285,12 @@ func ParseReaderAt(src io.ReaderAt) (*Font, error) {
 //
 // The Font methods that don't take a *Buffer argument are always safe to call
 // concurrently.
+//
+// Some methods provide lengths or co-ordinates, e.g. bounds, font metrics and
+// control points. All of these methods take a ppem parameter, which is the
+// number of pixels in 1 em, expressed as a 26.6 fixed point value. For
+// example, if 1 em is 10 pixels then ppem is fixed.I(10), which equals
+// fixed.Int26_6(10 << 6).
 type Font struct {
 	src source
 
@@ -623,15 +640,16 @@ func (f *Font) viewGlyphData(b *Buffer, x GlyphIndex) ([]byte, error) {
 
 // LoadGlyphOptions are the options to the Font.LoadGlyph method.
 type LoadGlyphOptions struct {
-	// TODO: scale / transform / hinting.
+	// TODO: transform / hinting.
 }
 
-// LoadGlyph returns the vector segments for the x'th glyph.
+// LoadGlyph returns the vector segments for the x'th glyph. ppem is the number
+// of pixels in 1 em.
 //
 // If b is non-nil, the segments become invalid to use once b is re-used.
 //
 // It returns ErrNotFound if the glyph index is out of range.
-func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, opts *LoadGlyphOptions) ([]Segment, error) {
+func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, opts *LoadGlyphOptions) ([]Segment, error) {
 	if b == nil {
 		b = &Buffer{}
 	}
@@ -656,7 +674,19 @@ func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, opts *LoadGlyphOptions) ([]Seg
 		b.segments = segments
 	}
 
-	// TODO: look at opts to scale / transform / hint the Buffer.segments.
+	// Scale the segments. If we want to support hinting, we'll have to push
+	// the scaling computation into the PostScript / TrueType specific glyph
+	// loading code, such as the appendGlyfSegments body, since TrueType
+	// hinting bytecode works on the scaled glyph vectors. For now, though,
+	// it's simpler to scale as a post-processing step.
+	for i := range b.segments {
+		s := &b.segments[i]
+		for j := range s.Args {
+			s.Args[j] = scale(s.Args[j]*ppem, f.cached.unitsPerEm)
+		}
+	}
+
+	// TODO: look at opts to transform / hint the Buffer.segments.
 
 	return b.segments, nil
 }

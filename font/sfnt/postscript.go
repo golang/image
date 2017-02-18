@@ -653,8 +653,8 @@ func t2CAppendMoveto(p *psInterpreter) {
 	p.type2Charstrings.segments = append(p.type2Charstrings.segments, Segment{
 		Op: SegmentOpMoveTo,
 		Args: [6]fixed.Int26_6{
-			0: fixed.Int26_6(p.type2Charstrings.x) << 6,
-			1: fixed.Int26_6(p.type2Charstrings.y) << 6,
+			0: fixed.Int26_6(p.type2Charstrings.x),
+			1: fixed.Int26_6(p.type2Charstrings.y),
 		},
 	})
 }
@@ -663,8 +663,8 @@ func t2CAppendLineto(p *psInterpreter) {
 	p.type2Charstrings.segments = append(p.type2Charstrings.segments, Segment{
 		Op: SegmentOpLineTo,
 		Args: [6]fixed.Int26_6{
-			0: fixed.Int26_6(p.type2Charstrings.x) << 6,
-			1: fixed.Int26_6(p.type2Charstrings.y) << 6,
+			0: fixed.Int26_6(p.type2Charstrings.x),
+			1: fixed.Int26_6(p.type2Charstrings.y),
 		},
 	})
 }
@@ -685,12 +685,12 @@ func t2CAppendCubeto(p *psInterpreter, dxa, dya, dxb, dyb, dxc, dyc int32) {
 	p.type2Charstrings.segments = append(p.type2Charstrings.segments, Segment{
 		Op: SegmentOpCubeTo,
 		Args: [6]fixed.Int26_6{
-			0: fixed.Int26_6(xa) << 6,
-			1: fixed.Int26_6(ya) << 6,
-			2: fixed.Int26_6(xb) << 6,
-			3: fixed.Int26_6(yb) << 6,
-			4: fixed.Int26_6(xc) << 6,
-			5: fixed.Int26_6(yc) << 6,
+			0: fixed.Int26_6(xa),
+			1: fixed.Int26_6(ya),
+			2: fixed.Int26_6(xb),
+			3: fixed.Int26_6(yb),
+			4: fixed.Int26_6(xc),
+			5: fixed.Int26_6(yc),
 		},
 	})
 }
