@@ -6,6 +6,7 @@ package sfnt
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
@@ -24,12 +25,32 @@ func moveTo(xa, ya int) Segment {
 	}
 }
 
+func moveTo26_6(xa, ya fixed.Int26_6) Segment {
+	return Segment{
+		Op: SegmentOpMoveTo,
+		Args: [6]fixed.Int26_6{
+			0: xa,
+			1: ya,
+		},
+	}
+}
+
 func lineTo(xa, ya int) Segment {
 	return Segment{
 		Op: SegmentOpLineTo,
 		Args: [6]fixed.Int26_6{
 			0: fixed.I(xa),
 			1: fixed.I(ya),
+		},
+	}
+}
+
+func lineTo26_6(xa, ya fixed.Int26_6) Segment {
+	return Segment{
+		Op: SegmentOpLineTo,
+		Args: [6]fixed.Int26_6{
+			0: xa,
+			1: ya,
 		},
 	}
 }
@@ -58,6 +79,20 @@ func cubeTo(xa, ya, xb, yb, xc, yc int) Segment {
 			5: fixed.I(yc),
 		},
 	}
+}
+
+func checkSegmentsEqual(got, want []Segment) error {
+	if len(got) != len(want) {
+		return fmt.Errorf("got %d elements, want %d\noverall:\ngot  %v\nwant %v",
+			len(got), len(want), got, want)
+	}
+	for i, g := range got {
+		if w := want[i]; g != w {
+			return fmt.Errorf("element %d:\ngot  %v\nwant %v\noverall:\ngot  %v\nwant %v",
+				i, g, w, got, want)
+		}
+	}
+	return nil
 }
 
 func TestTrueTypeParse(t *testing.T) {
@@ -389,38 +424,30 @@ func TestTrueTypeSegments(t *testing.T) {
 func testSegments(t *testing.T, filename string, wants [][]Segment) {
 	data, err := ioutil.ReadFile(filepath.FromSlash("../testdata/" + filename))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("ReadFile: %v", err)
 	}
 	f, err := Parse(data)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Parse: %v", err)
 	}
+	ppem := fixed.Int26_6(f.UnitsPerEm()) << 6
 
 	if ng := f.NumGlyphs(); ng != len(wants) {
 		t.Fatalf("NumGlyphs: got %d, want %d", ng, len(wants))
 	}
 	var b Buffer
-loop:
 	for i, want := range wants {
-		got, err := f.LoadGlyph(&b, GlyphIndex(i), nil)
+		got, err := f.LoadGlyph(&b, GlyphIndex(i), ppem, nil)
 		if err != nil {
 			t.Errorf("i=%d: LoadGlyph: %v", i, err)
 			continue
 		}
-		if len(got) != len(want) {
-			t.Errorf("i=%d: got %d elements, want %d\noverall:\ngot  %v\nwant %v",
-				i, len(got), len(want), got, want)
+		if err := checkSegmentsEqual(got, want); err != nil {
+			t.Errorf("i=%d: %v", i, err)
 			continue
 		}
-		for j, g := range got {
-			if w := want[j]; g != w {
-				t.Errorf("i=%d: element %d:\ngot  %v\nwant %v\noverall:\ngot  %v\nwant %v",
-					i, j, g, w, got, want)
-				continue loop
-			}
-		}
 	}
-	if _, err := f.LoadGlyph(nil, 0xffff, nil); err != ErrNotFound {
+	if _, err := f.LoadGlyph(nil, 0xffff, ppem, nil); err != ErrNotFound {
 		t.Errorf("LoadGlyph(..., 0xffff, ...):\ngot  %v\nwant %v", err, ErrNotFound)
 	}
 
@@ -429,6 +456,60 @@ loop:
 		t.Errorf("Name: %v", err)
 	} else if want := filename[:len(filename)-len(".ttf")]; name != want {
 		t.Errorf("Name:\ngot  %q\nwant %q", name, want)
+	}
+}
+
+func TestPPEM(t *testing.T) {
+	data, err := ioutil.ReadFile(filepath.FromSlash("../testdata/glyfTest.ttf"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	f, err := Parse(data)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	var b Buffer
+	x, err := f.GlyphIndex(&b, '1')
+	if err != nil {
+		t.Fatalf("GlyphIndex: %v", err)
+	}
+	if x == 0 {
+		t.Fatalf("GlyphIndex: no glyph index found for the rune '1'")
+	}
+
+	testCases := []struct {
+		ppem fixed.Int26_6
+		want []Segment
+	}{{
+		ppem: fixed.I(12),
+		want: []Segment{
+			moveTo26_6(77, 0),
+			lineTo26_6(77, 614),
+			lineTo26_6(230, 614),
+			lineTo26_6(230, 0),
+			lineTo26_6(77, 0),
+		},
+	}, {
+		ppem: fixed.I(2048),
+		want: []Segment{
+			moveTo(205, 0),
+			lineTo(205, 1638),
+			lineTo(614, 1638),
+			lineTo(614, 0),
+			lineTo(205, 0),
+		},
+	}}
+
+	for i, tc := range testCases {
+		got, err := f.LoadGlyph(&b, x, tc.ppem, nil)
+		if err != nil {
+			t.Errorf("i=%d: LoadGlyph: %v", i, err)
+			continue
+		}
+		if err := checkSegmentsEqual(got, tc.want); err != nil {
+			t.Errorf("i=%d: %v", i, err)
+			continue
+		}
 	}
 }
 
