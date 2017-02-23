@@ -31,11 +31,13 @@ go test golang.org/x/image/font/sfnt -test.run=ProprietaryMicrosoft -args -propr
 // TODO: enable Apple/Microsoft tests by default on Darwin/Windows?
 
 import (
+	"errors"
 	"flag"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
 
+	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -134,7 +136,7 @@ func testProprietary(t *testing.T, proprietor, filename string, minNumGlyphs, fi
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	ppem := fixed.Int26_6(f.UnitsPerEm()) << 6
+	ppem := fixed.Int26_6(f.UnitsPerEm())
 	qualifiedFilename := proprietor + "/" + filename
 	var buf Buffer
 
@@ -180,6 +182,33 @@ func testProprietary(t *testing.T, proprietor, filename string, minNumGlyphs, fi
 		}
 		if got != want {
 			t.Errorf("GlyphIndex(%q): got %d, want %d", r, got, want)
+			continue
+		}
+	}
+
+kernLoop:
+	for _, tc := range proprietaryKernTestCases[qualifiedFilename] {
+		var indexes [2]GlyphIndex
+		for i := range indexes {
+			x, err := f.GlyphIndex(&buf, tc.runes[i])
+			if x == 0 && err == nil {
+				err = errors.New("no glyph index found")
+			}
+			if err != nil {
+				t.Errorf("GlyphIndex(%q): %v", tc.runes[0], err)
+				continue kernLoop
+			}
+			indexes[i] = x
+		}
+		kern, err := f.Kern(&buf, indexes[0], indexes[1], tc.ppem, tc.hinting)
+		if err != nil {
+			t.Errorf("Kern(%q, %q, ppem=%d, hinting=%v): %v",
+				tc.runes[0], tc.runes[1], tc.ppem, tc.hinting, err)
+			continue
+		}
+		if got := Units(kern); got != tc.want {
+			t.Errorf("Kern(%q, %q, ppem=%d, hinting=%v): got %d, want %d",
+				tc.runes[0], tc.runes[1], tc.ppem, tc.hinting, got, tc.want)
 			continue
 		}
 	}
@@ -280,5 +309,47 @@ var proprietaryGlyphIndexTestCases = map[string]map[rune]GlyphIndex{
 		'\u266a': 0,  // U+266A EIGHTH NOTE
 		'\uf041': 36, // PRIVATE USE AREA
 		'\uf042': 37, // PRIVATE USE AREA
+	},
+}
+
+type kernTestCase struct {
+	ppem    fixed.Int26_6
+	hinting font.Hinting
+	runes   [2]rune
+	want    Units
+}
+
+// proprietaryKernTestCases hold a sample of each font's kerning pairs. The
+// numerical values can be verified by running the ttx tool.
+var proprietaryKernTestCases = map[string][]kernTestCase{
+	"microsoft/Arial.ttf": {
+		{2048, font.HintingNone, [2]rune{'A', 'V'}, -152},
+		// U+03B8 GREEK SMALL LETTER THETA
+		// U+03BB GREEK SMALL LETTER LAMDA
+		{2048, font.HintingNone, [2]rune{'\u03b8', '\u03bb'}, -39},
+		{2048, font.HintingNone, [2]rune{'\u03bb', '\u03b8'}, -0},
+	},
+	"microsoft/Comic_Sans_MS.ttf": {
+		{2048, font.HintingNone, [2]rune{'A', 'V'}, 0},
+	},
+	"microsoft/Times_New_Roman.ttf": {
+		{768, font.HintingNone, [2]rune{'A', 'V'}, -99},
+		{768, font.HintingFull, [2]rune{'A', 'V'}, -128},
+		{2048, font.HintingNone, [2]rune{'A', 'A'}, 0},
+		{2048, font.HintingNone, [2]rune{'A', 'T'}, -227},
+		{2048, font.HintingNone, [2]rune{'A', 'V'}, -264},
+		{2048, font.HintingNone, [2]rune{'T', 'A'}, -164},
+		{2048, font.HintingNone, [2]rune{'T', 'T'}, 0},
+		{2048, font.HintingNone, [2]rune{'T', 'V'}, 0},
+		{2048, font.HintingNone, [2]rune{'V', 'A'}, -264},
+		{2048, font.HintingNone, [2]rune{'V', 'T'}, 0},
+		{2048, font.HintingNone, [2]rune{'V', 'V'}, 0},
+		// U+0390 GREEK SMALL LETTER IOTA WITH DIALYTIKA AND TONOS
+		// U+0393 GREEK CAPITAL LETTER GAMMA
+		{2048, font.HintingNone, [2]rune{'\u0390', '\u0393'}, 0},
+		{2048, font.HintingNone, [2]rune{'\u0393', '\u0390'}, 76},
+	},
+	"microsoft/Webdings.ttf": {
+		{2048, font.HintingNone, [2]rune{'\uf041', '\uf042'}, 0},
 	},
 }
