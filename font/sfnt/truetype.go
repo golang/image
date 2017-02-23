@@ -131,12 +131,12 @@ func appendGlyfSegments(dst []Segment, data []byte) ([]Segment, error) {
 
 	// For simple (non-compound) glyphs, the remainder of the glyf data
 	// consists of (flags, x, y) points: the Bézier curve segments. These are
-	// stored in columns (all the flags first, then all the x co-ordinates,
-	// then all the y co-ordinates), not rows, as it compresses better.
+	// stored in columns (all the flags first, then all the x coordinates, then
+	// all the y coordinates), not rows, as it compresses better.
 	//
 	// Decoding those points in row order involves two passes. The first pass
 	// determines the indexes (relative to the data slice) of where the flags,
-	// the x co-ordinates and the y co-ordinates each start.
+	// the x coordinates and the y coordinates each start.
 	flagIndex := int32(index)
 	xIndex, yIndex, ok := findXYIndexes(data, index, numPoints)
 	if !ok {

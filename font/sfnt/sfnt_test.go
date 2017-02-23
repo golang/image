@@ -15,69 +15,31 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-func moveTo(xa, ya int) Segment {
+func moveTo(xa, ya fixed.Int26_6) Segment {
 	return Segment{
-		Op: SegmentOpMoveTo,
-		Args: [6]fixed.Int26_6{
-			0: fixed.I(xa),
-			1: fixed.I(ya),
-		},
+		Op:   SegmentOpMoveTo,
+		Args: [6]fixed.Int26_6{xa, ya},
 	}
 }
 
-func moveTo26_6(xa, ya fixed.Int26_6) Segment {
+func lineTo(xa, ya fixed.Int26_6) Segment {
 	return Segment{
-		Op: SegmentOpMoveTo,
-		Args: [6]fixed.Int26_6{
-			0: xa,
-			1: ya,
-		},
+		Op:   SegmentOpLineTo,
+		Args: [6]fixed.Int26_6{xa, ya},
 	}
 }
 
-func lineTo(xa, ya int) Segment {
+func quadTo(xa, ya, xb, yb fixed.Int26_6) Segment {
 	return Segment{
-		Op: SegmentOpLineTo,
-		Args: [6]fixed.Int26_6{
-			0: fixed.I(xa),
-			1: fixed.I(ya),
-		},
+		Op:   SegmentOpQuadTo,
+		Args: [6]fixed.Int26_6{xa, ya, xb, yb},
 	}
 }
 
-func lineTo26_6(xa, ya fixed.Int26_6) Segment {
+func cubeTo(xa, ya, xb, yb, xc, yc fixed.Int26_6) Segment {
 	return Segment{
-		Op: SegmentOpLineTo,
-		Args: [6]fixed.Int26_6{
-			0: xa,
-			1: ya,
-		},
-	}
-}
-
-func quadTo(xa, ya, xb, yb int) Segment {
-	return Segment{
-		Op: SegmentOpQuadTo,
-		Args: [6]fixed.Int26_6{
-			0: fixed.I(xa),
-			1: fixed.I(ya),
-			2: fixed.I(xb),
-			3: fixed.I(yb),
-		},
-	}
-}
-
-func cubeTo(xa, ya, xb, yb, xc, yc int) Segment {
-	return Segment{
-		Op: SegmentOpCubeTo,
-		Args: [6]fixed.Int26_6{
-			0: fixed.I(xa),
-			1: fixed.I(ya),
-			2: fixed.I(xb),
-			3: fixed.I(yb),
-			4: fixed.I(xc),
-			5: fixed.I(yc),
-		},
+		Op:   SegmentOpCubeTo,
+		Args: [6]fixed.Int26_6{xa, ya, xb, yb, xc, yc},
 	}
 }
 
@@ -430,7 +392,7 @@ func testSegments(t *testing.T, filename string, wants [][]Segment) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	ppem := fixed.Int26_6(f.UnitsPerEm()) << 6
+	ppem := fixed.Int26_6(f.UnitsPerEm())
 
 	if ng := f.NumGlyphs(); ng != len(wants) {
 		t.Fatalf("NumGlyphs: got %d, want %d", ng, len(wants))
@@ -481,16 +443,16 @@ func TestPPEM(t *testing.T) {
 		ppem fixed.Int26_6
 		want []Segment
 	}{{
-		ppem: fixed.I(12),
+		ppem: fixed.Int26_6(12 << 6),
 		want: []Segment{
-			moveTo26_6(77, 0),
-			lineTo26_6(77, 614),
-			lineTo26_6(230, 614),
-			lineTo26_6(230, 0),
-			lineTo26_6(77, 0),
+			moveTo(77, 0),
+			lineTo(77, 614),
+			lineTo(230, 614),
+			lineTo(230, 0),
+			lineTo(77, 0),
 		},
 	}, {
-		ppem: fixed.I(2048),
+		ppem: fixed.Int26_6(2048),
 		want: []Segment{
 			moveTo(205, 0),
 			lineTo(205, 1638),

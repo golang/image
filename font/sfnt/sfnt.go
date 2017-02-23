@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io"
 
+	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 	"golang.org/x/text/encoding/charmap"
 )
@@ -63,6 +64,7 @@ var (
 	errInvalidCmapTable     = errors.New("sfnt: invalid cmap table")
 	errInvalidGlyphData     = errors.New("sfnt: invalid glyph data")
 	errInvalidHeadTable     = errors.New("sfnt: invalid head table")
+	errInvalidKernTable     = errors.New("sfnt: invalid kern table")
 	errInvalidLocaTable     = errors.New("sfnt: invalid loca table")
 	errInvalidLocationData  = errors.New("sfnt: invalid location data")
 	errInvalidMaxpTable     = errors.New("sfnt: invalid maxp table")
@@ -78,6 +80,7 @@ var (
 	errUnsupportedCmapEncodings        = errors.New("sfnt: unsupported cmap encodings")
 	errUnsupportedCompoundGlyph        = errors.New("sfnt: unsupported compound glyph")
 	errUnsupportedGlyphDataLength      = errors.New("sfnt: unsupported glyph data length")
+	errUnsupportedKernTable            = errors.New("sfnt: unsupported kern table")
 	errUnsupportedRealNumberEncoding   = errors.New("sfnt: unsupported real number encoding")
 	errUnsupportedNumberOfCmapSegments = errors.New("sfnt: unsupported number of cmap segments")
 	errUnsupportedNumberOfHints        = errors.New("sfnt: unsupported number of hints")
@@ -286,11 +289,17 @@ func ParseReaderAt(src io.ReaderAt) (*Font, error) {
 // The Font methods that don't take a *Buffer argument are always safe to call
 // concurrently.
 //
-// Some methods provide lengths or co-ordinates, e.g. bounds, font metrics and
+// Some methods provide lengths or coordinates, e.g. bounds, font metrics and
 // control points. All of these methods take a ppem parameter, which is the
 // number of pixels in 1 em, expressed as a 26.6 fixed point value. For
 // example, if 1 em is 10 pixels then ppem is fixed.I(10), which equals
 // fixed.Int26_6(10 << 6).
+//
+// To get those lengths or coordinates in terms of font units instead of
+// pixels, use ppem = fixed.Int26_6(f.UnitsPerEm()) and if those methods take a
+// font.Hinting parameter, use font.HintingNone. The return values will have
+// type fixed.Int26_6, but those numbers can be converted back to Units with no
+// further scaling necessary.
 type Font struct {
 	src source
 
@@ -327,12 +336,15 @@ type Font struct {
 	// https://www.microsoft.com/typography/otspec/otff.htm#otttables
 	// "Other OpenType Tables".
 	//
-	// TODO: hdmx, kern, vmtx? Others?
+	// TODO: hdmx, vmtx? Others?
+	kern table
 
 	cached struct {
 		glyphIndex       func(f *Font, b *Buffer, r rune) (GlyphIndex, error)
 		indexToLocFormat bool // false means short, true means long.
 		isPostScript     bool
+		kernNumPairs     int32
+		kernOffset       int32
 		postTableVersion uint32
 		unitsPerEm       Units
 
@@ -372,6 +384,10 @@ func (f *Font) initialize() error {
 		return err
 	}
 	buf, err = f.parseCmap(buf)
+	if err != nil {
+		return err
+	}
+	buf, err = f.parseKern(buf)
 	if err != nil {
 		return err
 	}
@@ -444,6 +460,8 @@ func (f *Font) initializeTables(buf []byte) ([]byte, error) {
 			f.hhea = table{o, n}
 		case 0x686d7478:
 			f.hmtx = table{o, n}
+		case 0x6b65726e:
+			f.kern = table{o, n}
 		case 0x6c6f6361:
 			f.loca = table{o, n}
 		case 0x6d617870:
@@ -539,6 +557,90 @@ func (f *Font) parseHead(buf []byte) ([]byte, error) {
 		return nil, err
 	}
 	f.cached.indexToLocFormat = u != 0
+	return buf, nil
+}
+
+func (f *Font) parseKern(buf []byte) ([]byte, error) {
+	// https://www.microsoft.com/typography/otspec/kern.htm
+
+	if f.kern.length == 0 {
+		return buf, nil
+	}
+	const headerSize = 4
+	if f.kern.length < headerSize {
+		return nil, errInvalidKernTable
+	}
+	buf, err := f.src.view(buf, int(f.kern.offset), headerSize)
+	if err != nil {
+		return nil, err
+	}
+	offset := int(f.kern.offset) + headerSize
+	length := int(f.kern.length) - headerSize
+
+	switch version := u16(buf); version {
+	case 0:
+		// TODO: support numTables != 1. Testing that requires finding such a font.
+		if numTables := int(u16(buf[2:])); numTables != 1 {
+			return nil, errUnsupportedKernTable
+		}
+		return f.parseKernVersion0(buf, offset, length)
+	case 1:
+		// TODO: find such a (proprietary?) font, and support it. Both of
+		// https://www.microsoft.com/typography/otspec/kern.htm
+		// https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html
+		// say that such fonts work on Mac OS but not on Windows.
+	}
+	return nil, errUnsupportedKernTable
+}
+
+func (f *Font) parseKernVersion0(buf []byte, offset, length int) ([]byte, error) {
+	const headerSize = 6
+	if length < headerSize {
+		return nil, errInvalidKernTable
+	}
+	buf, err := f.src.view(buf, offset, headerSize)
+	if err != nil {
+		return nil, err
+	}
+	if version := u16(buf); version != 0 {
+		return nil, errUnsupportedKernTable
+	}
+	subtableLength := int(u16(buf[2:]))
+	if subtableLength < headerSize || length < subtableLength {
+		return nil, errInvalidKernTable
+	}
+	if coverageBits := buf[5]; coverageBits != 0x01 {
+		// We only support horizontal kerning.
+		return nil, errUnsupportedKernTable
+	}
+	offset += headerSize
+	length -= headerSize
+	subtableLength -= headerSize
+
+	switch format := buf[4]; format {
+	case 0:
+		return f.parseKernFormat0(buf, offset, subtableLength)
+	case 2:
+		// TODO: find such a (proprietary?) font, and support it.
+	}
+	return nil, errUnsupportedKernTable
+}
+
+func (f *Font) parseKernFormat0(buf []byte, offset, length int) ([]byte, error) {
+	const headerSize, entrySize = 8, 6
+	if length < headerSize {
+		return nil, errInvalidKernTable
+	}
+	buf, err := f.src.view(buf, offset, headerSize)
+	if err != nil {
+		return nil, err
+	}
+	numPairs := u16(buf)
+	if length != headerSize+entrySize*int(numPairs) {
+		return nil, errInvalidKernTable
+	}
+	f.cached.kernNumPairs = int32(numPairs)
+	f.cached.kernOffset = int32(offset) + headerSize
 	return buf, nil
 }
 
@@ -761,6 +863,64 @@ func (f *Font) GlyphName(b *Buffer, x GlyphIndex) (string, error) {
 		buf = buf[n:]
 		u--
 	}
+}
+
+// Kern returns the horizontal adjustment for the kerning pair (x0, x1). A
+// positive kern means to move the glyphs further apart. ppem is the number of
+// pixels in 1 em.
+//
+// It returns ErrNotFound if either glyph index is out of range.
+func (f *Font) Kern(b *Buffer, x0, x1 GlyphIndex, ppem fixed.Int26_6, h font.Hinting) (fixed.Int26_6, error) {
+	// TODO: how should this work with the GPOS table and CFF fonts?
+	// https://www.microsoft.com/typography/otspec/kern.htm says that
+	// "OpenType™ fonts containing CFF outlines are not supported by the 'kern'
+	// table and must use the 'GPOS' OpenType Layout table."
+
+	if n := f.NumGlyphs(); int(x0) >= n || int(x1) >= n {
+		return 0, ErrNotFound
+	}
+	// Not every font has a kern table. If it doesn't, there's no need to
+	// allocate a Buffer.
+	if f.kern.length == 0 {
+		return 0, nil
+	}
+	if b == nil {
+		b = &Buffer{}
+	}
+
+	key := uint32(x0)<<16 | uint32(x1)
+	lo, hi := int32(0), f.cached.kernNumPairs
+	for lo < hi {
+		i := (lo + hi) / 2
+
+		// TODO: this view call inside the inner loop can lead to many small
+		// reads instead of fewer larger reads, which can be expensive. We
+		// should be able to do better, although we don't want to make (one)
+		// arbitrarily large read. Perhaps we should round up reads to 4K or 8K
+		// chunks. For reference, Arial.ttf's kern table is 5472 bytes.
+		// Times_New_Roman.ttf's kern table is 5220 bytes.
+		const entrySize = 6
+		buf, err := b.view(&f.src, int(f.cached.kernOffset+i*entrySize), entrySize)
+		if err != nil {
+			return 0, err
+		}
+
+		k := u32(buf)
+		if k < key {
+			lo = i + 1
+		} else if k > key {
+			hi = i
+		} else {
+			kern := fixed.Int26_6(int16(u16(buf[4:])))
+			kern = scale(kern*ppem, f.cached.unitsPerEm)
+			if h == font.HintingFull {
+				// Quantize the fixed.Int26_6 value to the nearest pixel.
+				kern = (kern + 32) &^ 63
+			}
+			return kern, nil
+		}
+	}
+	return 0, nil
 }
 
 // Name returns the name value keyed by the given NameID.
