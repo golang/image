@@ -340,7 +340,7 @@ type Font struct {
 	kern table
 
 	cached struct {
-		glyphIndex       func(f *Font, b *Buffer, r rune) (GlyphIndex, error)
+		glyphIndex       glyphIndexFunc
 		indexToLocFormat bool // false means short, true means long.
 		isPostScript     bool
 		kernNumPairs     int32
@@ -364,84 +364,96 @@ func (f *Font) initialize() error {
 	if !f.src.valid() {
 		return errInvalidSourceData
 	}
-	buf, err := f.initializeTables(nil)
+	buf, isPostScript, err := f.initializeTables(nil)
 	if err != nil {
 		return err
 	}
 
 	// The order of these parseXxx calls matters. Later calls may depend on
-	// f.cached state set up by earlier calls, such as the number of glyphs in
-	// the font being parsed by parseMaxp.
+	// information parsed by earlier calls, such as the maxp table's numGlyphs.
+	// To enforce these dependencies, such information is passed and returned
+	// explicitly, and the f.cached fields are only set afterwards.
+	//
+	// When implementing new parseXxx methods, take care not to call methods
+	// such as Font.NumGlyphs that implicitly depend on f.cached fields.
 
-	// TODO: make state dependencies explicit instead of implicit.
+	buf, indexToLocFormat, unitsPerEm, err := f.parseHead(buf)
+	if err != nil {
+		return err
+	}
+	buf, numGlyphs, locations, err := f.parseMaxp(buf, indexToLocFormat, isPostScript)
+	if err != nil {
+		return err
+	}
+	buf, glyphIndex, err := f.parseCmap(buf)
+	if err != nil {
+		return err
+	}
+	buf, kernNumPairs, kernOffset, err := f.parseKern(buf)
+	if err != nil {
+		return err
+	}
+	buf, postTableVersion, err := f.parsePost(buf, numGlyphs)
+	if err != nil {
+		return err
+	}
 
-	buf, err = f.parseHead(buf)
-	if err != nil {
-		return err
-	}
-	buf, err = f.parseMaxp(buf)
-	if err != nil {
-		return err
-	}
-	buf, err = f.parseCmap(buf)
-	if err != nil {
-		return err
-	}
-	buf, err = f.parseKern(buf)
-	if err != nil {
-		return err
-	}
-	buf, err = f.parsePost(buf)
-	if err != nil {
-		return err
-	}
+	f.cached.glyphIndex = glyphIndex
+	f.cached.indexToLocFormat = indexToLocFormat
+	f.cached.isPostScript = isPostScript
+	f.cached.kernNumPairs = kernNumPairs
+	f.cached.kernOffset = kernOffset
+	f.cached.postTableVersion = postTableVersion
+	f.cached.unitsPerEm = unitsPerEm
+	f.cached.locations = locations
+
 	return nil
 }
 
-func (f *Font) initializeTables(buf []byte) ([]byte, error) {
+func (f *Font) initializeTables(buf []byte) (buf1 []byte, isPostScript bool, err error) {
 	// https://www.microsoft.com/typography/otspec/otff.htm "Organization of an
 	// OpenType Font" says that "The OpenType font starts with the Offset
 	// Table", which is 12 bytes.
-	buf, err := f.src.view(buf, 0, 12)
+	buf, err = f.src.view(buf, 0, 12)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	switch u32(buf) {
 	default:
-		return nil, errInvalidVersion
+		return nil, false, errInvalidVersion
 	case 0x00010000:
 		// No-op.
 	case 0x4f54544f: // "OTTO".
-		f.cached.isPostScript = true
+		isPostScript = true
 	}
 	numTables := int(u16(buf[4:]))
 	if numTables > maxNumTables {
-		return nil, errUnsupportedNumberOfTables
+		return nil, false, errUnsupportedNumberOfTables
 	}
 
 	// "The Offset Table is followed immediately by the Table Record entries...
 	// sorted in ascending order by tag", 16 bytes each.
 	buf, err = f.src.view(buf, 12, 16*numTables)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	for b, first, prevTag := buf, true, uint32(0); len(b) > 0; b = b[16:] {
 		tag := u32(b)
 		if first {
 			first = false
 		} else if tag <= prevTag {
-			return nil, errInvalidTableTagOrder
+			return nil, false, errInvalidTableTagOrder
 		}
 		prevTag = tag
 
 		o, n := u32(b[8:12]), u32(b[12:16])
 		if o > maxTableOffset || n > maxTableLength {
-			return nil, errUnsupportedTableOffsetLength
+			return nil, false, errUnsupportedTableOffsetLength
 		}
 		// We ignore the checksums, but "all tables must begin on four byte
 		// boundries [sic]".
 		if o&3 != 0 {
-			return nil, errInvalidTableOffset
+			return nil, false, errInvalidTableOffset
 		}
 
 		// Match the 4-byte tag as a uint32. For example, "OS/2" is 0x4f532f32.
@@ -472,23 +484,23 @@ func (f *Font) initializeTables(buf []byte) ([]byte, error) {
 			f.post = table{o, n}
 		}
 	}
-	return buf, nil
+	return buf, isPostScript, nil
 }
 
-func (f *Font) parseCmap(buf []byte) ([]byte, error) {
+func (f *Font) parseCmap(buf []byte) (buf1 []byte, glyphIndex glyphIndexFunc, err error) {
 	// https://www.microsoft.com/typography/OTSPEC/cmap.htm
 
 	const headerSize, entrySize = 4, 8
 	if f.cmap.length < headerSize {
-		return nil, errInvalidCmapTable
+		return nil, nil, errInvalidCmapTable
 	}
 	u, err := f.src.u16(buf, f.cmap, 2)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	numSubtables := int(u)
 	if f.cmap.length < headerSize+entrySize*uint32(numSubtables) {
-		return nil, errInvalidCmapTable
+		return nil, nil, errInvalidCmapTable
 	}
 
 	var (
@@ -503,7 +515,7 @@ func (f *Font) parseCmap(buf []byte) ([]byte, error) {
 	for i := 0; i < numSubtables; i++ {
 		buf, err = f.src.view(buf, int(f.cmap.offset)+headerSize+entrySize*i, entrySize)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		pid := u16(buf)
 		psid := u16(buf[2:])
@@ -514,11 +526,11 @@ func (f *Font) parseCmap(buf []byte) ([]byte, error) {
 		offset := u32(buf[4:])
 
 		if offset > f.cmap.length-4 {
-			return nil, errInvalidCmapTable
+			return nil, nil, errInvalidCmapTable
 		}
 		buf, err = f.src.view(buf, int(f.cmap.offset+offset), 4)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		format := u16(buf)
 		if !supportedCmapFormat(format, pid, psid) {
@@ -533,46 +545,46 @@ func (f *Font) parseCmap(buf []byte) ([]byte, error) {
 	}
 
 	if bestWidth == 0 {
-		return nil, errUnsupportedCmapEncodings
+		return nil, nil, errUnsupportedCmapEncodings
 	}
 	return f.makeCachedGlyphIndex(buf, bestOffset, bestLength, bestFormat)
 }
 
-func (f *Font) parseHead(buf []byte) ([]byte, error) {
+func (f *Font) parseHead(buf []byte) (buf1 []byte, indexToLocFormat bool, unitsPerEm Units, err error) {
 	// https://www.microsoft.com/typography/otspec/head.htm
 
 	if f.head.length != 54 {
-		return nil, errInvalidHeadTable
+		return nil, false, 0, errInvalidHeadTable
 	}
 	u, err := f.src.u16(buf, f.head, 18)
 	if err != nil {
-		return nil, err
+		return nil, false, 0, err
 	}
 	if u == 0 {
-		return nil, errInvalidHeadTable
+		return nil, false, 0, errInvalidHeadTable
 	}
-	f.cached.unitsPerEm = Units(u)
+	unitsPerEm = Units(u)
 	u, err = f.src.u16(buf, f.head, 50)
 	if err != nil {
-		return nil, err
+		return nil, false, 0, err
 	}
-	f.cached.indexToLocFormat = u != 0
-	return buf, nil
+	indexToLocFormat = u != 0
+	return buf, indexToLocFormat, unitsPerEm, nil
 }
 
-func (f *Font) parseKern(buf []byte) ([]byte, error) {
+func (f *Font) parseKern(buf []byte) (buf1 []byte, kernNumPairs, kernOffset int32, err error) {
 	// https://www.microsoft.com/typography/otspec/kern.htm
 
 	if f.kern.length == 0 {
-		return buf, nil
+		return buf, 0, 0, nil
 	}
 	const headerSize = 4
 	if f.kern.length < headerSize {
-		return nil, errInvalidKernTable
+		return nil, 0, 0, errInvalidKernTable
 	}
-	buf, err := f.src.view(buf, int(f.kern.offset), headerSize)
+	buf, err = f.src.view(buf, int(f.kern.offset), headerSize)
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 	offset := int(f.kern.offset) + headerSize
 	length := int(f.kern.length) - headerSize
@@ -581,7 +593,7 @@ func (f *Font) parseKern(buf []byte) ([]byte, error) {
 	case 0:
 		// TODO: support numTables != 1. Testing that requires finding such a font.
 		if numTables := int(u16(buf[2:])); numTables != 1 {
-			return nil, errUnsupportedKernTable
+			return nil, 0, 0, errUnsupportedKernTable
 		}
 		return f.parseKernVersion0(buf, offset, length)
 	case 1:
@@ -590,28 +602,28 @@ func (f *Font) parseKern(buf []byte) ([]byte, error) {
 		// https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html
 		// say that such fonts work on Mac OS but not on Windows.
 	}
-	return nil, errUnsupportedKernTable
+	return nil, 0, 0, errUnsupportedKernTable
 }
 
-func (f *Font) parseKernVersion0(buf []byte, offset, length int) ([]byte, error) {
+func (f *Font) parseKernVersion0(buf []byte, offset, length int) (buf1 []byte, kernNumPairs, kernOffset int32, err error) {
 	const headerSize = 6
 	if length < headerSize {
-		return nil, errInvalidKernTable
+		return nil, 0, 0, errInvalidKernTable
 	}
-	buf, err := f.src.view(buf, offset, headerSize)
+	buf, err = f.src.view(buf, offset, headerSize)
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 	if version := u16(buf); version != 0 {
-		return nil, errUnsupportedKernTable
+		return nil, 0, 0, errUnsupportedKernTable
 	}
 	subtableLength := int(u16(buf[2:]))
 	if subtableLength < headerSize || length < subtableLength {
-		return nil, errInvalidKernTable
+		return nil, 0, 0, errInvalidKernTable
 	}
 	if coverageBits := buf[5]; coverageBits != 0x01 {
 		// We only support horizontal kerning.
-		return nil, errUnsupportedKernTable
+		return nil, 0, 0, errUnsupportedKernTable
 	}
 	offset += headerSize
 	length -= headerSize
@@ -623,98 +635,96 @@ func (f *Font) parseKernVersion0(buf []byte, offset, length int) ([]byte, error)
 	case 2:
 		// TODO: find such a (proprietary?) font, and support it.
 	}
-	return nil, errUnsupportedKernTable
+	return nil, 0, 0, errUnsupportedKernTable
 }
 
-func (f *Font) parseKernFormat0(buf []byte, offset, length int) ([]byte, error) {
+func (f *Font) parseKernFormat0(buf []byte, offset, length int) (buf1 []byte, kernNumPairs, kernOffset int32, err error) {
 	const headerSize, entrySize = 8, 6
 	if length < headerSize {
-		return nil, errInvalidKernTable
+		return nil, 0, 0, errInvalidKernTable
 	}
-	buf, err := f.src.view(buf, offset, headerSize)
+	buf, err = f.src.view(buf, offset, headerSize)
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
-	numPairs := u16(buf)
-	if length != headerSize+entrySize*int(numPairs) {
-		return nil, errInvalidKernTable
+	kernNumPairs = int32(u16(buf))
+	if length != headerSize+entrySize*int(kernNumPairs) {
+		return nil, 0, 0, errInvalidKernTable
 	}
-	f.cached.kernNumPairs = int32(numPairs)
-	f.cached.kernOffset = int32(offset) + headerSize
-	return buf, nil
+	return buf, kernNumPairs, int32(offset) + headerSize, nil
 }
 
-func (f *Font) parseMaxp(buf []byte) ([]byte, error) {
+func (f *Font) parseMaxp(buf []byte, indexToLocFormat, isPostScript bool) (buf1 []byte, numGlyphs int, locations []uint32, err error) {
 	// https://www.microsoft.com/typography/otspec/maxp.htm
 
-	if f.cached.isPostScript {
+	if isPostScript {
 		if f.maxp.length != 6 {
-			return nil, errInvalidMaxpTable
+			return nil, 0, nil, errInvalidMaxpTable
 		}
 	} else {
 		if f.maxp.length != 32 {
-			return nil, errInvalidMaxpTable
+			return nil, 0, nil, errInvalidMaxpTable
 		}
 	}
 	u, err := f.src.u16(buf, f.maxp, 4)
 	if err != nil {
-		return nil, err
+		return nil, 0, nil, err
 	}
-	numGlyphs := int(u)
+	numGlyphs = int(u)
 
-	if f.cached.isPostScript {
+	if isPostScript {
 		p := cffParser{
 			src:    &f.src,
 			base:   int(f.cff.offset),
 			offset: int(f.cff.offset),
 			end:    int(f.cff.offset + f.cff.length),
 		}
-		f.cached.locations, err = p.parse()
+		locations, err = p.parse()
 		if err != nil {
-			return nil, err
+			return nil, 0, nil, err
 		}
 	} else {
-		f.cached.locations, err = parseLoca(
-			&f.src, f.loca, f.glyf.offset, f.cached.indexToLocFormat, numGlyphs)
+		locations, err = parseLoca(&f.src, f.loca, f.glyf.offset, indexToLocFormat, numGlyphs)
 		if err != nil {
-			return nil, err
+			return nil, 0, nil, err
 		}
 	}
-	if len(f.cached.locations) != numGlyphs+1 {
-		return nil, errInvalidLocationData
+	if len(locations) != numGlyphs+1 {
+		return nil, 0, nil, errInvalidLocationData
 	}
 
-	return buf, nil
+	return buf, numGlyphs, locations, nil
 }
 
-func (f *Font) parsePost(buf []byte) ([]byte, error) {
+func (f *Font) parsePost(buf []byte, numGlyphs int) (buf1 []byte, postTableVersion uint32, err error) {
 	// https://www.microsoft.com/typography/otspec/post.htm
 
 	const headerSize = 32
 	if f.post.length < headerSize {
-		return nil, errInvalidPostTable
+		return nil, 0, errInvalidPostTable
 	}
 	u, err := f.src.u32(buf, f.post, 0)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	switch u {
 	case 0x20000:
-		if f.post.length < headerSize+2+2*uint32(f.NumGlyphs()) {
-			return nil, errInvalidPostTable
+		if f.post.length < headerSize+2+2*uint32(numGlyphs) {
+			return nil, 0, errInvalidPostTable
 		}
 	case 0x30000:
 		// No-op.
 	default:
-		return nil, errUnsupportedPostTable
+		return nil, 0, errUnsupportedPostTable
 	}
-	f.cached.postTableVersion = u
-	return buf, nil
+	return buf, u, nil
 }
 
 // TODO: API for looking up glyph variants?? For example, some fonts may
 // provide both slashed and dotted zero glyphs ('0'), or regular and 'old
 // style' numerals, and users can direct software to choose a variant.
+
+type glyphIndexFunc func(f *Font, b *Buffer, r rune) (GlyphIndex, error)
 
 // GlyphIndex returns the glyph index for the given rune.
 //
