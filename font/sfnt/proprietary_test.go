@@ -186,6 +186,23 @@ func testProprietary(t *testing.T, proprietor, filename string, minNumGlyphs, fi
 		}
 	}
 
+	for r, want := range proprietaryGlyphTestCases[qualifiedFilename] {
+		x, err := f.GlyphIndex(&buf, r)
+		if err != nil {
+			t.Errorf("GlyphIndex(%q): %v", r, err)
+			continue
+		}
+		got, err := f.LoadGlyph(&buf, x, ppem, nil)
+		if err != nil {
+			t.Errorf("LoadGlyph(%q): %v", r, err)
+			continue
+		}
+		if err := checkSegmentsEqual(got, want); err != nil {
+			t.Errorf("LoadGlyph(%q): %v", r, err)
+			continue
+		}
+	}
+
 kernLoop:
 	for _, tc := range proprietaryKernTestCases[qualifiedFilename] {
 		var indexes [2]GlyphIndex
@@ -309,6 +326,113 @@ var proprietaryGlyphIndexTestCases = map[string]map[rune]GlyphIndex{
 		'\u266a': 0,  // U+266A EIGHTH NOTE
 		'\uf041': 36, // PRIVATE USE AREA
 		'\uf042': 37, // PRIVATE USE AREA
+	},
+}
+
+// proprietaryGlyphTestCases hold a sample of each font's glyph vectors. The
+// numerical values can be verified by running the ttx tool, remembering that:
+//	- for PostScript glyphs, ttx coordinates are relative, and hstem / vstem
+//	  operators are hinting-related and can be ignored.
+//	- for TrueType glyphs, ttx coordinates are absolute, and consecutive
+//	  off-curve points implies an on-curve point at the midpoint.
+var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
+	"adobe/SourceSansPro-Regular.otf": {
+		',': {
+			// - contour #0
+			// 67 -170 rmoveto
+			moveTo(67, -170),
+			// 81 34 50 67 86 vvcurveto
+			cubeTo(148, -136, 198, -69, 198, 17),
+			// 60 -26 37 -43 -33 -28 -22 -36 -37 27 -20 32 3 4 0 1 3 vhcurveto
+			cubeTo(198, 77, 172, 114, 129, 114),
+			cubeTo(96, 114, 68, 92, 68, 56),
+			cubeTo(68, 19, 95, -1, 127, -1),
+			cubeTo(130, -1, 134, -1, 137, 0),
+			// 1 -53 -34 -44 -57 -25 rrcurveto
+			cubeTo(138, -53, 104, -97, 47, -122),
+		},
+		'Q': {
+			// - contour #0
+			// 332 57 rmoveto
+			moveTo(332, 57),
+			// -117 -77 106 168 163 77 101 117 117 77 -101 -163 -168 -77 -106 -117 hvcurveto
+			cubeTo(215, 57, 138, 163, 138, 331),
+			cubeTo(138, 494, 215, 595, 332, 595),
+			cubeTo(449, 595, 526, 494, 526, 331),
+			cubeTo(526, 163, 449, 57, 332, 57),
+			// - contour #1
+			// 201 -222 rmoveto
+			moveTo(533, -165),
+			// 39 35 7 8 20 hvcurveto
+			cubeTo(572, -165, 607, -158, 627, -150),
+			// -16 64 rlineto
+			lineTo(611, -86),
+			// -5 -18 -22 -4 -29 hhcurveto
+			cubeTo(593, -91, 571, -95, 542, -95),
+			// -71 -60 29 58 -30 hvcurveto
+			cubeTo(471, -95, 411, -66, 381, -8),
+			// 139 24 93 126 189 vvcurveto
+			cubeTo(520, 16, 613, 142, 613, 331),
+			// 209 -116 128 -165 -165 -115 -127 -210 -193 96 -127 143 -20 vhcurveto
+			cubeTo(613, 540, 497, 668, 332, 668),
+			cubeTo(167, 668, 52, 541, 52, 331),
+			cubeTo(52, 138, 148, 11, 291, -9),
+			// -90 38 83 -66 121 hhcurveto
+			cubeTo(329, -99, 412, -165, 533, -165),
+		},
+	},
+
+	"microsoft/Arial.ttf": {
+		',': {
+			// - contour #0
+			moveTo(182, 0),
+			lineTo(182, 205),
+			lineTo(387, 205),
+			lineTo(387, 0),
+			quadTo(387, -113, 347, -182),
+			quadTo(307, -252, 220, -290),
+			lineTo(170, -213),
+			quadTo(227, -188, 254, -139),
+			quadTo(281, -91, 284, 0),
+			lineTo(182, 0),
+		},
+		'i': {
+			// - contour #0
+			moveTo(136, 1259),
+			lineTo(136, 1466),
+			lineTo(316, 1466),
+			lineTo(316, 1259),
+			lineTo(136, 1259),
+			// - contour #1
+			moveTo(136, 0),
+			lineTo(136, 1062),
+			lineTo(316, 1062),
+			lineTo(316, 0),
+			lineTo(136, 0),
+		},
+		'o': {
+			// - contour #0
+			moveTo(68, 531),
+			quadTo(68, 826, 232, 968),
+			quadTo(369, 1086, 566, 1086),
+			quadTo(785, 1086, 924, 942),
+			quadTo(1063, 799, 1063, 546),
+			quadTo(1063, 341, 1001, 223),
+			quadTo(940, 106, 822, 41),
+			quadTo(705, -24, 566, -24),
+			quadTo(343, -24, 205, 119),
+			quadTo(68, 262, 68, 531),
+			// - contour #1
+			moveTo(253, 531),
+			quadTo(253, 327, 342, 225),
+			quadTo(431, 124, 566, 124),
+			quadTo(700, 124, 789, 226),
+			quadTo(878, 328, 878, 537),
+			quadTo(878, 734, 788, 835),
+			quadTo(699, 937, 566, 937),
+			quadTo(431, 937, 342, 836),
+			quadTo(253, 735, 253, 531),
+		},
 	},
 }
 
