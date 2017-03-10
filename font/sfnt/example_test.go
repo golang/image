@@ -38,6 +38,9 @@ func ExampleRasterizeGlyph() {
 		log.Fatalf("GlyphIndex: no glyph index found for the rune 'G'")
 	}
 	segments, err := f.LoadGlyph(&b, x, fixed.I(ppem), nil)
+	if err != nil {
+		log.Fatalf("LoadGlyph: %v", err)
+	}
 
 	r := vector.NewRasterizer(width, height)
 	r.DrawOp = draw.Src
