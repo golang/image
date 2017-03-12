@@ -380,6 +380,26 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			// -90 38 83 -66 121 hhcurveto
 			cubeTo(329, -99, 412, -165, 533, -165),
 		},
+		'Λ': { // U+039B GREEK CAPITAL LETTER LAMDA
+			// 0 vmoveto
+			moveTo(0, 0),
+			// 85 hlineto
+			lineTo(85, 0),
+			// 105 355 23 77 16 63 24 77 rlinecurve
+			lineTo(190, 355),
+			cubeTo(213, 432, 229, 495, 253, 572),
+			// 4 hlineto
+			lineTo(257, 572),
+			// 25 -77 16 -63 23 -77 106 -355 rcurveline
+			cubeTo(282, 495, 298, 432, 321, 355),
+			lineTo(427, 0),
+			// 88 hlineto
+			lineTo(515, 0),
+			// -210 656 rlineto
+			lineTo(305, 656),
+			// -96 hlineto
+			lineTo(209, 656),
+		},
 	},
 
 	"microsoft/Arial.ttf": {

@@ -564,8 +564,8 @@ var psOperators = [...][2][]psOperator{
 		21: {-1, "rmoveto", t2CRmoveto},
 		22: {-1, "hmoveto", t2CHmoveto},
 		23: {-1, "vstemhm", t2CStem},
-		24: {}, // rcurveline.
-		25: {}, // rlinecurve.
+		24: {-1, "rcurveline", t2CRcurveline},
+		25: {-1, "rlinecurve", t2CRlinecurve},
 		26: {-1, "vvcurveto", t2CVvcurveto},
 		27: {-1, "hhcurveto", t2CHhcurveto},
 		28: {}, // shortint.
@@ -736,10 +736,7 @@ func t2CHlineto(p *psInterpreter) error { return t2CLineto(p, false) }
 func t2CVlineto(p *psInterpreter) error { return t2CLineto(p, true) }
 
 func t2CLineto(p *psInterpreter, vertical bool) error {
-	if !p.type2Charstrings.seenWidth {
-		return errInvalidCFFTable
-	}
-	if p.stack.top < 1 {
+	if !p.type2Charstrings.seenWidth || p.stack.top < 1 {
 		return errInvalidCFFTable
 	}
 	for i := int32(0); i < p.stack.top; i, vertical = i+1, !vertical {
@@ -754,10 +751,7 @@ func t2CLineto(p *psInterpreter, vertical bool) error {
 }
 
 func t2CRlineto(p *psInterpreter) error {
-	if !p.type2Charstrings.seenWidth {
-		return errInvalidCFFTable
-	}
-	if p.stack.top < 2 || p.stack.top%2 != 0 {
+	if !p.type2Charstrings.seenWidth || p.stack.top < 2 || p.stack.top%2 != 0 {
 		return errInvalidCFFTable
 	}
 	for i := int32(0); i < p.stack.top; i += 2 {
@@ -765,6 +759,56 @@ func t2CRlineto(p *psInterpreter) error {
 		p.type2Charstrings.y += p.stack.a[i+1]
 		t2CAppendLineto(p)
 	}
+	return nil
+}
+
+// As per 5177.Type2.pdf section 4.1 "Path Construction Operators",
+//
+// rcurveline is:
+//	- {dxa dya dxb dyb dxc dyc}+ dxd dyd
+//
+// rlinecurve is:
+//	- {dxa dya}+ dxb dyb dxc dyc dxd dyd
+
+func t2CRcurveline(p *psInterpreter) error {
+	if !p.type2Charstrings.seenWidth || p.stack.top < 8 || p.stack.top%6 != 2 {
+		return errInvalidCFFTable
+	}
+	i := int32(0)
+	for iMax := p.stack.top - 2; i < iMax; i += 6 {
+		t2CAppendCubeto(p,
+			p.stack.a[i+0],
+			p.stack.a[i+1],
+			p.stack.a[i+2],
+			p.stack.a[i+3],
+			p.stack.a[i+4],
+			p.stack.a[i+5],
+		)
+	}
+	p.type2Charstrings.x += p.stack.a[i+0]
+	p.type2Charstrings.y += p.stack.a[i+1]
+	t2CAppendLineto(p)
+	return nil
+}
+
+func t2CRlinecurve(p *psInterpreter) error {
+	if !p.type2Charstrings.seenWidth || p.stack.top < 8 || p.stack.top%2 != 0 {
+		return errInvalidCFFTable
+	}
+	i := int32(0)
+	for iMax := p.stack.top - 6; i < iMax; i += 2 {
+		p.type2Charstrings.x += p.stack.a[i+0]
+		p.type2Charstrings.y += p.stack.a[i+1]
+		t2CAppendLineto(p)
+	}
+	t2CAppendCubeto(p,
+		p.stack.a[i+0],
+		p.stack.a[i+1],
+		p.stack.a[i+2],
+		p.stack.a[i+3],
+		p.stack.a[i+4],
+		p.stack.a[i+5],
+	)
 	return nil
 }
 
