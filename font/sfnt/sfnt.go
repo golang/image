@@ -45,10 +45,12 @@ const (
 	// safe to call concurrently, as long as each call has a different *Buffer.
 	maxCmapSegments = 20000
 
-	maxGlyphDataLength  = 64 * 1024
-	maxHintBits         = 256
-	maxNumTables        = 256
-	maxRealNumberStrLen = 64 // Maximum length in bytes of the "-123.456E-7" representation.
+	maxCompoundRecursionDepth = 8
+	maxCompoundStackSize      = 64
+	maxGlyphDataLength        = 64 * 1024
+	maxHintBits               = 256
+	maxNumTables              = 256
+	maxRealNumberStrLen       = 64 // Maximum length in bytes of the "-123.456E-7" representation.
 
 	// (maxTableOffset + maxTableLength) will not overflow an int32.
 	maxTableLength = 1 << 29
@@ -766,24 +768,21 @@ func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, opts *Load
 		b = &Buffer{}
 	}
 
-	buf, err := f.viewGlyphData(b, x)
-	if err != nil {
-		return nil, err
-	}
-
 	b.segments = b.segments[:0]
 	if f.cached.isPostScript {
+		buf, err := f.viewGlyphData(b, x)
+		if err != nil {
+			return nil, err
+		}
 		b.psi.type2Charstrings.initialize(b.segments)
 		if err := b.psi.run(psContextType2Charstring, buf); err != nil {
 			return nil, err
 		}
 		b.segments = b.psi.type2Charstrings.segments
 	} else {
-		segments, err := appendGlyfSegments(b.segments, buf)
-		if err != nil {
+		if err := loadGlyf(f, b, x, 0, 0); err != nil {
 			return nil, err
 		}
-		b.segments = segments
 	}
 
 	// Scale the segments. If we want to support hinting, we'll have to push
@@ -1024,6 +1023,11 @@ type Buffer struct {
 	buf []byte
 	// segments holds glyph vector path segments.
 	segments []Segment
+	// compoundStack holds the components of a TrueType compound glyph.
+	compoundStack [maxCompoundStackSize]struct {
+		glyphIndex GlyphIndex
+		dx, dy     int16
+	}
 	// psi is a PostScript interpreter for when the Font is an OpenType/CFF
 	// font.
 	psi psInterpreter
@@ -1056,3 +1060,13 @@ const (
 	SegmentOpQuadTo
 	SegmentOpCubeTo
 )
+
+func translate(dx, dy fixed.Int26_6, s Segment) Segment {
+	s.Args[0] += dx
+	s.Args[1] += dy
+	s.Args[2] += dx
+	s.Args[3] += dy
+	s.Args[4] += dx
+	s.Args[5] += dy
+	return s
+}

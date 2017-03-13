@@ -88,15 +88,15 @@ func TestProprietaryAdobeSourceSansProTTF(t *testing.T) {
 }
 
 func TestProprietaryMicrosoftArial(t *testing.T) {
-	testProprietary(t, "microsoft", "Arial.ttf", 1200, 98)
+	testProprietary(t, "microsoft", "Arial.ttf", 1200, 599)
 }
 
 func TestProprietaryMicrosoftComicSansMS(t *testing.T) {
-	testProprietary(t, "microsoft", "Comic_Sans_MS.ttf", 550, 98)
+	testProprietary(t, "microsoft", "Comic_Sans_MS.ttf", 550, -1)
 }
 
 func TestProprietaryMicrosoftTimesNewRoman(t *testing.T) {
-	testProprietary(t, "microsoft", "Times_New_Roman.ttf", 1200, 98)
+	testProprietary(t, "microsoft", "Times_New_Roman.ttf", 1200, 423)
 }
 
 func TestProprietaryMicrosoftWebdings(t *testing.T) {
@@ -351,6 +351,7 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			// 1 -53 -34 -44 -57 -25 rrcurveto
 			cubeTo(138, -53, 104, -97, 47, -122),
 		},
+
 		'Q': {
 			// - contour #0
 			// 332 57 rmoveto
@@ -380,6 +381,7 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			// -90 38 83 -66 121 hhcurveto
 			cubeTo(329, -99, 412, -165, 533, -165),
 		},
+
 		'Λ': { // U+039B GREEK CAPITAL LETTER LAMDA
 			// 0 vmoveto
 			moveTo(0, 0),
@@ -416,6 +418,7 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			quadTo(281, -91, 284, 0),
 			lineTo(182, 0),
 		},
+
 		'i': {
 			// - contour #0
 			moveTo(136, 1259),
@@ -430,6 +433,7 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			lineTo(316, 0),
 			lineTo(136, 0),
 		},
+
 		'o': {
 			// - contour #0
 			moveTo(68, 531),
@@ -452,6 +456,83 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			quadTo(699, 937, 566, 937),
 			quadTo(431, 937, 342, 836),
 			quadTo(253, 735, 253, 531),
+		},
+
+		'í': { // U+00ED LATIN SMALL LETTER I WITH ACUTE
+			// - contour #0
+			translate(0, 0, moveTo(198, 0)),
+			translate(0, 0, lineTo(198, 1062)),
+			translate(0, 0, lineTo(378, 1062)),
+			translate(0, 0, lineTo(378, 0)),
+			translate(0, 0, lineTo(198, 0)),
+			// - contour #1
+			translate(-33, 0, moveTo(222, 1194)),
+			translate(-33, 0, lineTo(355, 1474)),
+			translate(-33, 0, lineTo(591, 1474)),
+			translate(-33, 0, lineTo(371, 1194)),
+			translate(-33, 0, lineTo(222, 1194)),
+		},
+
+		'Ī': { // U+012A LATIN CAPITAL LETTER I WITH MACRON
+			// - contour #0
+			translate(0, 0, moveTo(191, 0)),
+			translate(0, 0, lineTo(191, 1466)),
+			translate(0, 0, lineTo(385, 1466)),
+			translate(0, 0, lineTo(385, 0)),
+			translate(0, 0, lineTo(191, 0)),
+			// - contour #1
+			translate(-57, 336, moveTo(29, 1227)),
+			translate(-57, 336, lineTo(29, 1375)),
+			translate(-57, 336, lineTo(653, 1375)),
+			translate(-57, 336, lineTo(653, 1227)),
+			translate(-57, 336, lineTo(29, 1227)),
+		},
+
+		// Ǻ is a compound glyph whose elements are also compound glyphs.
+		'Ǻ': { // U+01FA LATIN CAPITAL LETTER A WITH RING ABOVE AND ACUTE
+			// - contour #0
+			translate(0, 0, moveTo(-3, 0)),
+			translate(0, 0, lineTo(560, 1466)),
+			translate(0, 0, lineTo(769, 1466)),
+			translate(0, 0, lineTo(1369, 0)),
+			translate(0, 0, lineTo(1148, 0)),
+			translate(0, 0, lineTo(977, 444)),
+			translate(0, 0, lineTo(364, 444)),
+			translate(0, 0, lineTo(203, 0)),
+			translate(0, 0, lineTo(-3, 0)),
+			// - contour #1
+			translate(0, 0, moveTo(420, 602)),
+			translate(0, 0, lineTo(917, 602)),
+			translate(0, 0, lineTo(764, 1008)),
+			translate(0, 0, quadTo(694, 1193, 660, 1312)),
+			translate(0, 0, quadTo(632, 1171, 581, 1032)),
+			translate(0, 0, lineTo(420, 602)),
+			// - contour #2
+			translate(319, 263, moveTo(162, 1338)),
+			translate(319, 263, quadTo(162, 1411, 215, 1464)),
+			translate(319, 263, quadTo(269, 1517, 342, 1517)),
+			translate(319, 263, quadTo(416, 1517, 469, 1463)),
+			translate(319, 263, quadTo(522, 1410, 522, 1334)),
+			translate(319, 263, quadTo(522, 1257, 469, 1204)),
+			translate(319, 263, quadTo(416, 1151, 343, 1151)),
+			translate(319, 263, quadTo(268, 1151, 215, 1204)),
+			translate(319, 263, quadTo(162, 1258, 162, 1338)),
+			// - contour #3
+			translate(319, 263, moveTo(238, 1337)),
+			translate(319, 263, quadTo(238, 1290, 269, 1258)),
+			translate(319, 263, quadTo(301, 1226, 344, 1226)),
+			translate(319, 263, quadTo(387, 1226, 418, 1258)),
+			translate(319, 263, quadTo(450, 1290, 450, 1335)),
+			translate(319, 263, quadTo(450, 1380, 419, 1412)),
+			translate(319, 263, quadTo(388, 1444, 344, 1444)),
+			translate(319, 263, quadTo(301, 1444, 269, 1412)),
+			translate(319, 263, quadTo(238, 1381, 238, 1337)),
+			// - contour #4
+			translate(339, 650, moveTo(222, 1194)),
+			translate(339, 650, lineTo(355, 1474)),
+			translate(339, 650, lineTo(591, 1474)),
+			translate(339, 650, lineTo(371, 1194)),
+			translate(339, 650, lineTo(222, 1194)),
 		},
 	},
 }
