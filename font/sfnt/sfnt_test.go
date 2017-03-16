@@ -43,6 +43,16 @@ func cubeTo(xa, ya, xb, yb, xc, yc fixed.Int26_6) Segment {
 	}
 }
 
+func translate(dx, dy fixed.Int26_6, s Segment) Segment {
+	translateArgs(&s.Args, dx, dy)
+	return s
+}
+
+func transform(txx, txy, tyx, tyy int16, dx, dy fixed.Int26_6, s Segment) Segment {
+	transformArgs(&s.Args, txx, txy, tyx, tyy, dx, dy)
+	return s
+}
+
 func checkSegmentsEqual(got, want []Segment) error {
 	if len(got) != len(want) {
 		return fmt.Errorf("got %d elements, want %d\noverall:\ngot  %v\nwant %v",
