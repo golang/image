@@ -1025,8 +1025,13 @@ type Buffer struct {
 	segments []Segment
 	// compoundStack holds the components of a TrueType compound glyph.
 	compoundStack [maxCompoundStackSize]struct {
-		glyphIndex GlyphIndex
-		dx, dy     int16
+		glyphIndex   GlyphIndex
+		dx, dy       int16
+		hasTransform bool
+		transformXX  int16
+		transformXY  int16
+		transformYX  int16
+		transformYY  int16
 	}
 	// psi is a PostScript interpreter for when the Font is an OpenType/CFF
 	// font.
@@ -1061,12 +1066,31 @@ const (
 	SegmentOpCubeTo
 )
 
-func translate(dx, dy fixed.Int26_6, s Segment) Segment {
-	s.Args[0] += dx
-	s.Args[1] += dy
-	s.Args[2] += dx
-	s.Args[3] += dy
-	s.Args[4] += dx
-	s.Args[5] += dy
-	return s
+// translateArgs applies a translation to args.
+func translateArgs(args *[6]fixed.Int26_6, dx, dy fixed.Int26_6) {
+	args[0] += dx
+	args[1] += dy
+	args[2] += dx
+	args[3] += dy
+	args[4] += dx
+	args[5] += dy
+}
+
+// transformArgs applies an affine transformation to args. The t?? arguments
+// are 2.14 fixed point values.
+func transformArgs(args *[6]fixed.Int26_6, txx, txy, tyx, tyy int16, dx, dy fixed.Int26_6) {
+	args[0], args[1] = tform(txx, txy, tyx, tyy, dx, dy, args[0], args[1])
+	args[2], args[3] = tform(txx, txy, tyx, tyy, dx, dy, args[2], args[3])
+	args[4], args[5] = tform(txx, txy, tyx, tyy, dx, dy, args[4], args[5])
+}
+
+func tform(txx, txy, tyx, tyy int16, dx, dy, x, y fixed.Int26_6) (newX, newY fixed.Int26_6) {
+	const half = 1 << 13
+	newX = dx +
+		fixed.Int26_6((int64(x)*int64(txx)+half)>>14) +
+		fixed.Int26_6((int64(y)*int64(txy)+half)>>14)
+	newY = dy +
+		fixed.Int26_6((int64(x)*int64(tyx)+half)>>14) +
+		fixed.Int26_6((int64(y)*int64(tyy)+half)>>14)
+	return newX, newY
 }

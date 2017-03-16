@@ -88,7 +88,7 @@ func TestProprietaryAdobeSourceSansProTTF(t *testing.T) {
 }
 
 func TestProprietaryMicrosoftArial(t *testing.T) {
-	testProprietary(t, "microsoft", "Arial.ttf", 1200, 599)
+	testProprietary(t, "microsoft", "Arial.ttf", 1200, -1)
 }
 
 func TestProprietaryMicrosoftComicSansMS(t *testing.T) {
@@ -96,7 +96,7 @@ func TestProprietaryMicrosoftComicSansMS(t *testing.T) {
 }
 
 func TestProprietaryMicrosoftTimesNewRoman(t *testing.T) {
-	testProprietary(t, "microsoft", "Times_New_Roman.ttf", 1200, 423)
+	testProprietary(t, "microsoft", "Times_New_Roman.ttf", 1200, -1)
 }
 
 func TestProprietaryMicrosoftWebdings(t *testing.T) {
@@ -533,6 +533,42 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			translate(339, 650, lineTo(591, 1474)),
 			translate(339, 650, lineTo(371, 1194)),
 			translate(339, 650, lineTo(222, 1194)),
+		},
+
+		'﴾': { // U+FD3E ORNATE LEFT PARENTHESIS.
+			// - contour #0
+			moveTo(560, -384),
+			lineTo(516, -429),
+			quadTo(412, -304, 361, -226),
+			quadTo(258, -68, 201, 106),
+			quadTo(127, 334, 127, 595),
+			quadTo(127, 845, 201, 1069),
+			quadTo(259, 1246, 361, 1404),
+			quadTo(414, 1487, 514, 1608),
+			lineTo(560, 1566),
+			quadTo(452, 1328, 396, 1094),
+			quadTo(336, 845, 336, 603),
+			quadTo(336, 359, 370, 165),
+			quadTo(398, 8, 454, -142),
+			quadTo(482, -217, 560, -384),
+		},
+
+		'﴿': { // U+FD3F ORNATE RIGHT PARENTHESIS
+			// - contour #0
+			transform(-1<<14, 0, 0, +1<<14, 653, 0, moveTo(560, -384)),
+			transform(-1<<14, 0, 0, +1<<14, 653, 0, lineTo(516, -429)),
+			transform(-1<<14, 0, 0, +1<<14, 653, 0, quadTo(412, -304, 361, -226)),
+			transform(-1<<14, 0, 0, +1<<14, 653, 0, quadTo(258, -68, 201, 106)),
+			transform(-1<<14, 0, 0, +1<<14, 653, 0, quadTo(127, 334, 127, 595)),
+			transform(-1<<14, 0, 0, +1<<14, 653, 0, quadTo(127, 845, 201, 1069)),
+			transform(-1<<14, 0, 0, +1<<14, 653, 0, quadTo(259, 1246, 361, 1404)),
+			transform(-1<<14, 0, 0, +1<<14, 653, 0, quadTo(414, 1487, 514, 1608)),
+			transform(-1<<14, 0, 0, +1<<14, 653, 0, lineTo(560, 1566)),
+			transform(-1<<14, 0, 0, +1<<14, 653, 0, quadTo(452, 1328, 396, 1094)),
+			transform(-1<<14, 0, 0, +1<<14, 653, 0, quadTo(336, 845, 336, 603)),
+			transform(-1<<14, 0, 0, +1<<14, 653, 0, quadTo(336, 359, 370, 165)),
+			transform(-1<<14, 0, 0, +1<<14, 653, 0, quadTo(398, 8, 454, -142)),
+			transform(-1<<14, 0, 0, +1<<14, 653, 0, quadTo(482, -217, 560, -384)),
 		},
 	},
 }
