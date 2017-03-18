@@ -49,6 +49,7 @@ const (
 	maxCompoundStackSize      = 64
 	maxGlyphDataLength        = 64 * 1024
 	maxHintBits               = 256
+	maxNumFonts               = 256
 	maxNumTables              = 256
 	maxRealNumberStrLen       = 64 // Maximum length in bytes of the "-123.456E-7" representation.
 
@@ -61,22 +62,24 @@ var (
 	// ErrNotFound indicates that the requested value was not found.
 	ErrNotFound = errors.New("sfnt: not found")
 
-	errInvalidBounds        = errors.New("sfnt: invalid bounds")
-	errInvalidCFFTable      = errors.New("sfnt: invalid CFF table")
-	errInvalidCmapTable     = errors.New("sfnt: invalid cmap table")
-	errInvalidGlyphData     = errors.New("sfnt: invalid glyph data")
-	errInvalidHeadTable     = errors.New("sfnt: invalid head table")
-	errInvalidKernTable     = errors.New("sfnt: invalid kern table")
-	errInvalidLocaTable     = errors.New("sfnt: invalid loca table")
-	errInvalidLocationData  = errors.New("sfnt: invalid location data")
-	errInvalidMaxpTable     = errors.New("sfnt: invalid maxp table")
-	errInvalidNameTable     = errors.New("sfnt: invalid name table")
-	errInvalidPostTable     = errors.New("sfnt: invalid post table")
-	errInvalidSourceData    = errors.New("sfnt: invalid source data")
-	errInvalidTableOffset   = errors.New("sfnt: invalid table offset")
-	errInvalidTableTagOrder = errors.New("sfnt: invalid table tag order")
-	errInvalidUCS2String    = errors.New("sfnt: invalid UCS-2 string")
-	errInvalidVersion       = errors.New("sfnt: invalid version")
+	errInvalidBounds         = errors.New("sfnt: invalid bounds")
+	errInvalidCFFTable       = errors.New("sfnt: invalid CFF table")
+	errInvalidCmapTable      = errors.New("sfnt: invalid cmap table")
+	errInvalidFont           = errors.New("sfnt: invalid font")
+	errInvalidFontCollection = errors.New("sfnt: invalid font collection")
+	errInvalidGlyphData      = errors.New("sfnt: invalid glyph data")
+	errInvalidHeadTable      = errors.New("sfnt: invalid head table")
+	errInvalidKernTable      = errors.New("sfnt: invalid kern table")
+	errInvalidLocaTable      = errors.New("sfnt: invalid loca table")
+	errInvalidLocationData   = errors.New("sfnt: invalid location data")
+	errInvalidMaxpTable      = errors.New("sfnt: invalid maxp table")
+	errInvalidNameTable      = errors.New("sfnt: invalid name table")
+	errInvalidPostTable      = errors.New("sfnt: invalid post table")
+	errInvalidSingleFont     = errors.New("sfnt: invalid single font (data is a font collection)")
+	errInvalidSourceData     = errors.New("sfnt: invalid source data")
+	errInvalidTableOffset    = errors.New("sfnt: invalid table offset")
+	errInvalidTableTagOrder  = errors.New("sfnt: invalid table tag order")
+	errInvalidUCS2String     = errors.New("sfnt: invalid UCS-2 string")
 
 	errUnsupportedCFFVersion           = errors.New("sfnt: unsupported CFF version")
 	errUnsupportedCmapEncodings        = errors.New("sfnt: unsupported cmap encodings")
@@ -85,6 +88,7 @@ var (
 	errUnsupportedKernTable            = errors.New("sfnt: unsupported kern table")
 	errUnsupportedRealNumberEncoding   = errors.New("sfnt: unsupported real number encoding")
 	errUnsupportedNumberOfCmapSegments = errors.New("sfnt: unsupported number of cmap segments")
+	errUnsupportedNumberOfFonts        = errors.New("sfnt: unsupported number of fonts")
 	errUnsupportedNumberOfHints        = errors.New("sfnt: unsupported number of hints")
 	errUnsupportedNumberOfTables       = errors.New("sfnt: unsupported number of tables")
 	errUnsupportedPlatformEncoding     = errors.New("sfnt: unsupported platform encoding")
@@ -256,19 +260,105 @@ type table struct {
 	offset, length uint32
 }
 
-// Parse parses an SFNT font from a []byte data source.
-func Parse(src []byte) (*Font, error) {
-	f := &Font{src: source{b: src}}
-	if err := f.initialize(); err != nil {
+// ParseCollection parses an SFNT font collection, such as TTC or OTC data,
+// from a []byte data source.
+//
+// If passed data for a single font, a TTF or OTF instead of a TTC or OTC, it
+// will return a collection containing 1 font.
+func ParseCollection(src []byte) (*Collection, error) {
+	c := &Collection{src: source{b: src}}
+	if err := c.initialize(); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// ParseCollectionReaderAt parses an SFNT collection, such as TTC or OTC data,
+// from an io.ReaderAt data source.
+//
+// If passed data for a single font, a TTF or OTF instead of a TTC or OTC, it
+// will return a collection containing 1 font.
+func ParseCollectionReaderAt(src io.ReaderAt) (*Collection, error) {
+	c := &Collection{src: source{r: src}}
+	if err := c.initialize(); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// Collection is a collection of one or more fonts.
+//
+// All of the Collection methods are safe to call concurrently.
+type Collection struct {
+	src     source
+	offsets []uint32
+}
+
+// NumFonts returns the number of fonts in the collection.
+func (c *Collection) NumFonts() int { return len(c.offsets) }
+
+func (c *Collection) initialize() error {
+	// The https://www.microsoft.com/typography/otspec/otff.htm "Font
+	// Collections" section describes the TTC Header.
+	buf, err := c.src.view(nil, 0, 12)
+	if err != nil {
+		return err
+	}
+	// These cases match the switch statement in Font.initializeTables.
+	switch u32(buf) {
+	default:
+		return errInvalidFontCollection
+	case 0x00010000, 0x4f54544f:
+		// Try parsing it as a single font instead of a collection.
+		c.offsets = []uint32{0}
+	case 0x74746366: // "ttcf".
+		numFonts := u32(buf[8:])
+		if numFonts == 0 || numFonts > maxNumFonts {
+			return errUnsupportedNumberOfFonts
+		}
+		buf, err = c.src.view(nil, 12, int(4*numFonts))
+		if err != nil {
+			return err
+		}
+		c.offsets = make([]uint32, numFonts)
+		for i := range c.offsets {
+			o := u32(buf[4*i:])
+			if o > maxTableOffset {
+				return errUnsupportedTableOffsetLength
+			}
+			c.offsets[i] = o
+		}
+	}
+	return nil
+}
+
+// Font returns the i'th font in the collection.
+func (c *Collection) Font(i int) (*Font, error) {
+	if i < 0 || len(c.offsets) <= i {
+		return nil, ErrNotFound
+	}
+	f := &Font{src: c.src}
+	if err := f.initialize(int(c.offsets[i])); err != nil {
 		return nil, err
 	}
 	return f, nil
 }
 
-// ParseReaderAt parses an SFNT font from an io.ReaderAt data source.
+// Parse parses an SFNT font, such as TTF or OTF data, from a []byte data
+// source.
+func Parse(src []byte) (*Font, error) {
+	f := &Font{src: source{b: src}}
+	if err := f.initialize(0); err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+// ParseReaderAt parses an SFNT font, such as TTF or OTF data, from an
+// io.ReaderAt data source.
 func ParseReaderAt(src io.ReaderAt) (*Font, error) {
 	f := &Font{src: source{r: src}}
-	if err := f.initialize(); err != nil {
+	if err := f.initialize(0); err != nil {
 		return nil, err
 	}
 	return f, nil
@@ -362,11 +452,11 @@ func (f *Font) NumGlyphs() int { return len(f.cached.locations) - 1 }
 // UnitsPerEm returns the number of units per em for f.
 func (f *Font) UnitsPerEm() Units { return f.cached.unitsPerEm }
 
-func (f *Font) initialize() error {
+func (f *Font) initialize(offset int) error {
 	if !f.src.valid() {
 		return errInvalidSourceData
 	}
-	buf, isPostScript, err := f.initializeTables(nil)
+	buf, isPostScript, err := f.initializeTables(offset)
 	if err != nil {
 		return err
 	}
@@ -412,21 +502,25 @@ func (f *Font) initialize() error {
 	return nil
 }
 
-func (f *Font) initializeTables(buf []byte) (buf1 []byte, isPostScript bool, err error) {
+func (f *Font) initializeTables(offset int) (buf1 []byte, isPostScript bool, err error) {
 	// https://www.microsoft.com/typography/otspec/otff.htm "Organization of an
 	// OpenType Font" says that "The OpenType font starts with the Offset
 	// Table", which is 12 bytes.
-	buf, err = f.src.view(buf, 0, 12)
+	buf, err := f.src.view(nil, offset, 12)
 	if err != nil {
 		return nil, false, err
 	}
+	// When updating the cases in this switch statement, also update the
+	// Collection.initialize method.
 	switch u32(buf) {
 	default:
-		return nil, false, errInvalidVersion
+		return nil, false, errInvalidFont
 	case 0x00010000:
 		// No-op.
 	case 0x4f54544f: // "OTTO".
 		isPostScript = true
+	case 0x74746366: // "ttcf".
+		return nil, false, errInvalidSingleFont
 	}
 	numTables := int(u16(buf[4:]))
 	if numTables > maxNumTables {
@@ -435,7 +529,7 @@ func (f *Font) initializeTables(buf []byte) (buf1 []byte, isPostScript bool, err
 
 	// "The Offset Table is followed immediately by the Table Record entries...
 	// sorted in ascending order by tag", 16 bytes each.
-	buf, err = f.src.view(buf, 12, 16*numTables)
+	buf, err = f.src.view(buf, offset+12, 16*numTables)
 	if err != nil {
 		return nil, false, err
 	}
