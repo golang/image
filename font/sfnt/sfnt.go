@@ -693,10 +693,20 @@ func (f *Font) parseKern(buf []byte) (buf1 []byte, kernNumPairs, kernOffset int3
 		}
 		return f.parseKernVersion0(buf, offset, length)
 	case 1:
-		// TODO: find such a (proprietary?) font, and support it. Both of
-		// https://www.microsoft.com/typography/otspec/kern.htm
+		if buf[2] != 0 || buf[3] != 0 {
+			return nil, 0, 0, errUnsupportedKernTable
+		}
+		// Microsoft's https://www.microsoft.com/typography/otspec/kern.htm
+		// says that "Apple has extended the definition of the 'kern' table to
+		// provide additional functionality. The Apple extensions are not
+		// supported on Windows."
+		//
+		// The format is relatively complicated, including encoding a state
+		// machine, but rarely seen. We follow Microsoft's and FreeType's
+		// behavior and simply ignore it. Theoretically, we could follow
 		// https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6kern.html
-		// say that such fonts work on Mac OS but not on Windows.
+		// but it doesn't seem worth the effort.
+		return buf, 0, 0, nil
 	}
 	return nil, 0, 0, errUnsupportedKernTable
 }
@@ -729,7 +739,9 @@ func (f *Font) parseKernVersion0(buf []byte, offset, length int) (buf1 []byte, k
 	case 0:
 		return f.parseKernFormat0(buf, offset, subtableLength)
 	case 2:
-		// TODO: find such a (proprietary?) font, and support it.
+		// If we could find such a font, we could write code to support it, but
+		// a comment in the equivalent FreeType code (sfnt/ttkern.c) says that
+		// they've never seen such a font.
 	}
 	return nil, 0, 0, errUnsupportedKernTable
 }
@@ -982,9 +994,9 @@ func (f *Font) Kern(b *Buffer, x0, x1 GlyphIndex, ppem fixed.Int26_6, h font.Hin
 	if n := f.NumGlyphs(); int(x0) >= n || int(x1) >= n {
 		return 0, ErrNotFound
 	}
-	// Not every font has a kern table. If it doesn't, there's no need to
-	// allocate a Buffer.
-	if f.kern.length == 0 {
+	// Not every font has a kern table. If it doesn't, or if that table is
+	// ignored, there's no need to allocate a Buffer.
+	if f.cached.kernNumPairs == 0 {
 		return 0, nil
 	}
 	if b == nil {

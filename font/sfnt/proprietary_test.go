@@ -103,6 +103,14 @@ func TestProprietaryAppleAppleSymbols(t *testing.T) {
 	testProprietary(t, "apple", "Apple Symbols.ttf", 4600, -1)
 }
 
+func TestProprietaryAppleGeezaPro0(t *testing.T) {
+	testProprietary(t, "apple", "GeezaPro.ttc?0", 1700, -1)
+}
+
+func TestProprietaryAppleGeezaPro1(t *testing.T) {
+	testProprietary(t, "apple", "GeezaPro.ttc?1", 1700, -1)
+}
+
 func TestProprietaryAppleHiragino0(t *testing.T) {
 	testProprietary(t, "apple", "ヒラギノ角ゴシック W0.ttc?0", 9000, 6)
 }
@@ -320,6 +328,8 @@ var proprietaryVersions = map[string]string{
 	"adobe/SourceSansPro-Regular.ttf":   "Version 2.020;PS 2.000;hotconv 1.0.86;makeotf.lib2.5.63406",
 
 	"apple/Apple Symbols.ttf":    "12.0d3e10",
+	"apple/GeezaPro.ttc?0":       "12.0d1e3",
+	"apple/GeezaPro.ttc?1":       "12.0d1e3",
 	"apple/ヒラギノ角ゴシック W0.ttc?0": "11.0d7e1",
 	"apple/ヒラギノ角ゴシック W0.ttc?1": "11.0d7e1",
 
@@ -340,6 +350,8 @@ var proprietaryFullNames = map[string]string{
 	"adobe/SourceSansPro-Regular.ttf":   "Source Sans Pro",
 
 	"apple/Apple Symbols.ttf":    "Apple Symbols",
+	"apple/GeezaPro.ttc?0":       "Geeza Pro Regular",
+	"apple/GeezaPro.ttc?1":       "Geeza Pro Bold",
 	"apple/ヒラギノ角ゴシック W0.ttc?0": "Hiragino Sans W0",
 	"apple/ヒラギノ角ゴシック W0.ttc?1": ".Hiragino Kaku Gothic Interface W0",
 
