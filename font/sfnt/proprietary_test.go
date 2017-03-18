@@ -80,7 +80,7 @@ var (
 )
 
 func TestProprietaryAdobeSourceCodeProOTF(t *testing.T) {
-	testProprietary(t, "adobe", "SourceCodePro-Regular.otf", 1500, 2)
+	testProprietary(t, "adobe", "SourceCodePro-Regular.otf", 1500, 34)
 }
 
 func TestProprietaryAdobeSourceCodeProTTF(t *testing.T) {
@@ -92,7 +92,7 @@ func TestProprietaryAdobeSourceHanSansSC(t *testing.T) {
 }
 
 func TestProprietaryAdobeSourceSansProOTF(t *testing.T) {
-	testProprietary(t, "adobe", "SourceSansPro-Regular.otf", 1800, 2)
+	testProprietary(t, "adobe", "SourceSansPro-Regular.otf", 1800, 34)
 }
 
 func TestProprietaryAdobeSourceSansProTTF(t *testing.T) {
@@ -449,7 +449,6 @@ var proprietaryGlyphIndexTestCases = map[string]map[rune]GlyphIndex{
 var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 	"adobe/SourceSansPro-Regular.otf": {
 		',': {
-			// - contour #0
 			// 67 -170 rmoveto
 			moveTo(67, -170),
 			// 81 34 50 67 86 vvcurveto
@@ -461,10 +460,10 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			cubeTo(130, -1, 134, -1, 137, 0),
 			// 1 -53 -34 -44 -57 -25 rrcurveto
 			cubeTo(138, -53, 104, -97, 47, -122),
+			// endchar
 		},
 
 		'Q': {
-			// - contour #0
 			// 332 57 rmoveto
 			moveTo(332, 57),
 			// -117 -77 106 168 163 77 101 117 117 77 -101 -163 -168 -77 -106 -117 hvcurveto
@@ -472,7 +471,6 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			cubeTo(138, 494, 215, 595, 332, 595),
 			cubeTo(449, 595, 526, 494, 526, 331),
 			cubeTo(526, 163, 449, 57, 332, 57),
-			// - contour #1
 			// 201 -222 rmoveto
 			moveTo(533, -165),
 			// 39 35 7 8 20 hvcurveto
@@ -491,6 +489,101 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			cubeTo(52, 138, 148, 11, 291, -9),
 			// -90 38 83 -66 121 hhcurveto
 			cubeTo(329, -99, 412, -165, 533, -165),
+			// endchar
+		},
+
+		'ī': { // U+012B LATIN SMALL LETTER I WITH MACRON
+			// 92 callgsubr # 92 + bias = 199.
+			// :	# Arg stack is [].
+			// :	-312 21 85 callgsubr # 85 + bias = 192.
+			// :	:	# Arg stack is [-312 21].
+			// :	:	-21 486 -20 return
+			// :	:	# Arg stack is [-312 21 -21 486 -20].
+			// :	return
+			// :	# Arg stack is [-312 21 -21 486 -20].
+			// 135 57 112 callgsubr # 112 + bias = 219
+			// :	# Arg stack is [-312 21 -21 486 -20 135 57].
+			// :	hstem
+			// :	82 82 vstem
+			// :	134 callsubr # 134 + bias = 241
+			// :	:	# Arg stack is [].
+			// :	:	82 hmoveto
+			moveTo(82, 0),
+			// :	:	82 127 callsubr # 127 + bias = 234
+			// :	:	:	# Arg stack is [82].
+			// :	:	:	486 -82 hlineto
+			lineTo(164, 0),
+			lineTo(164, 486),
+			lineTo(82, 486),
+			// :	:	:	return
+			// :	:	:	# Arg stack is [].
+			// :	:	return
+			// :	:	# Arg stack is [].
+			// :	return
+			// :	# Arg stack is [].
+			// -92 115 -60 callgsubr # -60 + bias = 47
+			// :	# Arg stack is [-92 115].
+			// :	rmoveto
+			moveTo(-10, 601),
+			// :	266 57 -266 hlineto
+			lineTo(256, 601),
+			lineTo(256, 658),
+			lineTo(-10, 658),
+			// :	endchar
+		},
+
+		'ĭ': { // U+012D LATIN SMALL LETTER I WITH BREVE
+			// 92 callgsubr # 92 + bias = 199.
+			// :	# Arg stack is [].
+			// :	-312 21 85 callgsubr # 85 + bias = 192.
+			// :	:	# Arg stack is [-312 21].
+			// :	:	-21 486 -20 return
+			// :	:	# Arg stack is [-312 21 -21 486 -20].
+			// :	return
+			// :	# Arg stack is [-312 21 -21 486 -20].
+			// 105 55 96 -20 hstem
+			// -32 51 63 82 65 51 vstem
+			// 134 callsubr # 134 + bias = 241
+			// :	# Arg stack is [].
+			// :	82 hmoveto
+			moveTo(82, 0),
+			// :	82 127 callsubr # 127 + bias = 234
+			// :	:	# Arg stack is [82].
+			// :	:	486 -82 hlineto
+			lineTo(164, 0),
+			lineTo(164, 486),
+			lineTo(82, 486),
+			// :	:	return
+			// :	:	# Arg stack is [].
+			// :	return
+			// :	# Arg stack is [].
+			// 42 85 143 callsubr # 143 + bias = 250
+			// :	# Arg stack is [42 85].
+			// :	rmoveto
+			moveTo(124, 571),
+			// :	-84 callsubr # -84 + bias = 23
+			// :	:	# Arg stack is [].
+			// :	:	107 44 77 74 5 hvcurveto
+			cubeTo(231, 571, 275, 648, 280, 722),
+			// :	:	-51 8 rlineto
+			lineTo(229, 730),
+			// :	:	-51 -8 -32 -53 -65 hhcurveto
+			cubeTo(221, 679, 189, 626, 124, 626),
+			// :	:	-65 -32 53 51 -8 hvcurveto
+			cubeTo(59, 626, 27, 679, 19, 730),
+			// :	:	-51 -22 callsubr # -22 + bias = 85
+			// :	:	:	# Arg stack is [-51].
+			// :	:	:	-8 rlineto
+			lineTo(-32, 722),
+			// :	:	:	-74 5 44 -77 107 hhcurveto
+			cubeTo(-27, 648, 17, 571, 124, 571),
+			// :	:	:	return
+			// :	:	:	# Arg stack is [].
+			// :	:	return
+			// :	:	# Arg stack is [].
+			// :	return
+			// :	# Arg stack is [].
+			// endchar
 		},
 
 		'Λ': { // U+039B GREEK CAPITAL LETTER LAMDA
@@ -512,6 +605,7 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			lineTo(305, 656),
 			// -96 hlineto
 			lineTo(209, 656),
+			// endchar
 		},
 	},
 
