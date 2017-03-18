@@ -388,6 +388,70 @@ func TestTrueTypeSegments(t *testing.T) {
 		lineTo(614, 1638),
 		lineTo(614, 0),
 		lineTo(205, 0),
+	}, {
+		// five
+		// - contour #0
+		moveTo(0, 0),
+		lineTo(0, 100),
+		lineTo(400, 100),
+		lineTo(400, 0),
+		lineTo(0, 0),
+	}, {
+		// six
+		// - contour #0
+		moveTo(0, 0),
+		lineTo(0, 100),
+		lineTo(400, 100),
+		lineTo(400, 0),
+		lineTo(0, 0),
+		// - contour #1
+		translate(111, 234, moveTo(205, 0)),
+		translate(111, 234, lineTo(205, 1638)),
+		translate(111, 234, lineTo(614, 1638)),
+		translate(111, 234, lineTo(614, 0)),
+		translate(111, 234, lineTo(205, 0)),
+	}, {
+		// seven
+		// - contour #0
+		moveTo(0, 0),
+		lineTo(0, 100),
+		lineTo(400, 100),
+		lineTo(400, 0),
+		lineTo(0, 0),
+		// - contour #1
+		transform(1<<13, 0, 0, 1<<13, 56, 117, moveTo(205, 0)),
+		transform(1<<13, 0, 0, 1<<13, 56, 117, lineTo(205, 1638)),
+		transform(1<<13, 0, 0, 1<<13, 56, 117, lineTo(614, 1638)),
+		transform(1<<13, 0, 0, 1<<13, 56, 117, lineTo(614, 0)),
+		transform(1<<13, 0, 0, 1<<13, 56, 117, lineTo(205, 0)),
+	}, {
+		// eight
+		// - contour #0
+		moveTo(0, 0),
+		lineTo(0, 100),
+		lineTo(400, 100),
+		lineTo(400, 0),
+		lineTo(0, 0),
+		// - contour #1
+		transform(3<<13, 0, 0, 1<<13, 56, 117, moveTo(205, 0)),
+		transform(3<<13, 0, 0, 1<<13, 56, 117, lineTo(205, 1638)),
+		transform(3<<13, 0, 0, 1<<13, 56, 117, lineTo(614, 1638)),
+		transform(3<<13, 0, 0, 1<<13, 56, 117, lineTo(614, 0)),
+		transform(3<<13, 0, 0, 1<<13, 56, 117, lineTo(205, 0)),
+	}, {
+		// nine
+		// - contour #0
+		moveTo(0, 0),
+		lineTo(0, 100),
+		lineTo(400, 100),
+		lineTo(400, 0),
+		lineTo(0, 0),
+		// - contour #1
+		transform(22381, 8192, 5996, 14188, 237, 258, moveTo(205, 0)),
+		transform(22381, 8192, 5996, 14188, 237, 258, lineTo(205, 1638)),
+		transform(22381, 8192, 5996, 14188, 237, 258, lineTo(614, 1638)),
+		transform(22381, 8192, 5996, 14188, 237, 258, lineTo(614, 0)),
+		transform(22381, 8192, 5996, 14188, 237, 258, lineTo(205, 0)),
 	}}
 
 	testSegments(t, "glyfTest.ttf", wants)
