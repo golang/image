@@ -285,9 +285,6 @@ func loadCompoundGlyf(f *Font, b *Buffer, data []byte, stackBottom, recursionDep
 				elem.transformYX = int16(u16(data[4:]))
 				elem.transformYY = int16(u16(data[6:]))
 				data = data[8:]
-				// TODO: find a font that does this, so we can verify that
-				// we've got the xy vs yx ordering right.
-				return errUnsupportedCompoundGlyph
 			}
 		}
 

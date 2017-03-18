@@ -1194,9 +1194,9 @@ func tform(txx, txy, tyx, tyy int16, dx, dy, x, y fixed.Int26_6) (newX, newY fix
 	const half = 1 << 13
 	newX = dx +
 		fixed.Int26_6((int64(x)*int64(txx)+half)>>14) +
-		fixed.Int26_6((int64(y)*int64(txy)+half)>>14)
+		fixed.Int26_6((int64(y)*int64(tyx)+half)>>14)
 	newY = dy +
-		fixed.Int26_6((int64(x)*int64(tyx)+half)>>14) +
+		fixed.Int26_6((int64(x)*int64(txy)+half)>>14) +
 		fixed.Int26_6((int64(y)*int64(tyy)+half)>>14)
 	return newX, newY
 }
