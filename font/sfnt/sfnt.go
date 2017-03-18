@@ -45,6 +45,10 @@ const (
 	// safe to call concurrently, as long as each call has a different *Buffer.
 	maxCmapSegments = 20000
 
+	// TODO: similarly, load subroutine locations lazily. Adobe's
+	// SourceHanSansSC-Regular.otf has up to 30000 subroutines.
+	maxNumSubroutines = 40000
+
 	maxCompoundRecursionDepth = 8
 	maxCompoundStackSize      = 64
 	maxGlyphDataLength        = 64 * 1024
@@ -62,24 +66,25 @@ var (
 	// ErrNotFound indicates that the requested value was not found.
 	ErrNotFound = errors.New("sfnt: not found")
 
-	errInvalidBounds         = errors.New("sfnt: invalid bounds")
-	errInvalidCFFTable       = errors.New("sfnt: invalid CFF table")
-	errInvalidCmapTable      = errors.New("sfnt: invalid cmap table")
-	errInvalidFont           = errors.New("sfnt: invalid font")
-	errInvalidFontCollection = errors.New("sfnt: invalid font collection")
-	errInvalidGlyphData      = errors.New("sfnt: invalid glyph data")
-	errInvalidHeadTable      = errors.New("sfnt: invalid head table")
-	errInvalidKernTable      = errors.New("sfnt: invalid kern table")
-	errInvalidLocaTable      = errors.New("sfnt: invalid loca table")
-	errInvalidLocationData   = errors.New("sfnt: invalid location data")
-	errInvalidMaxpTable      = errors.New("sfnt: invalid maxp table")
-	errInvalidNameTable      = errors.New("sfnt: invalid name table")
-	errInvalidPostTable      = errors.New("sfnt: invalid post table")
-	errInvalidSingleFont     = errors.New("sfnt: invalid single font (data is a font collection)")
-	errInvalidSourceData     = errors.New("sfnt: invalid source data")
-	errInvalidTableOffset    = errors.New("sfnt: invalid table offset")
-	errInvalidTableTagOrder  = errors.New("sfnt: invalid table tag order")
-	errInvalidUCS2String     = errors.New("sfnt: invalid UCS-2 string")
+	errInvalidBounds          = errors.New("sfnt: invalid bounds")
+	errInvalidCFFTable        = errors.New("sfnt: invalid CFF table")
+	errInvalidCmapTable       = errors.New("sfnt: invalid cmap table")
+	errInvalidFont            = errors.New("sfnt: invalid font")
+	errInvalidFontCollection  = errors.New("sfnt: invalid font collection")
+	errInvalidGlyphData       = errors.New("sfnt: invalid glyph data")
+	errInvalidGlyphDataLength = errors.New("sfnt: invalid glyph data length")
+	errInvalidHeadTable       = errors.New("sfnt: invalid head table")
+	errInvalidKernTable       = errors.New("sfnt: invalid kern table")
+	errInvalidLocaTable       = errors.New("sfnt: invalid loca table")
+	errInvalidLocationData    = errors.New("sfnt: invalid location data")
+	errInvalidMaxpTable       = errors.New("sfnt: invalid maxp table")
+	errInvalidNameTable       = errors.New("sfnt: invalid name table")
+	errInvalidPostTable       = errors.New("sfnt: invalid post table")
+	errInvalidSingleFont      = errors.New("sfnt: invalid single font (data is a font collection)")
+	errInvalidSourceData      = errors.New("sfnt: invalid source data")
+	errInvalidTableOffset     = errors.New("sfnt: invalid table offset")
+	errInvalidTableTagOrder   = errors.New("sfnt: invalid table tag order")
+	errInvalidUCS2String      = errors.New("sfnt: invalid UCS-2 string")
 
 	errUnsupportedCFFVersion           = errors.New("sfnt: unsupported CFF version")
 	errUnsupportedCmapEncodings        = errors.New("sfnt: unsupported cmap encodings")
@@ -90,6 +95,7 @@ var (
 	errUnsupportedNumberOfCmapSegments = errors.New("sfnt: unsupported number of cmap segments")
 	errUnsupportedNumberOfFonts        = errors.New("sfnt: unsupported number of fonts")
 	errUnsupportedNumberOfHints        = errors.New("sfnt: unsupported number of hints")
+	errUnsupportedNumberOfSubroutines  = errors.New("sfnt: unsupported number of subroutines")
 	errUnsupportedNumberOfTables       = errors.New("sfnt: unsupported number of tables")
 	errUnsupportedPlatformEncoding     = errors.New("sfnt: unsupported platform encoding")
 	errUnsupportedPostTable            = errors.New("sfnt: unsupported post table")
@@ -440,9 +446,17 @@ type Font struct {
 		postTableVersion uint32
 		unitsPerEm       Units
 
-		// The glyph data for the glyph index i is in
+		// The glyph data for the i'th glyph index is in
 		// src[locations[i+0]:locations[i+1]].
+		//
+		// The slice length equals 1 plus the number of glyphs.
 		locations []uint32
+
+		// For PostScript fonts, the bytecode for the i'th global or local
+		// subroutine is in src[x[i+0]:x[i+1]].
+		//
+		// The slice length equals 1 plus the number of subroutines
+		gsubrs, subrs []uint32
 	}
 }
 
@@ -473,7 +487,7 @@ func (f *Font) initialize(offset int) error {
 	if err != nil {
 		return err
 	}
-	buf, numGlyphs, locations, err := f.parseMaxp(buf, indexToLocFormat, isPostScript)
+	buf, numGlyphs, locations, gsubrs, subrs, err := f.parseMaxp(buf, indexToLocFormat, isPostScript)
 	if err != nil {
 		return err
 	}
@@ -498,6 +512,8 @@ func (f *Font) initialize(offset int) error {
 	f.cached.postTableVersion = postTableVersion
 	f.cached.unitsPerEm = unitsPerEm
 	f.cached.locations = locations
+	f.cached.gsubrs = gsubrs
+	f.cached.subrs = subrs
 
 	return nil
 }
@@ -762,21 +778,21 @@ func (f *Font) parseKernFormat0(buf []byte, offset, length int) (buf1 []byte, ke
 	return buf, kernNumPairs, int32(offset) + headerSize, nil
 }
 
-func (f *Font) parseMaxp(buf []byte, indexToLocFormat, isPostScript bool) (buf1 []byte, numGlyphs int, locations []uint32, err error) {
+func (f *Font) parseMaxp(buf []byte, indexToLocFormat, isPostScript bool) (buf1 []byte, numGlyphs int, locations, gsubrs, subrs []uint32, err error) {
 	// https://www.microsoft.com/typography/otspec/maxp.htm
 
 	if isPostScript {
 		if f.maxp.length != 6 {
-			return nil, 0, nil, errInvalidMaxpTable
+			return nil, 0, nil, nil, nil, errInvalidMaxpTable
 		}
 	} else {
 		if f.maxp.length != 32 {
-			return nil, 0, nil, errInvalidMaxpTable
+			return nil, 0, nil, nil, nil, errInvalidMaxpTable
 		}
 	}
 	u, err := f.src.u16(buf, f.maxp, 4)
 	if err != nil {
-		return nil, 0, nil, err
+		return nil, 0, nil, nil, nil, err
 	}
 	numGlyphs = int(u)
 
@@ -787,21 +803,21 @@ func (f *Font) parseMaxp(buf []byte, indexToLocFormat, isPostScript bool) (buf1 
 			offset: int(f.cff.offset),
 			end:    int(f.cff.offset + f.cff.length),
 		}
-		locations, err = p.parse()
+		locations, gsubrs, subrs, err = p.parse()
 		if err != nil {
-			return nil, 0, nil, err
+			return nil, 0, nil, nil, nil, err
 		}
 	} else {
 		locations, err = parseLoca(&f.src, f.loca, f.glyf.offset, indexToLocFormat, numGlyphs)
 		if err != nil {
-			return nil, 0, nil, err
+			return nil, 0, nil, nil, nil, err
 		}
 	}
 	if len(locations) != numGlyphs+1 {
-		return nil, 0, nil, errInvalidLocationData
+		return nil, 0, nil, nil, nil, errInvalidLocationData
 	}
 
-	return buf, numGlyphs, locations, nil
+	return buf, numGlyphs, locations, gsubrs, subrs, nil
 }
 
 func (f *Font) parsePost(buf []byte, numGlyphs int) (buf1 []byte, postTableVersion uint32, err error) {
@@ -845,17 +861,21 @@ func (f *Font) GlyphIndex(b *Buffer, r rune) (GlyphIndex, error) {
 	return f.cached.glyphIndex(f, b, r)
 }
 
-func (f *Font) viewGlyphData(b *Buffer, x GlyphIndex) ([]byte, error) {
+func (f *Font) viewGlyphData(b *Buffer, x GlyphIndex) (buf []byte, offset, length uint32, err error) {
 	xx := int(x)
 	if f.NumGlyphs() <= xx {
-		return nil, ErrNotFound
+		return nil, 0, 0, ErrNotFound
 	}
 	i := f.cached.locations[xx+0]
 	j := f.cached.locations[xx+1]
-	if j-i > maxGlyphDataLength {
-		return nil, errUnsupportedGlyphDataLength
+	if j < i {
+		return nil, 0, 0, errInvalidGlyphDataLength
 	}
-	return b.view(&f.src, int(i), int(j-i))
+	if j-i > maxGlyphDataLength {
+		return nil, 0, 0, errUnsupportedGlyphDataLength
+	}
+	buf, err = b.view(&f.src, int(i), int(j-i))
+	return buf, i, j - i, err
 }
 
 // LoadGlyphOptions are the options to the Font.LoadGlyph method.
@@ -876,15 +896,17 @@ func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, opts *Load
 
 	b.segments = b.segments[:0]
 	if f.cached.isPostScript {
-		buf, err := f.viewGlyphData(b, x)
+		buf, offset, length, err := f.viewGlyphData(b, x)
 		if err != nil {
 			return nil, err
 		}
-		b.psi.type2Charstrings.initialize(b.segments)
-		if err := b.psi.run(psContextType2Charstring, buf); err != nil {
+		b.psi.type2Charstrings.initialize(f, b)
+		if err := b.psi.run(psContextType2Charstring, buf, offset, length); err != nil {
 			return nil, err
 		}
-		b.segments = b.psi.type2Charstrings.segments
+		if !b.psi.type2Charstrings.ended {
+			return nil, errInvalidCFFTable
+		}
 	} else {
 		if err := loadGlyf(f, b, x, 0, 0); err != nil {
 			return nil, err

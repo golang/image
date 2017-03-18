@@ -85,7 +85,7 @@ func parseLoca(src *source, loca table, glyfOffset uint32, indexToLocFormat bool
 const glyfHeaderLen = 10
 
 func loadGlyf(f *Font, b *Buffer, x GlyphIndex, stackBottom, recursionDepth uint32) error {
-	data, err := f.viewGlyphData(b, x)
+	data, _, _, err := f.viewGlyphData(b, x)
 	if err != nil {
 		return err
 	}
