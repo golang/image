@@ -84,7 +84,7 @@ func TestProprietaryAdobeSourceCodeProOTF(t *testing.T) {
 }
 
 func TestProprietaryAdobeSourceCodeProTTF(t *testing.T) {
-	testProprietary(t, "adobe", "SourceCodePro-Regular.ttf", 1500, 36)
+	testProprietary(t, "adobe", "SourceCodePro-Regular.ttf", 1500, -1)
 }
 
 func TestProprietaryAdobeSourceHanSansSC(t *testing.T) {
@@ -96,7 +96,7 @@ func TestProprietaryAdobeSourceSansProOTF(t *testing.T) {
 }
 
 func TestProprietaryAdobeSourceSansProTTF(t *testing.T) {
-	testProprietary(t, "adobe", "SourceSansPro-Regular.ttf", 1800, 54)
+	testProprietary(t, "adobe", "SourceSansPro-Regular.ttf", 1800, -1)
 }
 
 func TestProprietaryAppleAppleSymbols(t *testing.T) {
