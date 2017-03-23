@@ -762,7 +762,8 @@ var psOperators = [...][2][]psOperator{
 const escapeByte = 12
 
 // t2CReadWidth reads the optional width adjustment. If present, it is on the
-// bottom of the stack.
+// bottom of the arg stack. nArgs is the expected number of arguments on the
+// stack. A negative nArgs means a multiple of 2.
 //
 // 5177.Type2.pdf page 16 Note 4 says: "The first stack-clearing operator,
 // which must be one of hstem, hstemhm, vstem, vstemhm, cntrmask, hintmask,
@@ -773,19 +774,12 @@ func t2CReadWidth(p *psInterpreter, nArgs int32) {
 		return
 	}
 	p.type2Charstrings.seenWidth = true
-	switch nArgs {
-	case 0:
-		if p.argStack.top != 1 {
+	if nArgs >= 0 {
+		if p.argStack.top != nArgs+1 {
 			return
 		}
-	case 1:
-		if p.argStack.top <= 1 {
-			return
-		}
-	default:
-		if p.argStack.top%nArgs != 1 {
-			return
-		}
+	} else if p.argStack.top&1 == 0 {
+		return
 	}
 	// When parsing a standalone CFF, we'd save the value of p.argStack.a[0]
 	// here as it defines the glyph's width (horizontal advance). Specifically,
@@ -803,7 +797,7 @@ func t2CReadWidth(p *psInterpreter, nArgs int32) {
 }
 
 func t2CStem(p *psInterpreter) error {
-	t2CReadWidth(p, 2)
+	t2CReadWidth(p, -1)
 	if p.argStack.top%2 != 0 {
 		return errInvalidCFFTable
 	}
@@ -818,8 +812,27 @@ func t2CStem(p *psInterpreter) error {
 }
 
 func t2CMask(p *psInterpreter) error {
+	// 5176.CFF.pdf section 4.3 "Hint Operators" says that "If hstem and vstem
+	// hints are both declared at the beginning of a charstring, and this
+	// sequence is followed directly by the hintmask or cntrmask operators, the
+	// vstem hint operator need not be included."
+	//
+	// What we implement here is more permissive (but the same as what the
+	// FreeType implementation does, and simpler than tracking the previous
+	// operator and other hinting state): if a hintmask is given any arguments
+	// (i.e. the argStack is non-empty), we run an implicit vstem operator.
+	//
+	// Note that the vstem operator consumes from p.argStack, but the hintmask
+	// or cntrmask operators consume from p.instructions.
+	if p.argStack.top != 0 {
+		if err := t2CStem(p); err != nil {
+			return err
+		}
+	} else if !p.type2Charstrings.seenWidth {
+		p.type2Charstrings.seenWidth = true
+	}
+
 	hintBytes := (p.type2Charstrings.hintBits + 7) / 8
-	t2CReadWidth(p, hintBytes)
 	if len(p.instructions) < int(hintBytes) {
 		return errInvalidCFFTable
 	}
