@@ -875,37 +875,31 @@ func t2CAppendCubeto(p *psInterpreter, dxa, dya, dxb, dyb, dxc, dyc int32) {
 
 func t2CHmoveto(p *psInterpreter) error {
 	t2CReadWidth(p, 1)
-	if p.argStack.top < 1 {
+	if p.argStack.top != 1 {
 		return errInvalidCFFTable
 	}
-	for i := int32(0); i < p.argStack.top; i++ {
-		p.type2Charstrings.x += p.argStack.a[i]
-	}
+	p.type2Charstrings.x += p.argStack.a[0]
 	t2CAppendMoveto(p)
 	return nil
 }
 
 func t2CVmoveto(p *psInterpreter) error {
 	t2CReadWidth(p, 1)
-	if p.argStack.top < 1 {
+	if p.argStack.top != 1 {
 		return errInvalidCFFTable
 	}
-	for i := int32(0); i < p.argStack.top; i++ {
-		p.type2Charstrings.y += p.argStack.a[i]
-	}
+	p.type2Charstrings.y += p.argStack.a[0]
 	t2CAppendMoveto(p)
 	return nil
 }
 
 func t2CRmoveto(p *psInterpreter) error {
 	t2CReadWidth(p, 2)
-	if p.argStack.top < 2 || p.argStack.top%2 != 0 {
+	if p.argStack.top != 2 {
 		return errInvalidCFFTable
 	}
-	for i := int32(0); i < p.argStack.top; i += 2 {
-		p.type2Charstrings.x += p.argStack.a[i+0]
-		p.type2Charstrings.y += p.argStack.a[i+1]
-	}
+	p.type2Charstrings.x += p.argStack.a[0]
+	p.type2Charstrings.y += p.argStack.a[1]
 	t2CAppendMoveto(p)
 	return nil
 }
