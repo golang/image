@@ -80,7 +80,7 @@ var (
 )
 
 func TestProprietaryAdobeSourceCodeProOTF(t *testing.T) {
-	testProprietary(t, "adobe", "SourceCodePro-Regular.otf", 1500, 34)
+	testProprietary(t, "adobe", "SourceCodePro-Regular.otf", 1500, -1)
 }
 
 func TestProprietaryAdobeSourceCodeProTTF(t *testing.T) {
@@ -92,7 +92,7 @@ func TestProprietaryAdobeSourceHanSansSC(t *testing.T) {
 }
 
 func TestProprietaryAdobeSourceSansProOTF(t *testing.T) {
-	testProprietary(t, "adobe", "SourceSansPro-Regular.otf", 1800, 34)
+	testProprietary(t, "adobe", "SourceSansPro-Regular.otf", 1800, -1)
 }
 
 func TestProprietaryAdobeSourceSansProTTF(t *testing.T) {
@@ -112,11 +112,11 @@ func TestProprietaryAppleGeezaPro1(t *testing.T) {
 }
 
 func TestProprietaryAppleHiragino0(t *testing.T) {
-	testProprietary(t, "apple", "ヒラギノ角ゴシック W0.ttc?0", 9000, 6)
+	testProprietary(t, "apple", "ヒラギノ角ゴシック W0.ttc?0", 9000, -1)
 }
 
 func TestProprietaryAppleHiragino1(t *testing.T) {
-	testProprietary(t, "apple", "ヒラギノ角ゴシック W0.ttc?1", 9000, 6)
+	testProprietary(t, "apple", "ヒラギノ角ゴシック W0.ttc?1", 9000, -1)
 }
 
 func TestProprietaryMicrosoftArial(t *testing.T) {
@@ -442,13 +442,14 @@ var proprietaryGlyphIndexTestCases = map[string]map[rune]GlyphIndex{
 
 // proprietaryGlyphTestCases hold a sample of each font's glyph vectors. The
 // numerical values can be verified by running the ttx tool, remembering that:
-//	- for PostScript glyphs, ttx coordinates are relative, and hstem / vstem
-//	  operators are hinting-related and can be ignored.
+//	- for PostScript glyphs, ttx coordinates are relative.
 //	- for TrueType glyphs, ttx coordinates are absolute, and consecutive
 //	  off-curve points implies an on-curve point at the midpoint.
 var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 	"adobe/SourceSansPro-Regular.otf": {
 		',': {
+			// -309 -1 115 hstem
+			// 137 61 vstem
 			// 67 -170 rmoveto
 			moveTo(67, -170),
 			// 81 34 50 67 86 vvcurveto
@@ -464,6 +465,8 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 		},
 
 		'Q': {
+			// 106 -165 70 87 65 538 73 hstem
+			// 52 86 388 87 vstem
 			// 332 57 rmoveto
 			moveTo(332, 57),
 			// -117 -77 106 168 163 77 101 117 117 77 -101 -163 -168 -77 -106 -117 hvcurveto
@@ -490,6 +493,77 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			// -90 38 83 -66 121 hhcurveto
 			cubeTo(329, -99, 412, -165, 533, -165),
 			// endchar
+		},
+
+		'ĩ': { // U+0129 LATIN SMALL LETTER I WITH TILDE
+			// 92 callgsubr # 92 + bias = 199.
+			// :	# Arg stack is [].
+			// :	-312 21 85 callgsubr # 85 + bias = 192.
+			// :	:	# Arg stack is [-312 21].
+			// :	:	-21 486 -20 return
+			// :	:	# Arg stack is [-312 21 -21 486 -20].
+			// :	return
+			// :	# Arg stack is [-312 21 -21 486 -20].
+			// 111 45 callsubr # 45 + bias = 152
+			// :	# Arg stack is [-312 21 -21 486 -20 111].
+			// :	60 24 60 -9 216 callgsubr # 216 + bias = 323
+			// :	:	# Arg stack is [-312 21 -21 486 -20 111 60 24 60 -9].
+			// :	:	-20 24 -20 hstemhm
+			// :	:	return
+			// :	:	# Arg stack is [].
+			// :	return
+			// :	# Arg stack is [].
+			// -50 55 77 82 77 55 hintmask 1101000100000000
+			// 134 callsubr # 134 + bias = 241
+			// :	# Arg stack is [].
+			// :	82 hmoveto
+			moveTo(82, 0),
+			// :	82 127 callsubr # 127 + bias = 234
+			// :	:	# Arg stack is [82].
+			// :	:	486 -82 hlineto
+			lineTo(164, 0),
+			lineTo(164, 486),
+			lineTo(82, 486),
+			// :	:	return
+			// :	:	# Arg stack is [].
+			// :	return
+			// :	# Arg stack is [].
+			// hintmask 1110100110000000
+			// 113 91 15 callgsubr # 15 + bias = 122
+			// :	# Arg stack is [113 91].
+			// :	rmoveto
+			moveTo(195, 577),
+			// :	69 29 58 77 3 hvcurveto
+			cubeTo(264, 577, 293, 635, 296, 712),
+			// :	return
+			// :	# Arg stack is [].
+			// hintmask 1110010110000000
+			// -58 callsubr # -58 + bias = 49
+			// :	# Arg stack is [].
+			// :	-55 4 rlineto
+			lineTo(241, 716),
+			// :	-46 -3 -14 -33 -29 -47 -26 84 -71 hhcurveto
+			cubeTo(238, 670, 224, 637, 195, 637),
+			cubeTo(148, 637, 122, 721, 51, 721),
+			// :	return
+			// :	# Arg stack is [].
+			// hintmask 1101001100000000
+			// -70 callgsubr # -70 + bias = 37
+			// :	# Arg stack is [].
+			// :	-69 -29 -58 -78 -3 hvcurveto
+			cubeTo(-18, 721, -47, 663, -50, 585),
+			// :	55 -3 rlineto
+			lineTo(5, 582),
+			// :	47 3 14 32 30 hhcurveto
+			cubeTo(8, 629, 22, 661, 52, 661),
+			// :	return
+			// :	# Arg stack is [].
+			// hintmask 1110100110000000
+			// 51 callsubr # 51 + bias = 158
+			// :	# Arg stack is [].
+			// :	46 26 -84 71 hhcurveto
+			cubeTo(98, 661, 124, 577, 195, 577),
+			// :	endchar
 		},
 
 		'ī': { // U+012B LATIN SMALL LETTER I WITH MACRON
@@ -587,6 +661,8 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 		},
 
 		'Λ': { // U+039B GREEK CAPITAL LETTER LAMDA
+			// -43 21 -21 572 84 hstem
+			// 0 515 vstem
 			// 0 vmoveto
 			moveTo(0, 0),
 			// 85 hlineto
@@ -605,6 +681,77 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			lineTo(305, 656),
 			// -96 hlineto
 			lineTo(209, 656),
+			// endchar
+		},
+
+		'Ḫ': { // U+1E2A LATIN CAPITAL LETTER H WITH BREVE BELOW
+			// 94 -231 55 197 157 callgsubr # 157 + bias = 264
+			// :	# Arg stack is [94 -231 55 197].
+			// :	-21 309 72 return
+			// :	# Arg stack is [94 -231 55 197 -21 309 72].
+			// 275 254 callgsubr # 254 + bias = 361
+			// :	# Arg stack is [94 -231 55 197 -21 309 72 275].
+			// :	-20 hstemhm
+			// :	90 83 return
+			// :	# Arg stack is [90 83].
+			// -4 352 callsubr # 352 + bias = 459
+			// :	# Arg stack is [90 83 -4].
+			// :	51 210 51 return
+			// :	# Arg stack is [90 83 -4 51 210 51].
+			// -3 84 hintmask 11111001
+			// 90 -40 callsubr # -40 + bias = 67
+			// :	# Arg stack is [90].
+			// :	-27 callgsubr # -27 + bias = 80
+			// :	:	# Arg stack is [90].
+			// :	:	hmoveto
+			moveTo(90, 0),
+			// :	:	83 309 305 -309 84 return
+			// :	:	# Arg stack is [83 309 305 -309 84].
+			// :	-41 callgsubr # -41 + bias = 66
+			// :	:	# Arg stack is [83 309 305 -309 84].
+			// :	:	656 -84 -275 -305 275 -83 return
+			// :	:	# Arg stack is [83 309 305 -309 84 656 -84 -275 -305 275 -83].
+			// :	hlineto
+			lineTo(173, 0),
+			lineTo(173, 309),
+			lineTo(478, 309),
+			lineTo(478, 0),
+			lineTo(562, 0),
+			lineTo(562, 656),
+			lineTo(478, 656),
+			lineTo(478, 381),
+			lineTo(173, 381),
+			lineTo(173, 656),
+			lineTo(90, 656),
+			// :	return
+			// :	# Arg stack is [].
+			// hintmask 11110110
+			// 235 -887 143 callsubr # 143 + bias = 250
+			// :	# Arg stack is [235 -887].
+			// :	rmoveto
+			moveTo(325, -231),
+			// :	-84 callsubr # -84 + bias = 23
+			// :	:	# Arg stack is [].
+			// :	:	107 44 77 74 5 hvcurveto
+			cubeTo(432, -231, 476, -154, 481, -80),
+			// :	:	-51 8 rlineto
+			lineTo(430, -72),
+			// :	:	-51 -8 -32 -53 -65 hhcurveto
+			cubeTo(422, -123, 390, -176, 325, -176),
+			// :	:	-65 -32 53 51 -8 hvcurveto
+			cubeTo(260, -176, 228, -123, 220, -72),
+			// :	:	-51 -22 callsubr # -22 + bias = 85
+			// :	:	:	# Arg stack is [-51].
+			// :	:	:	-8 rlineto
+			lineTo(169, -80),
+			// :	:	:	-74 5 44 -77 107 hhcurveto
+			cubeTo(174, -154, 218, -231, 325, -231),
+			// :	:	:	return
+			// :	:	:	# Arg stack is [].
+			// :	:	return
+			// :	:	# Arg stack is [].
+			// :	return
+			// :	# Arg stack is [].
 			// endchar
 		},
 	},
