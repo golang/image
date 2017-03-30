@@ -53,6 +53,7 @@ const (
 	maxCompoundStackSize      = 64
 	maxGlyphDataLength        = 64 * 1024
 	maxHintBits               = 256
+	maxNumFontDicts           = 256
 	maxNumFonts               = 256
 	maxNumTables              = 256
 	maxRealNumberStrLen       = 64 // Maximum length in bytes of the "-123.456E-7" representation.
@@ -86,6 +87,7 @@ var (
 	errInvalidTableTagOrder   = errors.New("sfnt: invalid table tag order")
 	errInvalidUCS2String      = errors.New("sfnt: invalid UCS-2 string")
 
+	errUnsupportedCFFFDSelectTable     = errors.New("sfnt: unsupported CFF FDSelect table")
 	errUnsupportedCFFVersion           = errors.New("sfnt: unsupported CFF version")
 	errUnsupportedCmapEncodings        = errors.New("sfnt: unsupported cmap encodings")
 	errUnsupportedCompoundGlyph        = errors.New("sfnt: unsupported compound glyph")
@@ -93,6 +95,7 @@ var (
 	errUnsupportedKernTable            = errors.New("sfnt: unsupported kern table")
 	errUnsupportedRealNumberEncoding   = errors.New("sfnt: unsupported real number encoding")
 	errUnsupportedNumberOfCmapSegments = errors.New("sfnt: unsupported number of cmap segments")
+	errUnsupportedNumberOfFontDicts    = errors.New("sfnt: unsupported number of font dicts")
 	errUnsupportedNumberOfFonts        = errors.New("sfnt: unsupported number of fonts")
 	errUnsupportedNumberOfHints        = errors.New("sfnt: unsupported number of hints")
 	errUnsupportedNumberOfSubroutines  = errors.New("sfnt: unsupported number of subroutines")
@@ -438,6 +441,7 @@ type Font struct {
 	kern table
 
 	cached struct {
+		glyphData        glyphData
 		glyphIndex       glyphIndexFunc
 		indexToLocFormat bool // false means short, true means long.
 		isPostScript     bool
@@ -445,23 +449,11 @@ type Font struct {
 		kernOffset       int32
 		postTableVersion uint32
 		unitsPerEm       Units
-
-		// The glyph data for the i'th glyph index is in
-		// src[locations[i+0]:locations[i+1]].
-		//
-		// The slice length equals 1 plus the number of glyphs.
-		locations []uint32
-
-		// For PostScript fonts, the bytecode for the i'th global or local
-		// subroutine is in src[x[i+0]:x[i+1]].
-		//
-		// The slice length equals 1 plus the number of subroutines
-		gsubrs, subrs []uint32
 	}
 }
 
 // NumGlyphs returns the number of glyphs in f.
-func (f *Font) NumGlyphs() int { return len(f.cached.locations) - 1 }
+func (f *Font) NumGlyphs() int { return len(f.cached.glyphData.locations) - 1 }
 
 // UnitsPerEm returns the number of units per em for f.
 func (f *Font) UnitsPerEm() Units { return f.cached.unitsPerEm }
@@ -487,7 +479,11 @@ func (f *Font) initialize(offset int) error {
 	if err != nil {
 		return err
 	}
-	buf, numGlyphs, locations, gsubrs, subrs, err := f.parseMaxp(buf, indexToLocFormat, isPostScript)
+	buf, numGlyphs, err := f.parseMaxp(buf, isPostScript)
+	if err != nil {
+		return err
+	}
+	buf, glyphData, err := f.parseGlyphData(buf, numGlyphs, indexToLocFormat, isPostScript)
 	if err != nil {
 		return err
 	}
@@ -504,6 +500,7 @@ func (f *Font) initialize(offset int) error {
 		return err
 	}
 
+	f.cached.glyphData = glyphData
 	f.cached.glyphIndex = glyphIndex
 	f.cached.indexToLocFormat = indexToLocFormat
 	f.cached.isPostScript = isPostScript
@@ -511,9 +508,6 @@ func (f *Font) initialize(offset int) error {
 	f.cached.kernOffset = kernOffset
 	f.cached.postTableVersion = postTableVersion
 	f.cached.unitsPerEm = unitsPerEm
-	f.cached.locations = locations
-	f.cached.gsubrs = gsubrs
-	f.cached.subrs = subrs
 
 	return nil
 }
@@ -778,24 +772,44 @@ func (f *Font) parseKernFormat0(buf []byte, offset, length int) (buf1 []byte, ke
 	return buf, kernNumPairs, int32(offset) + headerSize, nil
 }
 
-func (f *Font) parseMaxp(buf []byte, indexToLocFormat, isPostScript bool) (buf1 []byte, numGlyphs int, locations, gsubrs, subrs []uint32, err error) {
+func (f *Font) parseMaxp(buf []byte, isPostScript bool) (buf1 []byte, numGlyphs int, err error) {
 	// https://www.microsoft.com/typography/otspec/maxp.htm
 
 	if isPostScript {
 		if f.maxp.length != 6 {
-			return nil, 0, nil, nil, nil, errInvalidMaxpTable
+			return nil, 0, errInvalidMaxpTable
 		}
 	} else {
 		if f.maxp.length != 32 {
-			return nil, 0, nil, nil, nil, errInvalidMaxpTable
+			return nil, 0, errInvalidMaxpTable
 		}
 	}
 	u, err := f.src.u16(buf, f.maxp, 4)
 	if err != nil {
-		return nil, 0, nil, nil, nil, err
+		return nil, 0, err
 	}
-	numGlyphs = int(u)
+	return buf, int(u), nil
+}
 
+type glyphData struct {
+	// The glyph data for the i'th glyph index is in
+	// src[locations[i+0]:locations[i+1]].
+	//
+	// The slice length equals 1 plus the number of glyphs.
+	locations []uint32
+
+	// For PostScript fonts, the bytecode for the i'th global or local
+	// subroutine is in src[x[i+0]:x[i+1]].
+	//
+	// The []uint32 slice length equals 1 plus the number of subroutines
+	gsubrs      []uint32
+	singleSubrs []uint32
+	multiSubrs  [][]uint32
+
+	fdSelect fdSelect
+}
+
+func (f *Font) parseGlyphData(buf []byte, numGlyphs int, indexToLocFormat, isPostScript bool) (buf1 []byte, ret glyphData, err error) {
 	if isPostScript {
 		p := cffParser{
 			src:    &f.src,
@@ -803,21 +817,21 @@ func (f *Font) parseMaxp(buf []byte, indexToLocFormat, isPostScript bool) (buf1 
 			offset: int(f.cff.offset),
 			end:    int(f.cff.offset + f.cff.length),
 		}
-		locations, gsubrs, subrs, err = p.parse()
+		ret, err = p.parse(numGlyphs)
 		if err != nil {
-			return nil, 0, nil, nil, nil, err
+			return nil, glyphData{}, err
 		}
 	} else {
-		locations, err = parseLoca(&f.src, f.loca, f.glyf.offset, indexToLocFormat, numGlyphs)
+		ret.locations, err = parseLoca(&f.src, f.loca, f.glyf.offset, indexToLocFormat, numGlyphs)
 		if err != nil {
-			return nil, 0, nil, nil, nil, err
+			return nil, glyphData{}, err
 		}
 	}
-	if len(locations) != numGlyphs+1 {
-		return nil, 0, nil, nil, nil, errInvalidLocationData
+	if len(ret.locations) != numGlyphs+1 {
+		return nil, glyphData{}, errInvalidLocationData
 	}
 
-	return buf, numGlyphs, locations, gsubrs, subrs, nil
+	return buf, ret, nil
 }
 
 func (f *Font) parsePost(buf []byte, numGlyphs int) (buf1 []byte, postTableVersion uint32, err error) {
@@ -866,8 +880,8 @@ func (f *Font) viewGlyphData(b *Buffer, x GlyphIndex) (buf []byte, offset, lengt
 	if f.NumGlyphs() <= xx {
 		return nil, 0, 0, ErrNotFound
 	}
-	i := f.cached.locations[xx+0]
-	j := f.cached.locations[xx+1]
+	i := f.cached.glyphData.locations[xx+0]
+	j := f.cached.glyphData.locations[xx+1]
 	if j < i {
 		return nil, 0, 0, errInvalidGlyphDataLength
 	}
@@ -900,7 +914,7 @@ func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, opts *Load
 		if err != nil {
 			return nil, err
 		}
-		b.psi.type2Charstrings.initialize(f, b)
+		b.psi.type2Charstrings.initialize(f, b, x)
 		if err := b.psi.run(psContextType2Charstring, buf, offset, length); err != nil {
 			return nil, err
 		}
