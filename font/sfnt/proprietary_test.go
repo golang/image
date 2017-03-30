@@ -88,7 +88,7 @@ func TestProprietaryAdobeSourceCodeProTTF(t *testing.T) {
 }
 
 func TestProprietaryAdobeSourceHanSansSC(t *testing.T) {
-	testProprietary(t, "adobe", "SourceHanSansSC-Regular.otf", 65535, 2)
+	testProprietary(t, "adobe", "SourceHanSansSC-Regular.otf", 65535, -1)
 }
 
 func TestProprietaryAdobeSourceSansProOTF(t *testing.T) {
@@ -302,6 +302,18 @@ kernLoop:
 			continue
 		}
 	}
+
+	for x, want := range proprietaryFDSelectTestCases[qualifiedFilename] {
+		got, err := f.cached.glyphData.fdSelect.lookup(f, &buf, x)
+		if err != nil {
+			t.Errorf("fdSelect.lookup(%d): %v", x, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("fdSelect.lookup(%d): got %d, want %d", x, got, want)
+			continue
+		}
+	}
 }
 
 // proprietaryNumFonts holds the expected number of fonts in each collection,
@@ -446,6 +458,77 @@ var proprietaryGlyphIndexTestCases = map[string]map[rune]GlyphIndex{
 //	- for TrueType glyphs, ttx coordinates are absolute, and consecutive
 //	  off-curve points implies an on-curve point at the midpoint.
 var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
+	"adobe/SourceHanSansSC-Regular.otf": {
+		'!': {
+			// -312 123 callsubr # 123 + bias = 230
+			// :	# Arg stack is [-312].
+			// :	-13 140 -119 -21 return
+			// :	# Arg stack is [-312 -13 140 -119 -21].
+			// 120 callsubr # 120 + bias = 227
+			// :	# Arg stack is [-312 -13 140 -119 -21].
+			// :	hstemhm
+			// :	95 132 -103 75 return
+			// :	# Arg stack is [95 132 -103 75].
+			// hintmask 01010000
+			// 8 callsubr # 8 + bias = 115
+			// :	# Arg stack is [].
+			// :	130 221 rmoveto
+			moveTo(130, 221),
+			// :	63 hlineto
+			lineTo(193, 221),
+			// :	12 424 3 -735 callgsubr # -735 + bias = 396
+			// :	:	# Arg stack is [12 424 3].
+			// :	:	104 rlineto
+			lineTo(205, 645),
+			lineTo(208, 749),
+			// :	:	-93 hlineto
+			lineTo(115, 749),
+			// :	:	3 -104 rlineto
+			lineTo(118, 645),
+			// :	:	return
+			// :	:	# Arg stack is [].
+			// :	return
+			// :	# Arg stack is [].
+			// hintmask 01100000
+			// 106 callsubr # 106 + bias = 213
+			// :	# Arg stack is [].
+			// :	43 -658 rmoveto
+			moveTo(161, -13),
+			// :	37 29 28 41 return
+			// :	# Arg stack is [37 29 28 41].
+			// hvcurveto
+			cubeTo(198, -13, 227, 15, 227, 56),
+			// hintmask 10100000
+			// 41 -29 30 -37 -36 -30 -30 -41 vhcurveto
+			cubeTo(227, 97, 198, 127, 161, 127),
+			cubeTo(125, 127, 95, 97, 95, 56),
+			// hintmask 01100000
+			// 111 callsubr # 111 + bias = 218
+			// :	# Arg stack is [].
+			// :	-41 30 -28 36 vhcurveto
+			cubeTo(95, 15, 125, -13, 161, -13),
+			// :	endchar
+		},
+
+		'二': { // U+4E8C <CJK Ideograph> "two; twice"
+			// 23 81 510 79 hstem
+			// 60 881 cntrmask 11000000
+			// 144 693 rmoveto
+			moveTo(144, 693),
+			// -79 713 79 vlineto
+			lineTo(144, 614),
+			lineTo(857, 614),
+			lineTo(857, 693),
+			// -797 -589 rmoveto
+			moveTo(60, 104),
+			// -81 881 81 vlineto
+			lineTo(60, 23),
+			lineTo(941, 23),
+			lineTo(941, 104),
+			// endchar
+		},
+	},
+
 	"adobe/SourceSansPro-Regular.otf": {
 		',': {
 			// -309 -1 115 hstem
@@ -964,5 +1047,83 @@ var proprietaryKernTestCases = map[string][]kernTestCase{
 	},
 	"microsoft/Webdings.ttf": {
 		{2048, font.HintingNone, [2]rune{'\uf041', '\uf042'}, 0},
+	},
+}
+
+// proprietaryFDSelectTestCases hold a sample of each font's Font Dict Select
+// (FDSelect) map. The numerical values can be verified by grepping the output
+// of the ttx tool:
+//
+//	grep CharString.*fdSelectIndex SourceHanSansSC-Regular.ttx
+//
+// will print lines like this:
+//
+//	<CharString name="cid00100" fdSelectIndex="15">
+//	<CharString name="cid00101" fdSelectIndex="15">
+//	<CharString name="cid00102" fdSelectIndex="3">
+//	<CharString name="cid00103" fdSelectIndex="15">
+//
+// As for what the values like 3 or 15 actually mean, grepping that ttx file
+// for "FontName" gives this list:
+//
+//	0:	<FontName value="SourceHanSansSC-Regular-Alphabetic"/>
+//	1:	<FontName value="SourceHanSansSC-Regular-AlphabeticDigits"/>
+//	2:	<FontName value="SourceHanSansSC-Regular-Bopomofo"/>
+//	3:	<FontName value="SourceHanSansSC-Regular-Dingbats"/>
+//	4:	<FontName value="SourceHanSansSC-Regular-DingbatsDigits"/>
+//	5:	<FontName value="SourceHanSansSC-Regular-Generic"/>
+//	6:	<FontName value="SourceHanSansSC-Regular-HDingbats"/>
+//	7:	<FontName value="SourceHanSansSC-Regular-HHangul"/>
+//	8:	<FontName value="SourceHanSansSC-Regular-HKana"/>
+//	9:	<FontName value="SourceHanSansSC-Regular-HWidth"/>
+//	10:	<FontName value="SourceHanSansSC-Regular-HWidthCJK"/>
+//	11:	<FontName value="SourceHanSansSC-Regular-HWidthDigits"/>
+//	12:	<FontName value="SourceHanSansSC-Regular-Hangul"/>
+//	13:	<FontName value="SourceHanSansSC-Regular-Ideographs"/>
+//	14:	<FontName value="SourceHanSansSC-Regular-Kana"/>
+//	15:	<FontName value="SourceHanSansSC-Regular-Proportional"/>
+//	16:	<FontName value="SourceHanSansSC-Regular-ProportionalCJK"/>
+//	17:	<FontName value="SourceHanSansSC-Regular-ProportionalDigits"/>
+//	18:	<FontName value="SourceHanSansSC-Regular-VKana"/>
+//
+// As a sanity check, the cmap table maps U+3127 BOPOMOFO LETTER I to the glyph
+// named "cid65353", proprietaryFDSelectTestCases here maps 65353 to Font Dict
+// 2, and the list immediately above maps 2 to "Bopomofo".
+var proprietaryFDSelectTestCases = map[string]map[GlyphIndex]int{
+	"adobe/SourceHanSansSC-Regular.otf": {
+		0:     5,
+		1:     15,
+		2:     15,
+		16:    15,
+		17:    17,
+		26:    17,
+		27:    15,
+		100:   15,
+		101:   15,
+		102:   3,
+		103:   15,
+		777:   4,
+		1000:  3,
+		2000:  3,
+		3000:  13,
+		4000:  13,
+		20000: 13,
+		48000: 12,
+		59007: 1,
+		59024: 0,
+		59087: 8,
+		59200: 7,
+		59211: 6,
+		60000: 13,
+		63000: 16,
+		63039: 9,
+		63060: 11,
+		63137: 10,
+		65353: 2,
+		65486: 14,
+		65505: 18,
+		65506: 5,
+		65533: 5,
+		65534: 5,
 	},
 }
