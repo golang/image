@@ -902,6 +902,8 @@ type LoadGlyphOptions struct {
 //
 // If b is non-nil, the segments become invalid to use once b is re-used.
 //
+// In the returned Segments' (x, y) coordinates, the Y axis increases down.
+//
 // It returns ErrNotFound if the glyph index is out of range.
 func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, opts *LoadGlyphOptions) ([]Segment, error) {
 	if b == nil {
@@ -932,10 +934,14 @@ func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, opts *Load
 	// loading code, such as the appendGlyfSegments body, since TrueType
 	// hinting bytecode works on the scaled glyph vectors. For now, though,
 	// it's simpler to scale as a post-processing step.
+	//
+	// We also flip the Y coordinates. OpenType's Y axis increases up. Go's
+	// standard graphics libraries' Y axis increases down.
 	for i := range b.segments {
-		s := &b.segments[i]
-		for j := range s.Args {
-			s.Args[j] = scale(s.Args[j]*ppem, f.cached.unitsPerEm)
+		a := &b.segments[i].Args
+		for j := range a {
+			a[j].X = +scale(a[j].X*ppem, f.cached.unitsPerEm)
+			a[j].Y = -scale(a[j].Y*ppem, f.cached.unitsPerEm)
 		}
 	}
 
@@ -1194,8 +1200,10 @@ func (b *Buffer) view(src *source, offset, length int) ([]byte, error) {
 
 // Segment is a segment of a vector path.
 type Segment struct {
-	Op   SegmentOp
-	Args [6]fixed.Int26_6
+	// Op is the operator.
+	Op SegmentOp
+	// Args is up to three (x, y) coordinates. The Y axis increases down.
+	Args [3]fixed.Point26_6
 }
 
 // SegmentOp is a vector path segment's operator.
@@ -1209,30 +1217,31 @@ const (
 )
 
 // translateArgs applies a translation to args.
-func translateArgs(args *[6]fixed.Int26_6, dx, dy fixed.Int26_6) {
-	args[0] += dx
-	args[1] += dy
-	args[2] += dx
-	args[3] += dy
-	args[4] += dx
-	args[5] += dy
+func translateArgs(args *[3]fixed.Point26_6, dx, dy fixed.Int26_6) {
+	args[0].X += dx
+	args[0].Y += dy
+	args[1].X += dx
+	args[1].Y += dy
+	args[2].X += dx
+	args[2].Y += dy
 }
 
 // transformArgs applies an affine transformation to args. The t?? arguments
 // are 2.14 fixed point values.
-func transformArgs(args *[6]fixed.Int26_6, txx, txy, tyx, tyy int16, dx, dy fixed.Int26_6) {
-	args[0], args[1] = tform(txx, txy, tyx, tyy, dx, dy, args[0], args[1])
-	args[2], args[3] = tform(txx, txy, tyx, tyy, dx, dy, args[2], args[3])
-	args[4], args[5] = tform(txx, txy, tyx, tyy, dx, dy, args[4], args[5])
+func transformArgs(args *[3]fixed.Point26_6, txx, txy, tyx, tyy int16, dx, dy fixed.Int26_6) {
+	args[0] = tform(txx, txy, tyx, tyy, dx, dy, args[0])
+	args[1] = tform(txx, txy, tyx, tyy, dx, dy, args[1])
+	args[2] = tform(txx, txy, tyx, tyy, dx, dy, args[2])
 }
 
-func tform(txx, txy, tyx, tyy int16, dx, dy, x, y fixed.Int26_6) (newX, newY fixed.Int26_6) {
+func tform(txx, txy, tyx, tyy int16, dx, dy fixed.Int26_6, p fixed.Point26_6) fixed.Point26_6 {
 	const half = 1 << 13
-	newX = dx +
-		fixed.Int26_6((int64(x)*int64(txx)+half)>>14) +
-		fixed.Int26_6((int64(y)*int64(tyx)+half)>>14)
-	newY = dy +
-		fixed.Int26_6((int64(x)*int64(txy)+half)>>14) +
-		fixed.Int26_6((int64(y)*int64(tyy)+half)>>14)
-	return newX, newY
+	return fixed.Point26_6{
+		X: dx +
+			fixed.Int26_6((int64(p.X)*int64(txx)+half)>>14) +
+			fixed.Int26_6((int64(p.Y)*int64(tyx)+half)>>14),
+		Y: dy +
+			fixed.Int26_6((int64(p.X)*int64(txy)+half)>>14) +
+			fixed.Int26_6((int64(p.Y)*int64(tyy)+half)>>14),
+	}
 }

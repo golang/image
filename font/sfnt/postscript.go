@@ -999,46 +999,39 @@ func t2CMask(p *psInterpreter) error {
 func t2CAppendMoveto(p *psInterpreter) {
 	p.type2Charstrings.b.segments = append(p.type2Charstrings.b.segments, Segment{
 		Op: SegmentOpMoveTo,
-		Args: [6]fixed.Int26_6{
-			0: fixed.Int26_6(p.type2Charstrings.x),
-			1: fixed.Int26_6(p.type2Charstrings.y),
-		},
+		Args: [3]fixed.Point26_6{{
+			X: fixed.Int26_6(p.type2Charstrings.x),
+			Y: fixed.Int26_6(p.type2Charstrings.y),
+		}},
 	})
 }
 
 func t2CAppendLineto(p *psInterpreter) {
 	p.type2Charstrings.b.segments = append(p.type2Charstrings.b.segments, Segment{
 		Op: SegmentOpLineTo,
-		Args: [6]fixed.Int26_6{
-			0: fixed.Int26_6(p.type2Charstrings.x),
-			1: fixed.Int26_6(p.type2Charstrings.y),
-		},
+		Args: [3]fixed.Point26_6{{
+			X: fixed.Int26_6(p.type2Charstrings.x),
+			Y: fixed.Int26_6(p.type2Charstrings.y),
+		}},
 	})
 }
 
 func t2CAppendCubeto(p *psInterpreter, dxa, dya, dxb, dyb, dxc, dyc int32) {
 	p.type2Charstrings.x += dxa
 	p.type2Charstrings.y += dya
-	xa := p.type2Charstrings.x
-	ya := p.type2Charstrings.y
+	xa := fixed.Int26_6(p.type2Charstrings.x)
+	ya := fixed.Int26_6(p.type2Charstrings.y)
 	p.type2Charstrings.x += dxb
 	p.type2Charstrings.y += dyb
-	xb := p.type2Charstrings.x
-	yb := p.type2Charstrings.y
+	xb := fixed.Int26_6(p.type2Charstrings.x)
+	yb := fixed.Int26_6(p.type2Charstrings.y)
 	p.type2Charstrings.x += dxc
 	p.type2Charstrings.y += dyc
-	xc := p.type2Charstrings.x
-	yc := p.type2Charstrings.y
+	xc := fixed.Int26_6(p.type2Charstrings.x)
+	yc := fixed.Int26_6(p.type2Charstrings.y)
 	p.type2Charstrings.b.segments = append(p.type2Charstrings.b.segments, Segment{
-		Op: SegmentOpCubeTo,
-		Args: [6]fixed.Int26_6{
-			0: fixed.Int26_6(xa),
-			1: fixed.Int26_6(ya),
-			2: fixed.Int26_6(xb),
-			3: fixed.Int26_6(yb),
-			4: fixed.Int26_6(xc),
-			5: fixed.Int26_6(yc),
-		},
+		Op:   SegmentOpCubeTo,
+		Args: [3]fixed.Point26_6{{X: xa, Y: ya}, {X: xb, Y: yb}, {X: xc, Y: yc}},
 	})
 }
 
