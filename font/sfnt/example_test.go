@@ -50,29 +50,29 @@ func ExampleRasterizeGlyph() {
 		switch seg.Op {
 		case sfnt.SegmentOpMoveTo:
 			r.MoveTo(
-				originX+float32(seg.Args[0])/64,
-				originY-float32(seg.Args[1])/64,
+				originX+float32(seg.Args[0].X)/64,
+				originY+float32(seg.Args[0].Y)/64,
 			)
 		case sfnt.SegmentOpLineTo:
 			r.LineTo(
-				originX+float32(seg.Args[0])/64,
-				originY-float32(seg.Args[1])/64,
+				originX+float32(seg.Args[0].X)/64,
+				originY+float32(seg.Args[0].Y)/64,
 			)
 		case sfnt.SegmentOpQuadTo:
 			r.QuadTo(
-				originX+float32(seg.Args[0])/64,
-				originY-float32(seg.Args[1])/64,
-				originX+float32(seg.Args[2])/64,
-				originY-float32(seg.Args[3])/64,
+				originX+float32(seg.Args[0].X)/64,
+				originY+float32(seg.Args[0].Y)/64,
+				originX+float32(seg.Args[1].X)/64,
+				originY+float32(seg.Args[1].Y)/64,
 			)
 		case sfnt.SegmentOpCubeTo:
 			r.CubeTo(
-				originX+float32(seg.Args[0])/64,
-				originY-float32(seg.Args[1])/64,
-				originX+float32(seg.Args[2])/64,
-				originY-float32(seg.Args[3])/64,
-				originX+float32(seg.Args[4])/64,
-				originY-float32(seg.Args[5])/64,
+				originX+float32(seg.Args[0].X)/64,
+				originY+float32(seg.Args[0].Y)/64,
+				originX+float32(seg.Args[1].X)/64,
+				originY+float32(seg.Args[1].Y)/64,
+				originX+float32(seg.Args[2].X)/64,
+				originY+float32(seg.Args[2].Y)/64,
 			)
 		}
 	}

@@ -15,31 +15,35 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
+func pt(x, y fixed.Int26_6) fixed.Point26_6 {
+	return fixed.Point26_6{X: x, Y: y}
+}
+
 func moveTo(xa, ya fixed.Int26_6) Segment {
 	return Segment{
 		Op:   SegmentOpMoveTo,
-		Args: [6]fixed.Int26_6{xa, ya},
+		Args: [3]fixed.Point26_6{pt(xa, ya)},
 	}
 }
 
 func lineTo(xa, ya fixed.Int26_6) Segment {
 	return Segment{
 		Op:   SegmentOpLineTo,
-		Args: [6]fixed.Int26_6{xa, ya},
+		Args: [3]fixed.Point26_6{pt(xa, ya)},
 	}
 }
 
 func quadTo(xa, ya, xb, yb fixed.Int26_6) Segment {
 	return Segment{
 		Op:   SegmentOpQuadTo,
-		Args: [6]fixed.Int26_6{xa, ya, xb, yb},
+		Args: [3]fixed.Point26_6{pt(xa, ya), pt(xb, yb)},
 	}
 }
 
 func cubeTo(xa, ya, xb, yb, xc, yc fixed.Int26_6) Segment {
 	return Segment{
 		Op:   SegmentOpCubeTo,
-		Args: [6]fixed.Int26_6{xa, ya, xb, yb, xc, yc},
+		Args: [3]fixed.Point26_6{pt(xa, ya), pt(xb, yb), pt(xc, yc)},
 	}
 }
 
@@ -54,6 +58,16 @@ func transform(txx, txy, tyx, tyy int16, dx, dy fixed.Int26_6, s Segment) Segmen
 }
 
 func checkSegmentsEqual(got, want []Segment) error {
+	// Flip got's Y axis. The test cases' coordinates are given with the Y axis
+	// increasing up, as that is what the ttx tool gives, and is the model for
+	// the underlying font format. The Go API returns coordinates with the Y
+	// axis increasing down, the same as the standard graphics libraries.
+	for i := range got {
+		for j := range got[i].Args {
+			got[i].Args[j].Y *= -1
+		}
+	}
+
 	if len(got) != len(want) {
 		return fmt.Errorf("got %d elements, want %d\noverall:\ngot  %v\nwant %v",
 			len(got), len(want), got, want)
