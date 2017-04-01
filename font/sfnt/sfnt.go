@@ -75,6 +75,8 @@ var (
 	errInvalidGlyphData       = errors.New("sfnt: invalid glyph data")
 	errInvalidGlyphDataLength = errors.New("sfnt: invalid glyph data length")
 	errInvalidHeadTable       = errors.New("sfnt: invalid head table")
+	errInvalidHheaTable       = errors.New("sfnt: invalid hhea table")
+	errInvalidHmtxTable       = errors.New("sfnt: invalid hmtx table")
 	errInvalidKernTable       = errors.New("sfnt: invalid kern table")
 	errInvalidLocaTable       = errors.New("sfnt: invalid loca table")
 	errInvalidLocationData    = errors.New("sfnt: invalid location data")
@@ -447,6 +449,7 @@ type Font struct {
 		isPostScript     bool
 		kernNumPairs     int32
 		kernOffset       int32
+		numHMetrics      int32
 		postTableVersion uint32
 		unitsPerEm       Units
 	}
@@ -495,6 +498,14 @@ func (f *Font) initialize(offset int) error {
 	if err != nil {
 		return err
 	}
+	buf, numHMetrics, err := f.parseHhea(buf, numGlyphs)
+	if err != nil {
+		return err
+	}
+	buf, err = f.parseHmtx(buf, numGlyphs, numHMetrics)
+	if err != nil {
+		return err
+	}
 	buf, postTableVersion, err := f.parsePost(buf, numGlyphs)
 	if err != nil {
 		return err
@@ -506,6 +517,7 @@ func (f *Font) initialize(offset int) error {
 	f.cached.isPostScript = isPostScript
 	f.cached.kernNumPairs = kernNumPairs
 	f.cached.kernOffset = kernOffset
+	f.cached.numHMetrics = numHMetrics
 	f.cached.postTableVersion = postTableVersion
 	f.cached.unitsPerEm = unitsPerEm
 
@@ -678,6 +690,31 @@ func (f *Font) parseHead(buf []byte) (buf1 []byte, indexToLocFormat bool, unitsP
 	return buf, indexToLocFormat, unitsPerEm, nil
 }
 
+func (f *Font) parseHhea(buf []byte, numGlyphs int32) (buf1 []byte, numHMetrics int32, err error) {
+	// https://www.microsoft.com/typography/OTSPEC/hhea.htm
+
+	if f.hhea.length != 36 {
+		return nil, 0, errInvalidHheaTable
+	}
+	u, err := f.src.u16(buf, f.hhea, 34)
+	if err != nil {
+		return nil, 0, err
+	}
+	if int32(u) > numGlyphs || u == 0 {
+		return nil, 0, errInvalidHheaTable
+	}
+	return buf, int32(u), nil
+}
+
+func (f *Font) parseHmtx(buf []byte, numGlyphs, numHMetrics int32) (buf1 []byte, err error) {
+	// https://www.microsoft.com/typography/OTSPEC/hmtx.htm
+
+	if f.hmtx.length != uint32(2*numGlyphs+2*numHMetrics) {
+		return nil, errInvalidHmtxTable
+	}
+	return buf, nil
+}
+
 func (f *Font) parseKern(buf []byte) (buf1 []byte, kernNumPairs, kernOffset int32, err error) {
 	// https://www.microsoft.com/typography/otspec/kern.htm
 
@@ -772,7 +809,7 @@ func (f *Font) parseKernFormat0(buf []byte, offset, length int) (buf1 []byte, ke
 	return buf, kernNumPairs, int32(offset) + headerSize, nil
 }
 
-func (f *Font) parseMaxp(buf []byte, isPostScript bool) (buf1 []byte, numGlyphs int, err error) {
+func (f *Font) parseMaxp(buf []byte, isPostScript bool) (buf1 []byte, numGlyphs int32, err error) {
 	// https://www.microsoft.com/typography/otspec/maxp.htm
 
 	if isPostScript {
@@ -788,7 +825,7 @@ func (f *Font) parseMaxp(buf []byte, isPostScript bool) (buf1 []byte, numGlyphs 
 	if err != nil {
 		return nil, 0, err
 	}
-	return buf, int(u), nil
+	return buf, int32(u), nil
 }
 
 type glyphData struct {
@@ -809,7 +846,7 @@ type glyphData struct {
 	fdSelect fdSelect
 }
 
-func (f *Font) parseGlyphData(buf []byte, numGlyphs int, indexToLocFormat, isPostScript bool) (buf1 []byte, ret glyphData, err error) {
+func (f *Font) parseGlyphData(buf []byte, numGlyphs int32, indexToLocFormat, isPostScript bool) (buf1 []byte, ret glyphData, err error) {
 	if isPostScript {
 		p := cffParser{
 			src:    &f.src,
@@ -827,14 +864,14 @@ func (f *Font) parseGlyphData(buf []byte, numGlyphs int, indexToLocFormat, isPos
 			return nil, glyphData{}, err
 		}
 	}
-	if len(ret.locations) != numGlyphs+1 {
+	if len(ret.locations) != int(numGlyphs+1) {
 		return nil, glyphData{}, errInvalidLocationData
 	}
 
 	return buf, ret, nil
 }
 
-func (f *Font) parsePost(buf []byte, numGlyphs int) (buf1 []byte, postTableVersion uint32, err error) {
+func (f *Font) parsePost(buf []byte, numGlyphs int32) (buf1 []byte, postTableVersion uint32, err error) {
 	// https://www.microsoft.com/typography/otspec/post.htm
 
 	const headerSize = 32
@@ -1020,6 +1057,39 @@ func (f *Font) GlyphName(b *Buffer, x GlyphIndex) (string, error) {
 		buf = buf[n:]
 		u--
 	}
+}
+
+// GlyphAdvance returns the advance width for the x'th glyph. ppem is the
+// number of pixels in 1 em.
+//
+// It returns ErrNotFound if the glyph index is out of range.
+func (f *Font) GlyphAdvance(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, h font.Hinting) (fixed.Int26_6, error) {
+	if int(x) >= f.NumGlyphs() {
+		return 0, ErrNotFound
+	}
+	if b == nil {
+		b = &Buffer{}
+	}
+
+	// https://www.microsoft.com/typography/OTSPEC/hmtx.htm says that "As an
+	// optimization, the number of records can be less than the number of
+	// glyphs, in which case the advance width value of the last record applies
+	// to all remaining glyph IDs."
+	if n := GlyphIndex(f.cached.numHMetrics - 1); x > n {
+		x = n
+	}
+
+	buf, err := b.view(&f.src, int(f.hmtx.offset)+int(4*x), 2)
+	if err != nil {
+		return 0, err
+	}
+	adv := fixed.Int26_6(u16(buf))
+	adv = scale(adv*ppem, f.cached.unitsPerEm)
+	if h == font.HintingFull {
+		// Quantize the fixed.Int26_6 value to the nearest pixel.
+		adv = (adv + 32) &^ 63
+	}
+	return adv, nil
 }
 
 // Kern returns the horizontal adjustment for the kerning pair (x0, x1). A

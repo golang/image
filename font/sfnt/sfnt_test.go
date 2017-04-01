@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/gofont/gobold"
+	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/font/gofont/goregular"
 	"golang.org/x/image/math/fixed"
 )
@@ -106,6 +109,74 @@ func testTrueType(t *testing.T, f *Font) {
 	// that "The WGL4 character set... [has] more than 650 characters in all.
 	if got, want := f.NumGlyphs(), 650; got <= want {
 		t.Errorf("NumGlyphs: got %d, want > %d", got, want)
+	}
+}
+
+func TestGlyphAdvance(t *testing.T) {
+	testCases := map[string][]struct {
+		r    rune
+		want fixed.Int26_6
+	}{
+		"gobold": {
+			{' ', 569},
+			{'A', 1479},
+			{'Á', 1479},
+			{'Æ', 2048},
+			{'i', 592},
+			{'x', 1139},
+		},
+		"gomono": {
+			{' ', 1229},
+			{'A', 1229},
+			{'Á', 1229},
+			{'Æ', 1229},
+			{'i', 1229},
+			{'x', 1229},
+		},
+		"goregular": {
+			{' ', 569},
+			{'A', 1366},
+			{'Á', 1366},
+			{'Æ', 2048},
+			{'i', 505},
+			{'x', 1024},
+		},
+	}
+
+	var b Buffer
+	for name, testCases1 := range testCases {
+		data := []byte(nil)
+		switch name {
+		case "gobold":
+			data = gobold.TTF
+		case "gomono":
+			data = gomono.TTF
+		case "goregular":
+			data = goregular.TTF
+		}
+		f, err := Parse(data)
+		if err != nil {
+			t.Errorf("Parse(%q): %v", name, err)
+			continue
+		}
+		ppem := fixed.Int26_6(f.UnitsPerEm())
+
+		for _, tc := range testCases1 {
+			x, err := f.GlyphIndex(&b, tc.r)
+			if err != nil {
+				t.Errorf("name=%q, r=%q: GlyphIndex: %v", name, tc.r, err)
+				continue
+			}
+			got, err := f.GlyphAdvance(&b, x, ppem, font.HintingNone)
+			if err != nil {
+				t.Errorf("name=%q, r=%q: GlyphAdvance: %v", name, tc.r, err)
+				continue
+			}
+			if got != tc.want {
+				t.Errorf("name=%q, r=%q: GlyphAdvance: got %d, want %d", name, tc.r, got, tc.want)
+				continue
+			}
+		}
 	}
 }
 

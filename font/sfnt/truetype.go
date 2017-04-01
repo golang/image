@@ -51,7 +51,7 @@ func midPoint(p, q fixed.Point26_6) fixed.Point26_6 {
 	}
 }
 
-func parseLoca(src *source, loca table, glyfOffset uint32, indexToLocFormat bool, numGlyphs int) (locations []uint32, err error) {
+func parseLoca(src *source, loca table, glyfOffset uint32, indexToLocFormat bool, numGlyphs int32) (locations []uint32, err error) {
 	if indexToLocFormat {
 		if loca.length != 4*uint32(numGlyphs+1) {
 			return nil, errInvalidLocaTable
