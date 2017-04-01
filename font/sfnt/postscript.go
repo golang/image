@@ -132,7 +132,7 @@ type cffParser struct {
 	psi psInterpreter
 }
 
-func (p *cffParser) parse(numGlyphs int) (ret glyphData, err error) {
+func (p *cffParser) parse(numGlyphs int32) (ret glyphData, err error) {
 	// Parse the header.
 	{
 		if !p.read(4) {
@@ -236,7 +236,7 @@ func (p *cffParser) parse(numGlyphs int) (ret glyphData, err error) {
 		if !ok {
 			return glyphData{}, p.err
 		}
-		if count == 0 || int(count) != numGlyphs {
+		if count == 0 || int32(count) != numGlyphs {
 			return glyphData{}, errInvalidCFFTable
 		}
 		ret.locations = make([]uint32, count+1)
@@ -312,7 +312,7 @@ func (p *cffParser) parse(numGlyphs int) (ret glyphData, err error) {
 
 // parseFDSelect parses the Font Dict Select data as per 5176.CFF.pdf section
 // 19 "FDSelect".
-func (p *cffParser) parseFDSelect(offset int32, numGlyphs int) (ret fdSelect, err error) {
+func (p *cffParser) parseFDSelect(offset int32, numGlyphs int32) (ret fdSelect, err error) {
 	if !p.seekFromBase(p.psi.topDict.fdSelect) {
 		return fdSelect{}, errInvalidCFFTable
 	}
@@ -322,7 +322,7 @@ func (p *cffParser) parseFDSelect(offset int32, numGlyphs int) (ret fdSelect, er
 	ret.format = p.buf[0]
 	switch ret.format {
 	case 0:
-		if p.end-p.offset < numGlyphs {
+		if p.end-p.offset < int(numGlyphs) {
 			return fdSelect{}, errInvalidCFFTable
 		}
 		ret.offset = int32(p.offset)
