@@ -445,6 +445,7 @@ type Font struct {
 	cached struct {
 		glyphData        glyphData
 		glyphIndex       glyphIndexFunc
+		bounds           [4]int16
 		indexToLocFormat bool // false means short, true means long.
 		isPostScript     bool
 		kernNumPairs     int32
@@ -478,7 +479,7 @@ func (f *Font) initialize(offset int) error {
 	// When implementing new parseXxx methods, take care not to call methods
 	// such as Font.NumGlyphs that implicitly depend on f.cached fields.
 
-	buf, indexToLocFormat, unitsPerEm, err := f.parseHead(buf)
+	buf, bounds, indexToLocFormat, unitsPerEm, err := f.parseHead(buf)
 	if err != nil {
 		return err
 	}
@@ -513,6 +514,7 @@ func (f *Font) initialize(offset int) error {
 
 	f.cached.glyphData = glyphData
 	f.cached.glyphIndex = glyphIndex
+	f.cached.bounds = bounds
 	f.cached.indexToLocFormat = indexToLocFormat
 	f.cached.isPostScript = isPostScript
 	f.cached.kernNumPairs = kernNumPairs
@@ -668,26 +670,36 @@ func (f *Font) parseCmap(buf []byte) (buf1 []byte, glyphIndex glyphIndexFunc, er
 	return f.makeCachedGlyphIndex(buf, bestOffset, bestLength, bestFormat)
 }
 
-func (f *Font) parseHead(buf []byte) (buf1 []byte, indexToLocFormat bool, unitsPerEm Units, err error) {
+func (f *Font) parseHead(buf []byte) (buf1 []byte, bounds [4]int16, indexToLocFormat bool, unitsPerEm Units, err error) {
 	// https://www.microsoft.com/typography/otspec/head.htm
 
 	if f.head.length != 54 {
-		return nil, false, 0, errInvalidHeadTable
+		return nil, [4]int16{}, false, 0, errInvalidHeadTable
 	}
+
 	u, err := f.src.u16(buf, f.head, 18)
 	if err != nil {
-		return nil, false, 0, err
+		return nil, [4]int16{}, false, 0, err
 	}
 	if u == 0 {
-		return nil, false, 0, errInvalidHeadTable
+		return nil, [4]int16{}, false, 0, errInvalidHeadTable
 	}
 	unitsPerEm = Units(u)
+
+	for i := range bounds {
+		u, err := f.src.u16(buf, f.head, 36+2*i)
+		if err != nil {
+			return nil, [4]int16{}, false, 0, err
+		}
+		bounds[i] = int16(u)
+	}
+
 	u, err = f.src.u16(buf, f.head, 50)
 	if err != nil {
-		return nil, false, 0, err
+		return nil, [4]int16{}, false, 0, err
 	}
 	indexToLocFormat = u != 0
-	return buf, indexToLocFormat, unitsPerEm, nil
+	return buf, bounds, indexToLocFormat, unitsPerEm, nil
 }
 
 func (f *Font) parseHhea(buf []byte, numGlyphs int32) (buf1 []byte, numHMetrics int32, err error) {
@@ -893,6 +905,33 @@ func (f *Font) parsePost(buf []byte, numGlyphs int32) (buf1 []byte, postTableVer
 		return nil, 0, errUnsupportedPostTable
 	}
 	return buf, u, nil
+}
+
+// Bounds returns the union of a Font's glyphs' bounds.
+//
+// In the returned Rectangle26_6's (x, y) coordinates, the Y axis increases
+// down.
+func (f *Font) Bounds(b *Buffer, ppem fixed.Int26_6, h font.Hinting) (fixed.Rectangle26_6, error) {
+	// The 0, 3, 2, 1 indices are to flip the Y coordinates. OpenType's Y axis
+	// increases up. Go's standard graphics libraries' Y axis increases down.
+	r := fixed.Rectangle26_6{
+		Min: fixed.Point26_6{
+			X: +scale(fixed.Int26_6(f.cached.bounds[0])*ppem, f.cached.unitsPerEm),
+			Y: -scale(fixed.Int26_6(f.cached.bounds[3])*ppem, f.cached.unitsPerEm),
+		},
+		Max: fixed.Point26_6{
+			X: +scale(fixed.Int26_6(f.cached.bounds[2])*ppem, f.cached.unitsPerEm),
+			Y: -scale(fixed.Int26_6(f.cached.bounds[1])*ppem, f.cached.unitsPerEm),
+		},
+	}
+	if h == font.HintingFull {
+		// Quantize the Min down and Max up to a whole pixel.
+		r.Min.X = (r.Min.X + 0) &^ 63
+		r.Min.Y = (r.Min.Y + 0) &^ 63
+		r.Max.X = (r.Max.X + 63) &^ 63
+		r.Max.Y = (r.Max.Y + 63) &^ 63
+	}
+	return r, nil
 }
 
 // TODO: API for looking up glyph variants?? For example, some fonts may
