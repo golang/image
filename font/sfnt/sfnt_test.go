@@ -112,6 +112,73 @@ func testTrueType(t *testing.T, f *Font) {
 	}
 }
 
+func fontData(name string) []byte {
+	switch name {
+	case "gobold":
+		return gobold.TTF
+	case "gomono":
+		return gomono.TTF
+	case "goregular":
+		return goregular.TTF
+	}
+	panic("unreachable")
+}
+
+func TestBounds(t *testing.T) {
+	testCases := map[string]fixed.Rectangle26_6{
+		"gobold": {
+			Min: fixed.Point26_6{
+				X: -452,
+				Y: -2193,
+			},
+			Max: fixed.Point26_6{
+				X: 2190,
+				Y: 432,
+			},
+		},
+		"gomono": {
+			Min: fixed.Point26_6{
+				X: 0,
+				Y: -2227,
+			},
+			Max: fixed.Point26_6{
+				X: 1229,
+				Y: 432,
+			},
+		},
+		"goregular": {
+			Min: fixed.Point26_6{
+				X: -440,
+				Y: -2118,
+			},
+			Max: fixed.Point26_6{
+				X: 2160,
+				Y: 543,
+			},
+		},
+	}
+
+	var b Buffer
+	for name, want := range testCases {
+		f, err := Parse(fontData(name))
+		if err != nil {
+			t.Errorf("Parse(%q): %v", name, err)
+			continue
+		}
+		ppem := fixed.Int26_6(f.UnitsPerEm())
+
+		got, err := f.Bounds(&b, ppem, font.HintingNone)
+		if err != nil {
+			t.Errorf("name=%q: Bounds: %v", name, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("name=%q: Bounds: got %v, want %v", name, got, want)
+			continue
+		}
+	}
+}
+
 func TestGlyphAdvance(t *testing.T) {
 	testCases := map[string][]struct {
 		r    rune
@@ -145,16 +212,7 @@ func TestGlyphAdvance(t *testing.T) {
 
 	var b Buffer
 	for name, testCases1 := range testCases {
-		data := []byte(nil)
-		switch name {
-		case "gobold":
-			data = gobold.TTF
-		case "gomono":
-			data = gomono.TTF
-		case "goregular":
-			data = goregular.TTF
-		}
-		f, err := Parse(data)
+		f, err := Parse(fontData(name))
 		if err != nil {
 			t.Errorf("Parse(%q): %v", name, err)
 			continue
