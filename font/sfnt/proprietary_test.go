@@ -493,6 +493,7 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			// 106 callsubr # 106 + bias = 213
 			// :	# Arg stack is [].
 			// :	43 -658 rmoveto
+			lineTo(130, 221),
 			moveTo(161, -13),
 			// :	37 29 28 41 return
 			// :	# Arg stack is [37 29 28 41].
@@ -520,12 +521,14 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			lineTo(857, 614),
 			lineTo(857, 693),
 			// -797 -589 rmoveto
+			lineTo(144, 693),
 			moveTo(60, 104),
 			// -81 881 81 vlineto
 			lineTo(60, 23),
 			lineTo(941, 23),
 			lineTo(941, 104),
 			// endchar
+			lineTo(60, 104),
 		},
 	},
 
@@ -545,6 +548,7 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			// 1 -53 -34 -44 -57 -25 rrcurveto
 			cubeTo(138, -53, 104, -97, 47, -122),
 			// endchar
+			lineTo(67, -170),
 		},
 
 		'Q': {
@@ -615,6 +619,7 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			// 113 91 15 callgsubr # 15 + bias = 122
 			// :	# Arg stack is [113 91].
 			// :	rmoveto
+			lineTo(82, 0),
 			moveTo(195, 577),
 			// :	69 29 58 77 3 hvcurveto
 			cubeTo(264, 577, 293, 635, 296, 712),
@@ -681,12 +686,14 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			// -92 115 -60 callgsubr # -60 + bias = 47
 			// :	# Arg stack is [-92 115].
 			// :	rmoveto
+			lineTo(82, 0),
 			moveTo(-10, 601),
 			// :	266 57 -266 hlineto
 			lineTo(256, 601),
 			lineTo(256, 658),
 			lineTo(-10, 658),
 			// :	endchar
+			lineTo(-10, 601),
 		},
 
 		'ĭ': { // U+012D LATIN SMALL LETTER I WITH BREVE
@@ -717,6 +724,7 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			// 42 85 143 callsubr # 143 + bias = 250
 			// :	# Arg stack is [42 85].
 			// :	rmoveto
+			lineTo(82, 0),
 			moveTo(124, 571),
 			// :	-84 callsubr # -84 + bias = 23
 			// :	:	# Arg stack is [].
@@ -765,6 +773,7 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			// -96 hlineto
 			lineTo(209, 656),
 			// endchar
+			lineTo(0, 0),
 		},
 
 		'Ḫ': { // U+1E2A LATIN CAPITAL LETTER H WITH BREVE BELOW
@@ -812,6 +821,7 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			// 235 -887 143 callsubr # 143 + bias = 250
 			// :	# Arg stack is [235 -887].
 			// :	rmoveto
+			lineTo(90, 0),
 			moveTo(325, -231),
 			// :	-84 callsubr # -84 + bias = 23
 			// :	:	# Arg stack is [].
