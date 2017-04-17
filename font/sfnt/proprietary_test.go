@@ -111,6 +111,30 @@ func TestProprietaryAppleGeezaPro1(t *testing.T) {
 	testProprietary(t, "apple", "GeezaPro.ttc?1", 1700, -1)
 }
 
+func TestProprietaryAppleHelvetica0(t *testing.T) {
+	testProprietary(t, "apple", "Helvetica.dfont?0", 2100, -1)
+}
+
+func TestProprietaryAppleHelvetica1(t *testing.T) {
+	testProprietary(t, "apple", "Helvetica.dfont?1", 2100, -1)
+}
+
+func TestProprietaryAppleHelvetica2(t *testing.T) {
+	testProprietary(t, "apple", "Helvetica.dfont?2", 2100, -1)
+}
+
+func TestProprietaryAppleHelvetica3(t *testing.T) {
+	testProprietary(t, "apple", "Helvetica.dfont?3", 2100, -1)
+}
+
+func TestProprietaryAppleHelvetica4(t *testing.T) {
+	testProprietary(t, "apple", "Helvetica.dfont?4", 1300, -1)
+}
+
+func TestProprietaryAppleHelvetica5(t *testing.T) {
+	testProprietary(t, "apple", "Helvetica.dfont?5", 1300, -1)
+}
+
 func TestProprietaryAppleHiragino0(t *testing.T) {
 	testProprietary(t, "apple", "ヒラギノ角ゴシック W0.ttc?0", 9000, -1)
 }
@@ -320,8 +344,8 @@ kernLoop:
 // or 1 for a single font. It is not necessarily an exhaustive list of all
 // proprietary fonts tested.
 var proprietaryNumFonts = map[string]int{
+	"apple/Helvetica.dfont?0":    6,
 	"apple/ヒラギノ角ゴシック W0.ttc?0": 2,
-	"apple/ヒラギノ角ゴシック W0.ttc?1": 2,
 	"microsoft/Arial.ttf?0":      1,
 }
 
@@ -342,6 +366,12 @@ var proprietaryVersions = map[string]string{
 	"apple/Apple Symbols.ttf":    "12.0d3e10",
 	"apple/GeezaPro.ttc?0":       "12.0d1e3",
 	"apple/GeezaPro.ttc?1":       "12.0d1e3",
+	"apple/Helvetica.dfont?0":    "12.0d1e3",
+	"apple/Helvetica.dfont?1":    "12.0d1e3",
+	"apple/Helvetica.dfont?2":    "12.0d1e3",
+	"apple/Helvetica.dfont?3":    "12.0d1e3",
+	"apple/Helvetica.dfont?4":    "12.0d1e3",
+	"apple/Helvetica.dfont?5":    "12.0d1e3",
 	"apple/ヒラギノ角ゴシック W0.ttc?0": "11.0d7e1",
 	"apple/ヒラギノ角ゴシック W0.ttc?1": "11.0d7e1",
 
@@ -364,6 +394,12 @@ var proprietaryFullNames = map[string]string{
 	"apple/Apple Symbols.ttf":    "Apple Symbols",
 	"apple/GeezaPro.ttc?0":       "Geeza Pro Regular",
 	"apple/GeezaPro.ttc?1":       "Geeza Pro Bold",
+	"apple/Helvetica.dfont?0":    "Helvetica",
+	"apple/Helvetica.dfont?1":    "Helvetica Bold",
+	"apple/Helvetica.dfont?2":    "Helvetica Oblique",
+	"apple/Helvetica.dfont?3":    "Helvetica Bold Oblique",
+	"apple/Helvetica.dfont?4":    "Helvetica Light",
+	"apple/Helvetica.dfont?5":    "Helvetica Light Oblique",
 	"apple/ヒラギノ角ゴシック W0.ttc?0": "Hiragino Sans W0",
 	"apple/ヒラギノ角ゴシック W0.ttc?1": ".Hiragino Kaku Gothic Interface W0",
 
@@ -420,6 +456,17 @@ var proprietaryGlyphIndexTestCases = map[string]map[rune]GlyphIndex{
 		'\u03a3': 592,  // U+03A3 GREEK CAPITAL LETTER SIGMA
 		'\u0435': 999,  // U+0435 CYRILLIC SMALL LETTER IE
 		'\u2030': 1728, // U+2030 PER MILLE SIGN
+	},
+
+	"apple/Helvetica.dfont?0": {
+		'\u0041':     36,   // U+0041 LATIN CAPITAL LETTER A
+		'\u00f1':     120,  // U+00F1 LATIN SMALL LETTER N WITH TILDE
+		'\u0401':     473,  // U+0401 CYRILLIC CAPITAL LETTER IO
+		'\u200d':     611,  // U+200D ZERO WIDTH JOINER
+		'\u20ab':     1743, // U+20AB DONG SIGN
+		'\u2229':     0,    // U+2229 INTERSECTION
+		'\u04e9':     1208, // U+04E9 CYRILLIC SMALL LETTER BARRED O
+		'\U0001f100': 0,    // U+0001F100 DIGIT ZERO FULL STOP
 	},
 
 	"microsoft/Arial.ttf": {
@@ -846,6 +893,40 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			// :	return
 			// :	# Arg stack is [].
 			// endchar
+		},
+	},
+
+	"apple/Helvetica.dfont?0": {
+		'i': {
+			// - contour #0
+			moveTo(132, 1066),
+			lineTo(315, 1066),
+			lineTo(315, 0),
+			lineTo(132, 0),
+			lineTo(132, 1066),
+			// - contour #1
+			moveTo(132, 1469),
+			lineTo(315, 1469),
+			lineTo(315, 1265),
+			lineTo(132, 1265),
+			lineTo(132, 1469),
+		},
+	},
+
+	"apple/Helvetica.dfont?1": {
+		'i': {
+			// - contour #0
+			moveTo(426, 1220),
+			lineTo(137, 1220),
+			lineTo(137, 1483),
+			lineTo(426, 1483),
+			lineTo(426, 1220),
+			// - contour #1
+			moveTo(137, 1090),
+			lineTo(426, 1090),
+			lineTo(426, 0),
+			lineTo(137, 0),
+			lineTo(137, 1090),
 		},
 	},
 

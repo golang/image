@@ -70,6 +70,7 @@ var (
 	errInvalidBounds          = errors.New("sfnt: invalid bounds")
 	errInvalidCFFTable        = errors.New("sfnt: invalid CFF table")
 	errInvalidCmapTable       = errors.New("sfnt: invalid cmap table")
+	errInvalidDfont           = errors.New("sfnt: invalid dfont")
 	errInvalidFont            = errors.New("sfnt: invalid font")
 	errInvalidFontCollection  = errors.New("sfnt: invalid font collection")
 	errInvalidGlyphData       = errors.New("sfnt: invalid glyph data")
@@ -303,6 +304,7 @@ func ParseCollectionReaderAt(src io.ReaderAt) (*Collection, error) {
 type Collection struct {
 	src     source
 	offsets []uint32
+	isDfont bool
 }
 
 // NumFonts returns the number of fonts in the collection.
@@ -310,8 +312,13 @@ func (c *Collection) NumFonts() int { return len(c.offsets) }
 
 func (c *Collection) initialize() error {
 	// The https://www.microsoft.com/typography/otspec/otff.htm "Font
-	// Collections" section describes the TTC Header.
-	buf, err := c.src.view(nil, 0, 12)
+	// Collections" section describes the TTC header.
+	//
+	// https://github.com/kreativekorp/ksfl/wiki/Macintosh-Resource-File-Format
+	// describes the dfont header.
+	//
+	// 16 is the maximum of sizeof(TTCHeader) and sizeof(DfontHeader).
+	buf, err := c.src.view(nil, 0, 16)
 	if err != nil {
 		return err
 	}
@@ -319,6 +326,8 @@ func (c *Collection) initialize() error {
 	switch u32(buf) {
 	default:
 		return errInvalidFontCollection
+	case dfontResourceDataOffset:
+		return c.parseDfont(buf, u32(buf[4:]), u32(buf[12:]))
 	case 0x00010000, 0x4f54544f:
 		// Try parsing it as a single font instead of a collection.
 		c.offsets = []uint32{0}
@@ -343,13 +352,116 @@ func (c *Collection) initialize() error {
 	return nil
 }
 
+// dfontResourceDataOffset is the assumed value of a dfont file's resource data
+// offset.
+//
+// https://github.com/kreativekorp/ksfl/wiki/Macintosh-Resource-File-Format
+// says that "A Mac OS resource file... [starts with an] offset from start of
+// file to start of resource data section... [usually] 0x0100". In theory,
+// 0x00000100 isn't always a magic number for identifying dfont files. In
+// practice, it seems to work.
+const dfontResourceDataOffset = 0x00000100
+
+// parseDfont parses a dfont resource map, as per
+// https://github.com/kreativekorp/ksfl/wiki/Macintosh-Resource-File-Format
+//
+// That unofficial wiki page lists all of its fields as *signed* integers,
+// which looks unusual. The actual file format might use *unsigned* integers in
+// various places, but until we have either an official specification or an
+// actual dfont file where this matters, we'll use signed integers and treat
+// negative values as invalid.
+func (c *Collection) parseDfont(buf []byte, resourceMapOffset, resourceMapLength uint32) error {
+	if resourceMapOffset > maxTableOffset || resourceMapLength > maxTableLength {
+		return errUnsupportedTableOffsetLength
+	}
+
+	const headerSize = 28
+	if resourceMapLength < headerSize {
+		return errInvalidDfont
+	}
+	buf, err := c.src.view(buf, int(resourceMapOffset+24), 2)
+	if err != nil {
+		return err
+	}
+	typeListOffset := int(int16(u16(buf)))
+
+	if typeListOffset < headerSize || resourceMapLength < uint32(typeListOffset)+2 {
+		return errInvalidDfont
+	}
+	buf, err = c.src.view(buf, int(resourceMapOffset)+typeListOffset, 2)
+	if err != nil {
+		return err
+	}
+	typeCount := int(int16(u16(buf)))
+
+	const tSize = 8
+	if typeCount < 0 || tSize*uint32(typeCount) > resourceMapLength-uint32(typeListOffset)-2 {
+		return errInvalidDfont
+	}
+	buf, err = c.src.view(buf, int(resourceMapOffset)+typeListOffset+2, tSize*typeCount)
+	if err != nil {
+		return err
+	}
+	resourceCount, resourceListOffset := 0, 0
+	for i := 0; i < typeCount; i++ {
+		if u32(buf[tSize*i:]) != 0x73666e74 { // "sfnt".
+			continue
+		}
+
+		resourceCount = int(int16(u16(buf[tSize*i+4:])))
+		if resourceCount < 0 {
+			return errInvalidDfont
+		}
+		// https://github.com/kreativekorp/ksfl/wiki/Macintosh-Resource-File-Format
+		// says that the value in the wire format is "the number of
+		// resources of this type, minus one."
+		resourceCount++
+
+		resourceListOffset = int(int16(u16(buf[tSize*i+6:])))
+		if resourceListOffset < 0 {
+			return errInvalidDfont
+		}
+		break
+	}
+	if resourceCount == 0 {
+		return errInvalidDfont
+	}
+	if resourceCount > maxNumFonts {
+		return errUnsupportedNumberOfFonts
+	}
+
+	const rSize = 12
+	if o, n := uint32(typeListOffset+resourceListOffset), rSize*uint32(resourceCount); o > resourceMapLength || n > resourceMapLength-o {
+		return errInvalidDfont
+	} else {
+		buf, err = c.src.view(buf, int(resourceMapOffset+o), int(n))
+		if err != nil {
+			return err
+		}
+	}
+	c.offsets = make([]uint32, resourceCount)
+	for i := range c.offsets {
+		o := 0xffffff & u32(buf[rSize*i+4:])
+		// Offsets are relative to the resource data start, not the file start.
+		// A particular resource's data also starts with a 4-byte length, which
+		// we skip.
+		o += dfontResourceDataOffset + 4
+		if o > maxTableOffset {
+			return errUnsupportedTableOffsetLength
+		}
+		c.offsets[i] = o
+	}
+	c.isDfont = true
+	return nil
+}
+
 // Font returns the i'th font in the collection.
 func (c *Collection) Font(i int) (*Font, error) {
 	if i < 0 || len(c.offsets) <= i {
 		return nil, ErrNotFound
 	}
 	f := &Font{src: c.src}
-	if err := f.initialize(int(c.offsets[i])); err != nil {
+	if err := f.initialize(int(c.offsets[i]), c.isDfont); err != nil {
 		return nil, err
 	}
 	return f, nil
@@ -359,7 +471,7 @@ func (c *Collection) Font(i int) (*Font, error) {
 // source.
 func Parse(src []byte) (*Font, error) {
 	f := &Font{src: source{b: src}}
-	if err := f.initialize(0); err != nil {
+	if err := f.initialize(0, false); err != nil {
 		return nil, err
 	}
 	return f, nil
@@ -369,7 +481,7 @@ func Parse(src []byte) (*Font, error) {
 // io.ReaderAt data source.
 func ParseReaderAt(src io.ReaderAt) (*Font, error) {
 	f := &Font{src: source{r: src}}
-	if err := f.initialize(0); err != nil {
+	if err := f.initialize(0, false); err != nil {
 		return nil, err
 	}
 	return f, nil
@@ -462,11 +574,11 @@ func (f *Font) NumGlyphs() int { return len(f.cached.glyphData.locations) - 1 }
 // UnitsPerEm returns the number of units per em for f.
 func (f *Font) UnitsPerEm() Units { return f.cached.unitsPerEm }
 
-func (f *Font) initialize(offset int) error {
+func (f *Font) initialize(offset int, isDfont bool) error {
 	if !f.src.valid() {
 		return errInvalidSourceData
 	}
-	buf, isPostScript, err := f.initializeTables(offset)
+	buf, isPostScript, err := f.initializeTables(offset, isDfont)
 	if err != nil {
 		return err
 	}
@@ -526,7 +638,7 @@ func (f *Font) initialize(offset int) error {
 	return nil
 }
 
-func (f *Font) initializeTables(offset int) (buf1 []byte, isPostScript bool, err error) {
+func (f *Font) initializeTables(offset int, isDfont bool) (buf1 []byte, isPostScript bool, err error) {
 	// https://www.microsoft.com/typography/otspec/otff.htm "Organization of an
 	// OpenType Font" says that "The OpenType font starts with the Offset
 	// Table", which is 12 bytes.
@@ -539,6 +651,8 @@ func (f *Font) initializeTables(offset int) (buf1 []byte, isPostScript bool, err
 	switch u32(buf) {
 	default:
 		return nil, false, errInvalidFont
+	case dfontResourceDataOffset:
+		return nil, false, errInvalidSingleFont
 	case 0x00010000:
 		// No-op.
 	case 0x4f54544f: // "OTTO".
@@ -567,6 +681,15 @@ func (f *Font) initializeTables(offset int) (buf1 []byte, isPostScript bool, err
 		prevTag = tag
 
 		o, n := u32(b[8:12]), u32(b[12:16])
+		// For dfont files, the offset is relative to the resource, not the
+		// file.
+		if isDfont {
+			origO := o
+			o += uint32(offset)
+			if o < origO {
+				return nil, false, errUnsupportedTableOffsetLength
+			}
+		}
 		if o > maxTableOffset || n > maxTableLength {
 			return nil, false, errUnsupportedTableOffsetLength
 		}
