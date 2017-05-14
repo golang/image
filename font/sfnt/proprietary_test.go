@@ -96,24 +96,32 @@ var (
 	)
 )
 
-func TestProprietaryAdobeSourceCodeProOTF(t *testing.T) {
+func TestProprietaryAdobeSourceCodeProRegularOTF(t *testing.T) {
 	testProprietary(t, "adobe", "SourceCodePro-Regular.otf", 1500, -1)
 }
 
-func TestProprietaryAdobeSourceCodeProTTF(t *testing.T) {
+func TestProprietaryAdobeSourceCodeProRegularTTF(t *testing.T) {
 	testProprietary(t, "adobe", "SourceCodePro-Regular.ttf", 1500, -1)
 }
 
-func TestProprietaryAdobeSourceHanSansSC(t *testing.T) {
+func TestProprietaryAdobeSourceHanSansSCRegularOTF(t *testing.T) {
 	testProprietary(t, "adobe", "SourceHanSansSC-Regular.otf", 65535, -1)
 }
 
-func TestProprietaryAdobeSourceSansProOTF(t *testing.T) {
-	testProprietary(t, "adobe", "SourceSansPro-Regular.otf", 1800, -1)
+func TestProprietaryAdobeSourceSansProBlackOTF(t *testing.T) {
+	testProprietary(t, "adobe", "SourceSansPro-Black.otf", 1900, -1)
 }
 
-func TestProprietaryAdobeSourceSansProTTF(t *testing.T) {
-	testProprietary(t, "adobe", "SourceSansPro-Regular.ttf", 1800, -1)
+func TestProprietaryAdobeSourceSansProBlackTTF(t *testing.T) {
+	testProprietary(t, "adobe", "SourceSansPro-Black.ttf", 1900, -1)
+}
+
+func TestProprietaryAdobeSourceSansProRegularOTF(t *testing.T) {
+	testProprietary(t, "adobe", "SourceSansPro-Regular.otf", 1900, -1)
+}
+
+func TestProprietaryAdobeSourceSansProRegularTTF(t *testing.T) {
+	testProprietary(t, "adobe", "SourceSansPro-Regular.ttf", 1900, -1)
 }
 
 func TestProprietaryAppleAppleSymbols(t *testing.T) {
@@ -401,6 +409,8 @@ var proprietaryVersions = map[string]string{
 	"adobe/SourceCodePro-Regular.otf":   "Version 2.030;PS 1.0;hotconv 16.6.51;makeotf.lib2.5.65220",
 	"adobe/SourceCodePro-Regular.ttf":   "Version 2.030;PS 1.000;hotconv 16.6.51;makeotf.lib2.5.65220",
 	"adobe/SourceHanSansSC-Regular.otf": "Version 1.004;PS 1.004;hotconv 1.0.82;makeotf.lib2.5.63406",
+	"adobe/SourceSansPro-Black.otf":     "Version 2.020;PS 2.0;hotconv 1.0.86;makeotf.lib2.5.63406",
+	"adobe/SourceSansPro-Black.ttf":     "Version 2.020;PS 2.000;hotconv 1.0.86;makeotf.lib2.5.63406",
 	"adobe/SourceSansPro-Regular.otf":   "Version 2.020;PS 2.0;hotconv 1.0.86;makeotf.lib2.5.63406",
 	"adobe/SourceSansPro-Regular.ttf":   "Version 2.020;PS 2.000;hotconv 1.0.86;makeotf.lib2.5.63406",
 
@@ -436,6 +446,8 @@ var proprietaryFullNames = map[string]string{
 	"adobe/SourceCodePro-Regular.otf":   "Source Code Pro",
 	"adobe/SourceCodePro-Regular.ttf":   "Source Code Pro",
 	"adobe/SourceHanSansSC-Regular.otf": "Source Han Sans SC Regular",
+	"adobe/SourceSansPro-Black.otf":     "Source Sans Pro Black",
+	"adobe/SourceSansPro-Black.ttf":     "Source Sans Pro Black",
 	"adobe/SourceSansPro-Regular.otf":   "Source Sans Pro",
 	"adobe/SourceSansPro-Regular.ttf":   "Source Sans Pro",
 
@@ -636,6 +648,54 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			lineTo(941, 104),
 			// endchar
 			lineTo(60, 104),
+		},
+	},
+
+	"adobe/SourceSansPro-Black.otf": {
+		'¤': { // U+00A4 CURRENCY SIGN
+			// -45 147 99 168 98 hstem
+			// 44 152 148 152 vstem
+			// 102 76 rmoveto
+			moveTo(102, 76),
+			// 71 71 rlineto
+			lineTo(173, 147),
+			// 31 -13 33 -6 33 32 34 6 31 hflex1
+			cubeTo(204, 134, 237, 128, 270, 128),
+			cubeTo(302, 128, 336, 134, 367, 147),
+			// 71 -71 85 85 -61 60 rlineto
+			lineTo(438, 76),
+			lineTo(523, 161),
+			lineTo(462, 221),
+			// 21 30 13 36 43 vvcurveto
+			cubeTo(483, 251, 496, 287, 496, 330),
+			// 42 -12 36 -21 29 vhcurveto
+			cubeTo(496, 372, 484, 408, 463, 437),
+			// 60 60 -85 85 -70 -70 rlineto
+			lineTo(523, 497),
+			lineTo(438, 582),
+			lineTo(368, 512),
+			// -31 13 -34 7 -33 -33 -34 -7 -31 hflex1
+			cubeTo(337, 525, 303, 532, 270, 532),
+			cubeTo(237, 532, 203, 525, 172, 512),
+			// -70 70 -85 -85 59 -60 rlineto
+			lineTo(102, 582),
+			lineTo(17, 497),
+			lineTo(76, 437),
+			// -20 -29 -12 -36 -42 vvcurveto
+			cubeTo(56, 408, 44, 372, 44, 330),
+			// -43 12 -36 21 -30 vhcurveto
+			cubeTo(44, 287, 56, 251, 77, 221),
+			// -60 -60 rlineto
+			lineTo(17, 161),
+			// 253 85 rmoveto
+			lineTo(102, 76),
+			moveTo(270, 246),
+			// -42 -32 32 52 52 32 32 42 42 32 -32 -52 -52 -32 -32 -42 hvcurveto
+			cubeTo(228, 246, 196, 278, 196, 330),
+			cubeTo(196, 382, 228, 414, 270, 414),
+			cubeTo(312, 414, 344, 382, 344, 330),
+			cubeTo(344, 278, 312, 246, 270, 246),
+			// endchar
 		},
 	},
 
