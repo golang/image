@@ -23,14 +23,13 @@ go test golang.org/x/image/font/sfnt -args -proprietary \
 	-adobeDir=$HOME/fonts/adobe \
 	-appleDir=$HOME/fonts/apple \
 	-dejavuDir=$HOME/fonts/dejavu \
-	-microsoftDir=$HOME/fonts/microsoft
+	-microsoftDir=$HOME/fonts/microsoft \
+	-notoDir=$HOME/fonts/noto
 
 To only run those tests for the Microsoft fonts:
 
 go test golang.org/x/image/font/sfnt -test.run=ProprietaryMicrosoft -args -proprietary etc
 */
-
-// TODO: add Google fonts (Droid? Noto?)? Emoji fonts?
 
 // TODO: enable Apple/Microsoft tests by default on Darwin/Windows?
 
@@ -87,6 +86,13 @@ var (
 		"microsoftDir",
 		"/usr/share/fonts/truetype/msttcorefonts",
 		"directory name for the Microsoft proprietary fonts",
+	)
+
+	notoDir = flag.String(
+		"notoDir",
+		// Get the fonts from https://www.google.com/get/noto/
+		"",
+		"directory name for the Noto proprietary fonts",
 	)
 )
 
@@ -186,6 +192,14 @@ func TestProprietaryMicrosoftWebdings(t *testing.T) {
 	testProprietary(t, "microsoft", "Webdings.ttf", 200, -1)
 }
 
+func TestProprietaryNotoColorEmoji(t *testing.T) {
+	testProprietary(t, "noto", "NotoColorEmoji.ttf", 2300, -1)
+}
+
+func TestProprietaryNotoSansRegular(t *testing.T) {
+	testProprietary(t, "noto", "NotoSans-Regular.ttf", 2400, -1)
+}
+
 // testProprietary tests that we can load every glyph in the named font.
 //
 // The exact number of glyphs in the font can differ across its various
@@ -219,6 +233,8 @@ func testProprietary(t *testing.T, proprietor, filename string, minNumGlyphs, fi
 		dir = *dejavuDir
 	case "microsoft":
 		dir = *microsoftDir
+	case "noto":
+		dir = *notoDir
 	default:
 		panic("unreachable")
 	}
@@ -287,7 +303,7 @@ func testProprietary(t *testing.T, proprietor, filename string, minNumGlyphs, fi
 		iMax = firstUnsupportedGlyph
 	}
 	for i, numErrors := 0, 0; i < iMax; i++ {
-		if _, err := f.LoadGlyph(&buf, GlyphIndex(i), ppem, nil); err != nil {
+		if _, err := f.LoadGlyph(&buf, GlyphIndex(i), ppem, nil); err != nil && err != ErrColoredGlyph {
 			t.Errorf("LoadGlyph(%d): %v", i, err)
 			numErrors++
 		}
@@ -409,6 +425,9 @@ var proprietaryVersions = map[string]string{
 	"microsoft/Comic_Sans_MS.ttf":   "Version 2.10",
 	"microsoft/Times_New_Roman.ttf": "Version 2.82",
 	"microsoft/Webdings.ttf":        "Version 1.03",
+
+	"noto/NotoColorEmoji.ttf":   "Version 1.33",
+	"noto/NotoSans-Regular.ttf": "Version 1.06",
 }
 
 // proprietaryFullNames holds the expected full name of each proprietary font
@@ -441,6 +460,9 @@ var proprietaryFullNames = map[string]string{
 	"microsoft/Comic_Sans_MS.ttf":   "Comic Sans MS",
 	"microsoft/Times_New_Roman.ttf": "Times New Roman",
 	"microsoft/Webdings.ttf":        "Webdings",
+
+	"noto/NotoColorEmoji.ttf":   "Noto Color Emoji",
+	"noto/NotoSans-Regular.ttf": "Noto Sans",
 }
 
 // proprietaryGlyphIndexTestCases hold a sample of each font's rune to glyph
@@ -1150,6 +1172,27 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			transform(-1<<14, 0, 0, +1<<14, 653, 0, quadTo(336, 359, 370, 165)),
 			transform(-1<<14, 0, 0, +1<<14, 653, 0, quadTo(398, 8, 454, -142)),
 			transform(-1<<14, 0, 0, +1<<14, 653, 0, quadTo(482, -217, 560, -384)),
+		},
+	},
+
+	"noto/NotoSans-Regular.ttf": {
+		'i': {
+			// - contour #0
+			moveTo(354, 0),
+			lineTo(174, 0),
+			lineTo(174, 1098),
+			lineTo(354, 1098),
+			lineTo(354, 0),
+			// - contour #1
+			moveTo(160, 1395),
+			quadTo(160, 1455, 190, 1482),
+			quadTo(221, 1509, 266, 1509),
+			quadTo(308, 1509, 339, 1482),
+			quadTo(371, 1455, 371, 1395),
+			quadTo(371, 1336, 339, 1308),
+			quadTo(308, 1280, 266, 1280),
+			quadTo(221, 1280, 190, 1308),
+			quadTo(160, 1336, 160, 1395),
 		},
 	},
 }
