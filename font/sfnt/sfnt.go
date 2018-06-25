@@ -1357,8 +1357,7 @@ func (f *Font) Kern(b *Buffer, x0, x1 GlyphIndex, ppem fixed.Int26_6, h font.Hin
 // Metrics returns the metrics of this font.
 func (f *Font) Metrics(b *Buffer, ppem fixed.Int26_6, h font.Hinting) (font.Metrics, error) {
 	m := font.Metrics{
-		// TODO: is adding lineGap correct?
-		Height:  ppem + scale(fixed.Int26_6(f.cached.lineGap)*ppem, f.cached.unitsPerEm),
+		Height:  scale(fixed.Int26_6(f.cached.ascent-f.cached.descent+f.cached.lineGap)*ppem, f.cached.unitsPerEm),
 		Ascent:  +scale(fixed.Int26_6(f.cached.ascent)*ppem, f.cached.unitsPerEm),
 		Descent: -scale(fixed.Int26_6(f.cached.descent)*ppem, f.cached.unitsPerEm),
 	}
