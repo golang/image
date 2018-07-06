@@ -64,7 +64,7 @@ func TestEncode(t *testing.T) {
 			continue
 		}
 
-		err = compare(t, img0, img1)
+		err = compare(img0, img1)
 		if err != nil {
 			t.Errorf("%s: Compare BMP: %v", tc, err)
 			continue
@@ -88,7 +88,7 @@ func TestEncode(t *testing.T) {
 		// the conversion process is lossy.
 		img3 := convertToNRGBA(rgba)
 
-		err = compare(t, img3, img2)
+		err = compare(img3, img2)
 		if err != nil {
 			t.Errorf("%s: Compare pre-multiplied BMP: %v", tc, err)
 		}
