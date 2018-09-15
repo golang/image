@@ -82,7 +82,7 @@ func TestFaceKern(t *testing.T) {
 }
 
 func TestFaceMetrics(t *testing.T) {
-	want := font.Metrics{Height: 888, Ascent: 726, Descent: 162}
+	want := font.Metrics{Height: 888, Ascent: 726, Descent: 162, XHeight: 407, CapHeight: 555}
 	got := regular.Metrics()
 	if got != want {
 		t.Fatalf("metrics failed. got=%#v. want=%#v", got, want)

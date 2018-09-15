@@ -223,9 +223,9 @@ func TestMetrics(t *testing.T) {
 		font []byte
 		want font.Metrics
 	}{
-		"goregular": {goregular.TTF, font.Metrics{Height: 2367, Ascent: 1935, Descent: 432}},
+		"goregular": {goregular.TTF, font.Metrics{Height: 2367, Ascent: 1935, Descent: 432, XHeight: 1086, CapHeight: 1480}},
 		// cmapTest.ttf has a non-zero lineGap.
-		"cmapTest": {cmapFont, font.Metrics{Height: 1549, Ascent: 1365, Descent: 0}},
+		"cmapTest": {cmapFont, font.Metrics{Height: 1549, Ascent: 1365, Descent: 0, XHeight: 800, CapHeight: 800}},
 	}
 	var b Buffer
 	for name, tc := range testCases {
