@@ -94,6 +94,10 @@ type Metrics struct {
 	// CapHeight is the distance from the top of uppercase letters to the
 	// baseline.
 	CapHeight fixed.Int26_6
+
+	// CaretSlope is the slope of a caret as a vector with the Y axis pointing up.
+	// The slope {0, 1} is the vertical caret.
+	CaretSlope image.Point
 }
 
 // Drawer draws text on a destination image.
