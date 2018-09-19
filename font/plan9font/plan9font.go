@@ -67,11 +67,12 @@ func (f *subface) Metrics() font.Metrics {
 	// The same applies to CapHeight, using the uppercase 'H'.
 	hbounds, _, _ := f.GlyphBounds('H')
 	return font.Metrics{
-		Height:    fixed.I(f.height),
-		Ascent:    fixed.I(f.ascent),
-		Descent:   fixed.I(f.height - f.ascent),
-		XHeight:   -xbounds.Min.Y,
-		CapHeight: -hbounds.Min.Y,
+		Height:     fixed.I(f.height),
+		Ascent:     fixed.I(f.ascent),
+		Descent:    fixed.I(f.height - f.ascent),
+		XHeight:    -xbounds.Min.Y,
+		CapHeight:  -hbounds.Min.Y,
+		CaretSlope: image.Point{X: 0, Y: 1},
 	}
 }
 
@@ -153,11 +154,12 @@ func (f *face) Metrics() font.Metrics {
 	xbounds, _, _ := f.GlyphBounds('x')
 	hbounds, _, _ := f.GlyphBounds('H')
 	return font.Metrics{
-		Height:    fixed.I(f.height),
-		Ascent:    fixed.I(f.ascent),
-		Descent:   fixed.I(f.height - f.ascent),
-		XHeight:   -xbounds.Min.Y,
-		CapHeight: -hbounds.Min.Y,
+		Height:     fixed.I(f.height),
+		Ascent:     fixed.I(f.ascent),
+		Descent:    fixed.I(f.height - f.ascent),
+		XHeight:    -xbounds.Min.Y,
+		CapHeight:  -hbounds.Min.Y,
+		CaretSlope: image.Point{X: 0, Y: 1},
 	}
 }
 
