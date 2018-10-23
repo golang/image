@@ -165,7 +165,8 @@ func decodeConfig(r io.Reader) (config image.Config, bitsPerPixel int, topDown b
 	if width < 0 || height < 0 {
 		return image.Config{}, 0, false, ErrUnsupported
 	}
-	// We only support 1 plane, 8 or 24 bits per pixel and no compression.
+	// We only support 1 plane and 8, 24 or 32 bits per pixel and no
+	// compression.
 	planes, bpp, compression := readUint16(b[26:28]), readUint16(b[28:30]), readUint32(b[30:34])
 	// if compression is set to BITFIELDS, but the bitmask is set to the default bitmask
 	// that would be used if compression was set to 0, we can continue as if compression was 0
