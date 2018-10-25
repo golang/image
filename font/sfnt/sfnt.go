@@ -904,7 +904,10 @@ func (f *Font) parseHhea(buf []byte, numGlyphs int32) (buf1 []byte, ascent, desc
 func (f *Font) parseHmtx(buf []byte, numGlyphs, numHMetrics int32) (buf1 []byte, err error) {
 	// https://www.microsoft.com/typography/OTSPEC/hmtx.htm
 
-	if f.hmtx.length != uint32(2*numGlyphs+2*numHMetrics) {
+	// The spec says that the hmtx table's length should be
+	// "4*numHMetrics+2*(numGlyphs-numHMetrics)". However, some fonts seen in the
+	// wild omit the "2*(nG-nHM)". See https://github.com/golang/go/issues/28379
+	if f.hmtx.length != uint32(4*numHMetrics) && f.hmtx.length != uint32(4*numHMetrics+2*(numGlyphs-numHMetrics)) {
 		return nil, errInvalidHmtxTable
 	}
 	return buf, nil
