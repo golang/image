@@ -579,7 +579,7 @@ type Font struct {
 		kernOffset       int32
 		lineGap          int32
 		numHMetrics      int32
-		postTableVersion uint32
+		post             *PostTable
 		slope            [2]int32
 		unitsPerEm       Units
 		xHeight          int32
@@ -641,7 +641,7 @@ func (f *Font) initialize(offset int, isDfont bool) error {
 	if err != nil {
 		return err
 	}
-	buf, postTableVersion, err := f.parsePost(buf, numGlyphs)
+	buf, post, err := f.parsePost(buf, numGlyphs)
 	if err != nil {
 		return err
 	}
@@ -659,7 +659,7 @@ func (f *Font) initialize(offset int, isDfont bool) error {
 	f.cached.kernOffset = kernOffset
 	f.cached.lineGap = lineGap
 	f.cached.numHMetrics = numHMetrics
-	f.cached.postTableVersion = postTableVersion
+	f.cached.post = post
 	f.cached.slope = [2]int32{run, rise}
 	f.cached.unitsPerEm = unitsPerEm
 	f.cached.xHeight = xHeight
@@ -1153,30 +1153,80 @@ func (f *Font) parseOS2(buf []byte) (buf1 []byte, version uint16, xHeight, capHe
 	return buf, vers, int32(int16(xh)), int32(int16(ch)), nil
 }
 
-func (f *Font) parsePost(buf []byte, numGlyphs int32) (buf1 []byte, postTableVersion uint32, err error) {
+// PostTable represents an information stored in the PostScript font section.
+type PostTable struct {
+	// Version of the version tag of the "post" table.
+	Version uint32
+	// ItalicAngle in counter-clockwise degrees from the vertical. Zero for
+	// upright text, negative for text that leans to the right (forward).
+	ItalicAngle float32
+	// UnderlinePosition is the suggested distance of the top of the
+	// underline from the baseline (negative values indicate below baseline).
+	UnderlinePosition int16
+	// Suggested values for the underline thickness.
+	UnderlineThickness int16
+	// IsFixedPitch indicates that the font is not proportionally spaced
+	// (i.e. monospaced).
+	IsFixedPitch bool
+}
+
+// PostTable returns the information from the font's "post" table. It can
+// return nil, if the font doesn't have such a table.
+//
+// See https://docs.microsoft.com/en-us/typography/opentype/spec/post
+func (f *Font) PostTable() *PostTable {
+	return f.cached.post
+}
+
+func (f *Font) parsePost(buf []byte, numGlyphs int32) (buf1 []byte, post *PostTable, err error) {
 	// https://www.microsoft.com/typography/otspec/post.htm
 
 	const headerSize = 32
 	if f.post.length < headerSize {
-		return nil, 0, errInvalidPostTable
+		return nil, nil, errInvalidPostTable
 	}
 	u, err := f.src.u32(buf, f.post, 0)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
+
 	switch u {
 	case 0x10000:
 		// No-op.
 	case 0x20000:
 		if f.post.length < headerSize+2+2*uint32(numGlyphs) {
-			return nil, 0, errInvalidPostTable
+			return nil, nil, errInvalidPostTable
 		}
 	case 0x30000:
 		// No-op.
 	default:
-		return nil, 0, errUnsupportedPostTable
+		return nil, nil, errUnsupportedPostTable
 	}
-	return buf, u, nil
+
+	ang, err := f.src.u32(buf, f.post, 4)
+	if err != nil {
+		return nil, nil, err
+	}
+	up, err := f.src.u16(buf, f.post, 8)
+	if err != nil {
+		return nil, nil, err
+	}
+	ut, err := f.src.u16(buf, f.post, 10)
+	if err != nil {
+		return nil, nil, err
+	}
+	fp, err := f.src.u32(buf, f.post, 12)
+	if err != nil {
+		return nil, nil, err
+	}
+	post = &PostTable{
+		Version:            u,
+		ItalicAngle:        float32(int16(ang>>16)) + float32(ang&0xffff)/0x10000,
+		UnderlinePosition:  int16(up),
+		UnderlineThickness: int16(ut),
+		IsFixedPitch:       fp != 0,
+	}
+	return buf, post, nil
 }
 
 // Bounds returns the union of a Font's glyphs' bounds.
@@ -1380,7 +1430,10 @@ func (f *Font) GlyphName(b *Buffer, x GlyphIndex) (string, error) {
 	if int(x) >= f.NumGlyphs() {
 		return "", ErrNotFound
 	}
-	switch f.cached.postTableVersion {
+	if f.cached.post == nil {
+		return "", nil
+	}
+	switch f.cached.post.Version {
 	case 0x10000:
 		return f.glyphNameFormat10(x)
 	case 0x20000:
