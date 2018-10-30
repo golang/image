@@ -333,7 +333,7 @@ func (c *Collection) initialize() error {
 		return errInvalidFontCollection
 	case dfontResourceDataOffset:
 		return c.parseDfont(buf, u32(buf[4:]), u32(buf[12:]))
-	case 0x00010000, 0x4f54544f:
+	case 0x00010000, 0x4f54544f, 0x74727565: // 0x10000, "OTTO", "true"
 		// Try parsing it as a single font instead of a collection.
 		c.offsets = []uint32{0}
 	case 0x74746366: // "ttcf".
@@ -637,7 +637,7 @@ func (f *Font) initialize(offset int, isDfont bool) error {
 	if err != nil {
 		return err
 	}
-	buf, os2Vers, xHeight, capHeight, err := f.parseOS2(buf)
+	buf, hasXHeightCapHeight, xHeight, capHeight, err := f.parseOS2(buf)
 	if err != nil {
 		return err
 	}
@@ -664,7 +664,7 @@ func (f *Font) initialize(offset int, isDfont bool) error {
 	f.cached.unitsPerEm = unitsPerEm
 	f.cached.xHeight = xHeight
 
-	if os2Vers <= 1 {
+	if !hasXHeightCapHeight {
 		xh, ch, err := f.initOS2Version1()
 		if err != nil {
 			return err
@@ -695,6 +695,8 @@ func (f *Font) initializeTables(offset int, isDfont bool) (buf1 []byte, isPostSc
 		// No-op.
 	case 0x4f54544f: // "OTTO".
 		isPostScript = true
+	case 0x74727565: // "true"
+		// No-op.
 	case 0x74746366: // "ttcf".
 		return nil, false, errInvalidSingleFont
 	}
@@ -1121,36 +1123,40 @@ func (f *Font) initOS2Version1() (xHeight, capHeight int32, err error) {
 	return int32(xh), int32(ch), nil
 }
 
-func (f *Font) parseOS2(buf []byte) (buf1 []byte, version uint16, xHeight, capHeight int32, err error) {
+func (f *Font) parseOS2(buf []byte) (buf1 []byte, hasXHeightCapHeight bool, xHeight, capHeight int32, err error) {
 	// https://docs.microsoft.com/da-dk/typography/opentype/spec/os2
-	if f.os2.length < 2 {
-		return nil, 0, 0, 0, errInvalidOS2Table
+
+	if f.os2.length == 0 {
+		// Apple TrueType fonts might omit the OS/2 table.
+		return buf, false, 0, 0, nil
+	} else if f.os2.length < 2 {
+		return nil, false, 0, 0, errInvalidOS2Table
 	}
 	vers, err := f.src.u16(buf, f.os2, 0)
 	if err != nil {
-		return nil, 0, 0, 0, err
+		return nil, false, 0, 0, err
 	}
 	if vers <= 1 {
 		const headerSize = 86
 		if f.os2.length < headerSize {
-			return nil, 0, 0, 0, errInvalidOS2Table
+			return nil, false, 0, 0, errInvalidOS2Table
 		}
 		// Will resolve xHeight and capHeight later, see initOS2Version1.
-		return buf, vers, 0, 0, nil
+		return buf, false, 0, 0, nil
 	}
 	const headerSize = 96
 	if f.os2.length < headerSize {
-		return nil, 0, 0, 0, errInvalidOS2Table
+		return nil, false, 0, 0, errInvalidOS2Table
 	}
 	xh, err := f.src.u16(buf, f.os2, 86)
 	if err != nil {
-		return nil, 0, 0, 0, err
+		return nil, false, 0, 0, err
 	}
 	ch, err := f.src.u16(buf, f.os2, 88)
 	if err != nil {
-		return nil, 0, 0, 0, err
+		return nil, false, 0, 0, err
 	}
-	return buf, vers, int32(int16(xh)), int32(int16(ch)), nil
+	return buf, true, int32(int16(xh)), int32(int16(ch)), nil
 }
 
 // PostTable represents an information stored in the PostScript font section.
