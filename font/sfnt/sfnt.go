@@ -1165,6 +1165,8 @@ func (f *Font) parsePost(buf []byte, numGlyphs int32) (buf1 []byte, postTableVer
 		return nil, 0, err
 	}
 	switch u {
+	case 0x10000:
+		// No-op.
 	case 0x20000:
 		if f.post.length < headerSize+2+2*uint32(numGlyphs) {
 			return nil, 0, errInvalidPostTable
@@ -1299,30 +1301,20 @@ func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, opts *Load
 	return b.segments, nil
 }
 
-// GlyphName returns the name of the x'th glyph.
-//
-// Not every font contains glyph names. If not present, GlyphName will return
-// ("", nil).
-//
-// If present, the glyph name, provided by the font, is assumed to follow the
-// Adobe Glyph List Specification:
-// https://github.com/adobe-type-tools/agl-specification/blob/master/README.md
-//
-// This is also known as the "Adobe Glyph Naming convention", the "Adobe
-// document [for] Unicode and Glyph Names" or "PostScript glyph names".
-//
-// It returns ErrNotFound if the glyph index is out of range.
-func (f *Font) GlyphName(b *Buffer, x GlyphIndex) (string, error) {
-	if int(x) >= f.NumGlyphs() {
+func (f *Font) glyphNameFormat10(x GlyphIndex) (string, error) {
+	if x >= numBuiltInPostNames {
 		return "", ErrNotFound
 	}
-	if f.cached.postTableVersion != 0x20000 {
-		return "", nil
-	}
+	// https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6post.html
+	i := builtInPostNamesOffsets[x+0]
+	j := builtInPostNamesOffsets[x+1]
+	return builtInPostNamesData[i:j], nil
+}
+
+func (f *Font) glyphNameFormat20(b *Buffer, x GlyphIndex) (string, error) {
 	if b == nil {
 		b = &Buffer{}
 	}
-
 	// The wire format for a Version 2 post table is documented at:
 	// https://www.microsoft.com/typography/otspec/post.htm
 	const glyphNameIndexOffset = 34
@@ -1368,6 +1360,33 @@ func (f *Font) GlyphName(b *Buffer, x GlyphIndex) (string, error) {
 		}
 		buf = buf[n:]
 		u--
+	}
+}
+
+// GlyphName returns the name of the x'th glyph.
+//
+// Not every font contains glyph names. If not present, GlyphName will return
+// ("", nil).
+//
+// If present, the glyph name, provided by the font, is assumed to follow the
+// Adobe Glyph List Specification:
+// https://github.com/adobe-type-tools/agl-specification/blob/master/README.md
+//
+// This is also known as the "Adobe Glyph Naming convention", the "Adobe
+// document [for] Unicode and Glyph Names" or "PostScript glyph names".
+//
+// It returns ErrNotFound if the glyph index is out of range.
+func (f *Font) GlyphName(b *Buffer, x GlyphIndex) (string, error) {
+	if int(x) >= f.NumGlyphs() {
+		return "", ErrNotFound
+	}
+	switch f.cached.postTableVersion {
+	case 0x10000:
+		return f.glyphNameFormat10(x)
+	case 0x20000:
+		return f.glyphNameFormat20(b, x)
+	default:
+		return "", nil
 	}
 }
 
