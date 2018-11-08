@@ -408,11 +408,9 @@ func clipAffectedDestRect(adr image.Rectangle, dstMask image.Image, dstMaskP ima
 	if dstMask == nil {
 		return adr, nil
 	}
-	// TODO: enable this fast path once Go 1.5 is released, where an
-	// image.Rectangle implements image.Image.
-	// if r, ok := dstMask.(image.Rectangle); ok {
-	// 	return adr.Intersect(r.Sub(dstMaskP)), nil
-	// }
+	if r, ok := dstMask.(image.Rectangle); ok {
+		return adr.Intersect(r.Sub(dstMaskP)), nil
+	}
 	// TODO: clip to dstMask.Bounds() if the color model implies that out-of-bounds means 0 alpha?
 	return adr, dstMask
 }
