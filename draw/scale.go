@@ -46,8 +46,8 @@ type Scaler interface {
 //
 // For example, if m is the matrix
 //
-// m00 m01 m02
-// m10 m11 m12
+// 	m00 m01 m02
+// 	m10 m11 m12
 //
 // then the src-space point (sx, sy) maps to the dst-space point
 // (m00*sx + m01*sy + m02, m10*sx + m11*sy + m12).
