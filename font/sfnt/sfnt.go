@@ -1013,8 +1013,8 @@ func (f *Font) parseKernVersion0(buf []byte, offset, length int) (buf1 []byte, k
 	if version := u16(buf); version != 0 {
 		return nil, 0, 0, errUnsupportedKernTable
 	}
-	subtableLength := int(u16(buf[2:]))
-	if subtableLength < headerSize || length < subtableLength {
+	subtableLengthU16 := u16(buf[2:])
+	if int(subtableLengthU16) < headerSize || length < int(subtableLengthU16) {
 		return nil, 0, 0, errInvalidKernTable
 	}
 	if coverageBits := buf[5]; coverageBits != 0x01 {
@@ -1023,11 +1023,11 @@ func (f *Font) parseKernVersion0(buf []byte, offset, length int) (buf1 []byte, k
 	}
 	offset += headerSize
 	length -= headerSize
-	subtableLength -= headerSize
+	subtableLengthU16 -= headerSize
 
 	switch format := buf[4]; format {
 	case 0:
-		return f.parseKernFormat0(buf, offset, subtableLength)
+		return f.parseKernFormat0(buf, offset, length, subtableLengthU16)
 	case 2:
 		// If we could find such a font, we could write code to support it, but
 		// a comment in the equivalent FreeType code (sfnt/ttkern.c) says that
@@ -1036,7 +1036,7 @@ func (f *Font) parseKernVersion0(buf []byte, offset, length int) (buf1 []byte, k
 	return nil, 0, 0, errUnsupportedKernTable
 }
 
-func (f *Font) parseKernFormat0(buf []byte, offset, length int) (buf1 []byte, kernNumPairs, kernOffset int32, err error) {
+func (f *Font) parseKernFormat0(buf []byte, offset, length int, subtableLengthU16 uint16) (buf1 []byte, kernNumPairs, kernOffset int32, err error) {
 	const headerSize, entrySize = 8, 6
 	if length < headerSize {
 		return nil, 0, 0, errInvalidKernTable
@@ -1046,7 +1046,13 @@ func (f *Font) parseKernFormat0(buf []byte, offset, length int) (buf1 []byte, ke
 		return nil, 0, 0, err
 	}
 	kernNumPairs = int32(u16(buf))
-	if length != headerSize+entrySize*int(kernNumPairs) {
+
+	// The subtable length from the kern table is only uint16. Fonts like
+	// Cambria, Calibri or Corbel have more then 10k kerning pairs and the
+	// actual subtable size is truncated to uint16. Compare size with KERN
+	// length and truncated size with subtable length.
+	n := headerSize + entrySize*int(kernNumPairs)
+	if (length < n) || (subtableLengthU16 != uint16(n)) {
 		return nil, 0, 0, errInvalidKernTable
 	}
 	return buf, kernNumPairs, int32(offset) + headerSize, nil
