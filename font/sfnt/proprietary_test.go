@@ -168,6 +168,10 @@ func TestProprietaryAppleHiragino1(t *testing.T) {
 	testProprietary(t, "apple", "ヒラギノ角ゴシック W0.ttc?1", 9000, -1)
 }
 
+func TestProprietaryDejaVuSans(t *testing.T) {
+	testProprietary(t, "dejavu", "DejaVuSans.ttf", 3300, -1)
+}
+
 func TestProprietaryDejaVuSansExtraLight(t *testing.T) {
 	testProprietary(t, "dejavu", "DejaVuSans-ExtraLight.ttf", 2000, -1)
 }
@@ -427,6 +431,7 @@ var proprietaryVersions = map[string]string{
 	"apple/ヒラギノ角ゴシック W0.ttc?1": "11.0d7e1",
 
 	"dejavu/DejaVuSans-ExtraLight.ttf": "Version 2.37",
+	"dejavu/DejaVuSans.ttf":            "Version 2.37",
 	"dejavu/DejaVuSansMono.ttf":        "Version 2.37",
 	"dejavu/DejaVuSerif.ttf":           "Version 2.37",
 
@@ -464,6 +469,7 @@ var proprietaryFullNames = map[string]string{
 	"apple/ヒラギノ角ゴシック W0.ttc?1": ".Hiragino Kaku Gothic Interface W0",
 
 	"dejavu/DejaVuSans-ExtraLight.ttf": "DejaVu Sans ExtraLight",
+	"dejavu/DejaVuSans.ttf":            "DejaVu Sans",
 	"dejavu/DejaVuSansMono.ttf":        "DejaVu Sans Mono",
 	"dejavu/DejaVuSerif.ttf":           "DejaVu Serif",
 
@@ -1267,6 +1273,15 @@ type kernTestCase struct {
 // proprietaryKernTestCases hold a sample of each font's kerning pairs. The
 // numerical values can be verified by running the ttx tool.
 var proprietaryKernTestCases = map[string][]kernTestCase{
+	"adobe/SourceSansPro-Regular.otf": {
+		{1000, font.HintingNone, [2]rune{'A', 'V'}, -14},
+		{1000, font.HintingNone, [2]rune{'F', '\u0129'}, 36},
+	},
+	"adobe/SourceHanSansSC-Regular.otf": {
+		// U+3043 HIRAGANA LETTER SMALL I
+		// U+3067 HIRAGANA LETTER DE
+		{1000, font.HintingNone, [2]rune{'\u3043', '\u3067'}, -20},
+	},
 	"dejavu/DejaVuSans-ExtraLight.ttf": {
 		{2048, font.HintingNone, [2]rune{'A', 'A'}, 57},
 		{2048, font.HintingNone, [2]rune{'W', 'A'}, -112},
@@ -1274,10 +1289,16 @@ var proprietaryKernTestCases = map[string][]kernTestCase{
 		// U+01FA LATIN CAPITAL LETTER A WITH RING ABOVE AND ACUTE
 		// U+1E82 LATIN CAPITAL LETTER W WITH ACUTE
 		{2048, font.HintingNone, [2]rune{'\u00c1', 'A'}, 57},
-		// TODO: enable these next two test cases, when we support multiple
-		// kern subtables.
-		// {2048, font.HintingNone, [2]rune{'\u01fa', 'A'}, 57},
-		// {2048, font.HintingNone, [2]rune{'\u1e82', 'A'}, -112},
+		{2048, font.HintingNone, [2]rune{'\u01fa', 'A'}, 57},
+		{2048, font.HintingNone, [2]rune{'\u1e82', 'A'}, -112},
+	},
+	"dejavu/DejaVuSans.ttf": {
+		// U+EF13 + U+EF19 are private use codes, but DejaVuSans has these
+		// codes in a rarely used ClassDef format 1
+		{2048, font.HintingNone, [2]rune{'\uef13', '\uef19'}, -40},
+		{2048, font.HintingNone, [2]rune{'\uef13', '\uef13'}, 0},
+		// Use U+EF13 to trigger default class in ClassDef format 2
+		{2048, font.HintingNone, [2]rune{'A', '\uef13'}, 0},
 	},
 	"microsoft/Arial.ttf": {
 		{2048, font.HintingNone, [2]rune{'A', 'V'}, -152},
@@ -1308,6 +1329,35 @@ var proprietaryKernTestCases = map[string][]kernTestCase{
 	},
 	"microsoft/Webdings.ttf": {
 		{2048, font.HintingNone, [2]rune{'\uf041', '\uf042'}, 0},
+	},
+	"noto/NotoSans-Regular.ttf": {
+		{2048, font.HintingNone, [2]rune{'A', 'V'}, -40},
+		{2048, font.HintingNone, [2]rune{'A', 'W'}, -40},
+		{2048, font.HintingNone, [2]rune{'A', 'T'}, -70},
+		{2048, font.HintingNone, [2]rune{'V', 'A'}, -40},
+		{2048, font.HintingNone, [2]rune{'W', 'A'}, -40},
+		{2048, font.HintingNone, [2]rune{'T', 'A'}, -70},
+		// U+00C1 LATIN CAPITAL LETTER A WITH ACUTE
+		// U+01FA LATIN CAPITAL LETTER A WITH RING ABOVE AND ACUTE
+		// U+1E82 LATIN CAPITAL LETTER W WITH ACUTE
+		{2048, font.HintingNone, [2]rune{'\u00c1', 'T'}, -70},
+		{2048, font.HintingNone, [2]rune{'\u01fa', 'T'}, -70},
+		{2048, font.HintingNone, [2]rune{'\u1e82', 'A'}, -40},
+
+		// NotoSans-Regular.ttf uses two PairPos format=1 tables (with ExtensionPos).
+		// Test first and last pairs in both tables.
+		// First pair in first table
+		{2048, font.HintingNone, [2]rune{'F', '?'}, 20},
+		// U+04c3 CYRILLIC CAPITAL LETTER KA WITH HOOK
+		// U+0424 CYRILLIC CAPITAL LETTER EF
+		// Last pair in first table
+		{2048, font.HintingNone, [2]rune{'\u04c3', '\u0424'}, -20},
+		// First pair in second table
+		{2048, font.HintingNone, [2]rune{'"', 'A'}, -70},
+		// <!-- GREEK CAPITAL LETTER OMICRON WITH DASIA AND OXIA -->
+		// <!-- GREEK UPSILON WITH HOOK SYMBOL -->
+		// Last pair in second table
+		{2048, font.HintingNone, [2]rune{'\u1f4d', '\u03d2'}, -10},
 	},
 }
 
