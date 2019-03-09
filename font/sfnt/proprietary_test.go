@@ -353,6 +353,26 @@ func testProprietary(t *testing.T, proprietor, filename string, minNumGlyphs, fi
 		}
 	}
 
+	for r, tc := range proprietaryGlyphBoundsTestCases[qualifiedFilename] {
+		ppem := fixed.Int26_6(f.UnitsPerEm())
+		x, err := f.GlyphIndex(&buf, r)
+		if err != nil {
+			t.Errorf("GlyphIndex(%q): %v", r, err)
+			continue
+		}
+		gotBounds, gotAdv, err := f.GlyphBounds(&buf, x, ppem, font.HintingNone)
+		if err != nil {
+			t.Errorf("GlyphBounds(%q): %v", r, err)
+			continue
+		}
+		if gotBounds != tc.wantBounds {
+			t.Errorf("GlyphBounds(%q): got %#v, want %#v", r, gotBounds, tc.wantBounds)
+		}
+		if gotAdv != tc.wantAdv {
+			t.Errorf("GlyphBounds(%q): got %#v, want %#v", r, gotAdv, tc.wantAdv)
+		}
+	}
+
 kernLoop:
 	for _, tc := range proprietaryKernTestCases[qualifiedFilename] {
 		var indexes [2]GlyphIndex
@@ -1259,6 +1279,79 @@ var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 			quadTo(308, 1280, 266, 1280),
 			quadTo(221, 1280, 190, 1308),
 			quadTo(160, 1336, 160, 1395),
+		},
+	},
+}
+
+type boundsTestCase struct {
+	wantBounds fixed.Rectangle26_6
+	wantAdv    fixed.Int26_6
+}
+
+// proprietaryGlyphBoundsTestCases hold expected GlyphBounds. The
+// numerical values can be verified by running the ttx tool.
+// - Advance from hmtx width
+// - Bounds from TTGlyph (with flipped Y axis)
+var proprietaryGlyphBoundsTestCases = map[string]map[rune]boundsTestCase{
+	"adobe/SourceHanSansSC-Regular.otf": {
+		'!': {
+			wantBounds: fixed.Rectangle26_6{
+				Min: fixed.Point26_6{X: 95, Y: -749},
+				Max: fixed.Point26_6{X: 227, Y: 13},
+			},
+			wantAdv: 323,
+		},
+	},
+	"apple/Helvetica.dfont?0": {
+		'i': {
+			wantBounds: fixed.Rectangle26_6{
+				Min: fixed.Point26_6{X: 132, Y: -1469},
+				Max: fixed.Point26_6{X: 315, Y: 0},
+			},
+			wantAdv: 455,
+		},
+	},
+	"microsoft/Arial.ttf": {
+		'A': {
+			wantBounds: fixed.Rectangle26_6{
+				Min: fixed.Point26_6{X: -3, Y: -1466},
+				Max: fixed.Point26_6{X: 1369, Y: 0},
+			},
+			wantAdv: 1366,
+		},
+		// U+01FA LATIN CAPITAL LETTER A WITH RING ABOVE AND ACUTE is a
+		// compound glyph whose elements are also compound glyphs.
+		'Ǻ': {
+			wantBounds: fixed.Rectangle26_6{
+				Min: fixed.Point26_6{X: -3, Y: -2124},
+				Max: fixed.Point26_6{X: 1369, Y: 0},
+			},
+			wantAdv: 1366,
+		},
+		// U+FD3E ORNATE LEFT PARENTHESIS.
+		'﴾': {
+			wantBounds: fixed.Rectangle26_6{
+				Min: fixed.Point26_6{X: 127, Y: -1608},
+				Max: fixed.Point26_6{X: 560, Y: 429},
+			},
+			wantAdv: 653,
+		},
+		// U+FD3F ORNATE RIGHT PARENTHESIS is a transformed version of left parenthesis
+		'﴿': {
+			wantBounds: fixed.Rectangle26_6{
+				Min: fixed.Point26_6{X: 93, Y: -1608},
+				Max: fixed.Point26_6{X: 526, Y: 429},
+			},
+			wantAdv: 653,
+		},
+	},
+	"noto/NotoSans-Regular.ttf": {
+		'i': {
+			wantBounds: fixed.Rectangle26_6{
+				Min: fixed.Point26_6{X: 160, Y: -1509},
+				Max: fixed.Point26_6{X: 371, Y: 0},
+			},
+			wantAdv: 528,
 		},
 	},
 }

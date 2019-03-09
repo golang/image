@@ -251,6 +251,89 @@ func TestMetrics(t *testing.T) {
 	}
 }
 
+func TestGlyphBounds(t *testing.T) {
+	f, err := Parse(goregular.TTF)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	ppem := fixed.Int26_6(f.UnitsPerEm())
+
+	testCases := []struct {
+		r          rune
+		wantBounds fixed.Rectangle26_6
+		wantAdv    fixed.Int26_6
+	}{{
+		r: ' ',
+		wantBounds: fixed.Rectangle26_6{
+			Min: fixed.Point26_6{X: 0, Y: 0},
+			Max: fixed.Point26_6{X: 0, Y: 0},
+		},
+		wantAdv: 569,
+	}, {
+		r: 'A',
+		wantBounds: fixed.Rectangle26_6{
+			Min: fixed.Point26_6{X: 19, Y: -1480},
+			Max: fixed.Point26_6{X: 1342, Y: 0},
+		},
+		wantAdv: 1366,
+	}, {
+		r: 'Á',
+		wantBounds: fixed.Rectangle26_6{
+			Min: fixed.Point26_6{X: 19, Y: -1935},
+			Max: fixed.Point26_6{X: 1342, Y: 0},
+		},
+		wantAdv: 1366,
+	}, {
+		r: 'Æ',
+		wantBounds: fixed.Rectangle26_6{
+			Min: fixed.Point26_6{X: 19, Y: -1480},
+			Max: fixed.Point26_6{X: 1990, Y: 0},
+		},
+		wantAdv: 2048,
+	}, {
+		r: 'i',
+		wantBounds: fixed.Rectangle26_6{
+			Min: fixed.Point26_6{X: 144, Y: -1500},
+			Max: fixed.Point26_6{X: 361, Y: 0}},
+		wantAdv: 505,
+	}, {
+		r: 'j',
+		wantBounds: fixed.Rectangle26_6{
+			Min: fixed.Point26_6{X: -84, Y: -1500},
+			Max: fixed.Point26_6{X: 387, Y: 419},
+		},
+		wantAdv: 519,
+	}, {
+		r: 'x',
+		wantBounds: fixed.Rectangle26_6{
+			Min: fixed.Point26_6{X: 28, Y: -1086},
+			Max: fixed.Point26_6{X: 993, Y: 0},
+		},
+		wantAdv: 1024,
+	}}
+
+	var b Buffer
+	for _, tc := range testCases {
+		gi, err := f.GlyphIndex(&b, tc.r)
+		if err != nil {
+			t.Errorf("r=%q: %v", tc.r, err)
+			continue
+		}
+
+		gotBounds, gotAdv, err := f.GlyphBounds(&b, gi, ppem, font.HintingNone)
+		if err != nil {
+			t.Errorf("r=%q: GlyphBounds: %v", tc.r, err)
+			continue
+		}
+		if gotBounds != tc.wantBounds {
+			t.Errorf("r=%q: Bounds: got %#v, want %#v", tc.r, gotBounds, tc.wantBounds)
+		}
+		if gotAdv != tc.wantAdv {
+			t.Errorf("r=%q: Adv: got %#v, want %#v", tc.r, gotAdv, tc.wantAdv)
+		}
+	}
+}
+
 func TestGlyphAdvance(t *testing.T) {
 	testCases := map[string][]struct {
 		r    rune
