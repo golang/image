@@ -7,7 +7,9 @@ package vector
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"math/rand"
+	"runtime"
 	"testing"
 )
 
@@ -235,7 +237,7 @@ func testAcc(t *testing.T, in interface{}, mask []uint32, op string) {
 					t.Errorf("simd=%t, n=%d:\ngot:  % x\nwant: % x", simd, n, got8, want8)
 				}
 			} else {
-				if !uint32sEqual(got32, want32) {
+				if !uint32sMatch(got32, want32) {
 					t.Errorf("simd=%t, n=%d:\ngot:  % x\nwant: % x", simd, n, got32, want32)
 				}
 			}
@@ -243,24 +245,52 @@ func testAcc(t *testing.T, in interface{}, mask []uint32, op string) {
 	}
 }
 
-func uint32sEqual(xs, ys []uint32) bool {
+func match(got, want float64) bool {
+	if runtime.GOARCH == "wasm" {
+		// On wasm, calculations on float32 values are done with 64 bit precision.
+		// This is allowed by the Go specification, only explicit conversions to
+		// float32 have to round to 32 bit precision. The difference caused by the
+		// additional precision accumulates over several calculations and causes
+		// the test results to not fully match the expectations. Account for this
+		// by giving a 0.1% tolerance.
+		const tolerance = 0.001
+		return math.Abs(got-want) <= math.Abs(want)*tolerance
+	}
+	return got == want
+}
+
+// sixteen is used by the calculation in the test below. It needs to be a package
+// variable so the compiler does not replace the calculation with a single constant.
+var sixteen float32 = 16
+
+// TestFloat32ArithmeticWithinTolerance checks that the precision difference of a
+// single float32 operation is within the tolerance used by the match function.
+func TestFloat32ArithmeticWithinTolerance(t *testing.T) {
+	result := float64(sixteen / 1122)
+	rounded := float64(float32(result))
+	if !match(result, rounded) {
+		t.Error("result and rounded result did not match")
+	}
+}
+
+func uint32sMatch(xs, ys []uint32) bool {
 	if len(xs) != len(ys) {
 		return false
 	}
 	for i := range xs {
-		if xs[i] != ys[i] {
+		if !match(float64(xs[i]), float64(ys[i])) {
 			return false
 		}
 	}
 	return true
 }
 
-func float32sEqual(xs, ys []float32) bool {
+func float32sMatch(xs, ys []float32) bool {
 	if len(xs) != len(ys) {
 		return false
 	}
 	for i := range xs {
-		if xs[i] != ys[i] {
+		if !match(float64(xs[i]), float64(ys[i])) {
 			return false
 		}
 	}
@@ -452,7 +482,7 @@ func TestMakeFxInXxx(t *testing.T) {
 		return b.String()
 	}
 
-	if !uint32sEqual(fxIn16, hardCodedFxIn16) {
+	if !uint32sMatch(fxIn16, hardCodedFxIn16) {
 		t.Errorf("height 16: got:%v\nwant:%v", dump(fxIn16), dump(hardCodedFxIn16))
 	}
 }
@@ -469,7 +499,7 @@ func TestMakeFlInXxx(t *testing.T) {
 		return b.String()
 	}
 
-	if !float32sEqual(flIn16, hardCodedFlIn16) {
+	if !float32sMatch(flIn16, hardCodedFlIn16) {
 		t.Errorf("height 16: got:%v\nwant:%v", dump(flIn16), dump(hardCodedFlIn16))
 	}
 }
