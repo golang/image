@@ -245,31 +245,72 @@ func testAcc(t *testing.T, in interface{}, mask []uint32, op string) {
 	}
 }
 
-func match(got, want float64) bool {
-	if runtime.GOARCH == "wasm" {
-		// On wasm, calculations on float32 values are done with 64 bit precision.
-		// This is allowed by the Go specification, only explicit conversions to
-		// float32 have to round to 32 bit precision. The difference caused by the
-		// additional precision accumulates over several calculations and causes
-		// the test results to not fully match the expectations. Account for this
-		// by giving a 0.1% tolerance.
-		const tolerance = 0.001
-		return math.Abs(got-want) <= math.Abs(want)*tolerance
-	}
-	return got == want
+// This package contains multiple implementations of the same algorithm, e.g.
+// there are both SIMD and non-SIMD (vanilla) implementations on GOARCH=amd64.
+// In general, the tests in this file check that the output is *exactly* the
+// same, regardless of implementation.
+//
+// On GOARCH=wasm, float32 arithmetic is done with 64 bit precision. This is
+// allowed by the Go specification: only explicit conversions to float32 have
+// to round to 32 bit precision. However, the vanilla implementation therefore
+// produces different output for GOARCH=wasm than on other GOARCHes.
+//
+// We therefore treat GOARCH=wasm as a special case, where the tests check that
+// the output is only *approximately* the same (within a 0.1% tolerance).
+//
+// It's not that, on GOARCH=wasm, we produce the "wrong" answer. In fact, the
+// computation is more, not less, accurate on GOARCH=wasm. It's that the golden
+// output that the tests compare to were, for historical reasons, produced on
+// GOARCH=amd64 and so done with less accuracy (where float32 arithmetic is
+// performed entirely with 32 bits, not with 64 bits and then rounded back to
+// 32 bits). Furthermore, on amd64, we still want to test that SIMD and
+// non-SIMD produce exactly the same (albeit less accurate) output. The SIMD
+// implementation in particular is limited by what the underlying hardware
+// instructions provide, which often favors speed over accuracy.
+
+// approxEquals returns whether got is within 0.1% of want.
+func approxEquals(got, want float64) bool {
+	const tolerance = 0.001
+	return math.Abs(got-want) <= math.Abs(want)*tolerance
 }
 
-// sixteen is used by the calculation in the test below. It needs to be a package
-// variable so the compiler does not replace the calculation with a single constant.
+// sixteen is used by TestFloat32ArithmeticWithinTolerance, below. It needs to
+// be a package-level variable so that the compiler does not replace the
+// calculation with a single constant.
 var sixteen float32 = 16
 
-// TestFloat32ArithmeticWithinTolerance checks that the precision difference of a
-// single float32 operation is within the tolerance used by the match function.
+// TestFloat32ArithmeticWithinTolerance checks that approxEquals' tolerance is
+// sufficiently high so that the results of two separate ways of computing the
+// arbitrary fraction 16 / 1122 are deemed "approximately equal" even if they
+// aren't "exactly equal".
+//
+// We're not testing whether the computation on amd64 or wasm is "right" or
+// "wrong". We're testing that we cope with them being different.
+//
+// On GOARCH=amd64, printing x and y gives:
+//   0.0142602495543672
+//   0.014260249212384224
+//
+// On GOARCH=wasm,  printing x and y gives:
+//   0.0142602495543672
+//   0.0142602495543672
+//
+// The infinitely precise (mathematical) answer is:
+//   0.014260249554367201426024955436720142602495543672recurring...
+// See https://play.golang.org/p/RxzKSdD_suE
+//
+// This test establishes a lower bound on approxEquals' tolerance constant.
+// Passing this one test (on all of the various supported GOARCH's) is a
+// necessary but not a sufficient condition on that value. Other tests in this
+// package that call uint32sMatch or float32sMatch (such as TestMakeFxInXxx,
+// TestMakeFlInXxx or anything calling testAcc) also require a sufficiently
+// large tolerance. But those tests are more complicated, and if there is a
+// problem with the tolerance constant, debugging this test can be simpler.
 func TestFloat32ArithmeticWithinTolerance(t *testing.T) {
-	result := float64(sixteen / 1122)
-	rounded := float64(float32(result))
-	if !match(result, rounded) {
-		t.Error("result and rounded result did not match")
+	x := float64(sixteen) / 1122 // Always use 64-bit division.
+	y := float64(sixteen / 1122) // Use 32- or 64-bit division (GOARCH dependent).
+	if !approxEquals(x, y) {
+		t.Errorf("x and y were not approximately equal:\nx = %v\ny = %v", x, y)
 	}
 }
 
@@ -277,9 +318,17 @@ func uint32sMatch(xs, ys []uint32) bool {
 	if len(xs) != len(ys) {
 		return false
 	}
-	for i := range xs {
-		if !match(float64(xs[i]), float64(ys[i])) {
-			return false
+	if runtime.GOARCH == "wasm" {
+		for i := range xs {
+			if !approxEquals(float64(xs[i]), float64(ys[i])) {
+				return false
+			}
+		}
+	} else {
+		for i := range xs {
+			if xs[i] != ys[i] {
+				return false
+			}
 		}
 	}
 	return true
@@ -289,9 +338,17 @@ func float32sMatch(xs, ys []float32) bool {
 	if len(xs) != len(ys) {
 		return false
 	}
-	for i := range xs {
-		if !match(float64(xs[i]), float64(ys[i])) {
-			return false
+	if runtime.GOARCH == "wasm" {
+		for i := range xs {
+			if !approxEquals(float64(xs[i]), float64(ys[i])) {
+				return false
+			}
+		}
+	} else {
+		for i := range xs {
+			if xs[i] != ys[i] {
+				return false
+			}
 		}
 	}
 	return true
