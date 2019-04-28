@@ -127,6 +127,7 @@ func TestDecodeInvalidDataType(t *testing.T) {
 }
 
 func compare(t *testing.T, img0, img1 image.Image) {
+	t.Helper()
 	b0 := img0.Bounds()
 	b1 := img1.Bounds()
 	if b0.Dx() != b1.Dx() || b0.Dy() != b1.Dy() {
@@ -376,6 +377,7 @@ func TestLargeIFDEntry(t *testing.T) {
 
 // benchmarkDecode benchmarks the decoding of an image.
 func benchmarkDecode(b *testing.B, filename string) {
+	b.Helper()
 	b.StopTimer()
 	contents, err := ioutil.ReadFile(testdataDir + filename)
 	if err != nil {
