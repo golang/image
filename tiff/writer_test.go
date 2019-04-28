@@ -75,6 +75,7 @@ func TestRoundtrip2(t *testing.T) {
 }
 
 func benchmarkEncode(b *testing.B, name string, pixelSize int) {
+	b.Helper()
 	img, err := openImage(name)
 	if err != nil {
 		b.Fatal(err)
