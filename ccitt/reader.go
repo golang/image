@@ -54,6 +54,14 @@ func (b *bitReader) alignToByteBoundary() {
 	b.nBits -= n
 }
 
+// nextBitMaxNBits is the maximum possible value of bitReader.nBits after a
+// bitReader.nextBit call, provided that bitReader.nBits was not more than this
+// value before that call.
+//
+// Note that the decode function can unread bits, which can temporarily set the
+// bitReader.nBits value above nextBitMaxNBits.
+const nextBitMaxNBits = 31
+
 func (b *bitReader) nextBit() (uint32, error) {
 	for {
 		if b.nBits > 0 {
@@ -63,10 +71,16 @@ func (b *bitReader) nextBit() (uint32, error) {
 			return bit, nil
 		}
 
-		if available := b.bw - b.br; available >= 8 {
-			b.bits = binary.LittleEndian.Uint64(b.bytes[b.br:])
-			b.br += 8
-			b.nBits = 64
+		if available := b.bw - b.br; available >= 4 {
+			// Read 32 bits, even though b.bits is a uint64, since the decode
+			// function may need to unread up to maxCodeLength bits, putting
+			// them back in the remaining (64 - 32) bits. TestMaxCodeLength
+			// checks that the generated maxCodeLength constant fits.
+			//
+			// If changing the Uint32 call, also change nextBitMaxNBits.
+			b.bits = uint64(binary.LittleEndian.Uint32(b.bytes[b.br:]))
+			b.br += 4
+			b.nBits = 32
 			continue
 		} else if available > 0 {
 			b.bits = uint64(b.bytes[b.br])
@@ -94,16 +108,22 @@ func (b *bitReader) nextBit() (uint32, error) {
 }
 
 func decode(b *bitReader, table [][2]int16) (uint32, error) {
-	for state := int32(1); ; {
+	nBitsRead, bitsRead, state := uint32(0), uint32(0), int32(1)
+	for {
 		bit, err := b.nextBit()
 		if err != nil {
 			return 0, err
 		}
+		bitsRead |= bit << nBitsRead
+		nBitsRead++
 		// The "&1" is redundant, but can eliminate a bounds check.
 		state = int32(table[state][bit&1])
 		if state < 0 {
 			return uint32(^state), nil
 		} else if state == 0 {
+			// Unread the bits we've read, then return errInvalidCode.
+			b.bits = (b.bits << nBitsRead) | uint64(bitsRead)
+			b.nBits += nBitsRead
 			return 0, errInvalidCode
 		}
 	}

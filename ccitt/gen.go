@@ -32,6 +32,7 @@ func main() {
 			"// whiteTable represents Tables 2 and 3 for a white run.\n")
 		write(w, build(blackCodes[:], 0), "blackTable",
 			"// blackTable represents Tables 2 and 3 for a black run.\n")
+		writeMaxCodeLength(w, modeCodes[:], whiteCodes[:], blackCodes[:])
 		finish(w, "table.go")
 	}
 
@@ -194,6 +195,18 @@ func writeComment(w *bytes.Buffer, n *node, prefix string, down bool) {
 		return
 	}
 	w.WriteString("+-+\n")
+}
+
+func writeMaxCodeLength(w *bytes.Buffer, codesList ...[]code) {
+	maxCodeLength := 0
+	for _, codes := range codesList {
+		for _, code := range codes {
+			if n := len(code.str); maxCodeLength < n {
+				maxCodeLength = n
+			}
+		}
+	}
+	fmt.Fprintf(w, "const maxCodeLength = %d\n\n", maxCodeLength)
 }
 
 func finish(w *bytes.Buffer, filename string) {
