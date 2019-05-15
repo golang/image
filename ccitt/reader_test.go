@@ -6,9 +6,36 @@ package ccitt
 
 import (
 	"bytes"
+	"io"
 	"reflect"
 	"testing"
+	"unsafe"
 )
+
+func TestMaxCodeLength(t *testing.T) {
+	br := bitReader{}
+	size := unsafe.Sizeof(br.bits)
+	size *= 8 // Convert from bytes to bits.
+
+	// Check that the size of the bitReader.bits field is large enough to hold
+	// nextBitMaxNBits bits.
+	if size < nextBitMaxNBits {
+		t.Fatalf("size: got %d, want >= %d", size, nextBitMaxNBits)
+	}
+
+	// Check that bitReader.nextBit will always leave enough spare bits in the
+	// bitReader.bits field such that the decode function can unread up to
+	// maxCodeLength bits.
+	if want := size - nextBitMaxNBits; maxCodeLength > want {
+		t.Fatalf("maxCodeLength: got %d, want <= %d", maxCodeLength, want)
+	}
+
+	// The decode function also assumes that, when saving bits to possibly
+	// unread later, those bits fit inside a uint32.
+	if maxCodeLength > 32 {
+		t.Fatalf("maxCodeLength: got %d, want <= %d", maxCodeLength, 32)
+	}
+}
 
 func testTable(t *testing.T, table [][2]int16, codes []code, values []uint32) {
 	// Build a map from values to codes.
@@ -90,6 +117,50 @@ func TestBlackTable(t *testing.T) {
 	testTable(t, blackTable[:], blackCodes, []uint32{
 		63, 64, 63, 64, 64, 63, 22, 1088, 2048, 7, 6, 5, 4, 3, 2, 1, 0,
 	})
+}
+
+func TestInvalidCode(t *testing.T) {
+	// The bit stream is:
+	// 1 010 000000011011
+	// Packing that LSB-first gives:
+	// 0b_1101_1000_0000_0101
+	src := []byte{0x05, 0xD8}
+
+	table := modeTable[:]
+	r := &bitReader{
+		r: bytes.NewReader(src),
+	}
+
+	// "1" decodes to the value 2.
+	if v, err := decode(r, table); v != 2 || err != nil {
+		t.Fatalf("decode #0: got (%v, %v), want (2, nil)", v, err)
+	}
+
+	// "010" decodes to the value 6.
+	if v, err := decode(r, table); v != 6 || err != nil {
+		t.Fatalf("decode #0: got (%v, %v), want (6, nil)", v, err)
+	}
+
+	// "00000001" is an invalid code.
+	if v, err := decode(r, table); v != 0 || err != errInvalidCode {
+		t.Fatalf("decode #0: got (%v, %v), want (0, %v)", v, err, errInvalidCode)
+	}
+
+	// The bitReader should not have advanced after encountering an invalid
+	// code. The remaining bits should be "000000011011".
+	remaining := []byte(nil)
+	for {
+		bit, err := r.nextBit()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			t.Fatalf("nextBit: %v", err)
+		}
+		remaining = append(remaining, uint8('0'+bit))
+	}
+	if got, want := string(remaining), "000000011011"; got != want {
+		t.Fatalf("remaining bits: got %q, want %q", got, want)
+	}
 }
 
 // TODO: more tests.

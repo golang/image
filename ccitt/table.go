@@ -719,6 +719,8 @@ var blackTable = [...][2]int16{
 	104: {^1152, ^1216},
 }
 
+const maxCodeLength = 13
+
 // COPY PASTE table.go BEGIN
 
 const (
