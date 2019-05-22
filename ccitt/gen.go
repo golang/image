@@ -26,12 +26,12 @@ func main() {
 		w := &bytes.Buffer{}
 		w.WriteString(header)
 		w.WriteString(headerComment)
-		write(w, build(modeCodes[:], 0), "modeTable",
-			"// modeTable represents Table 1 and the End-of-Line code.\n")
-		write(w, build(whiteCodes[:], 0), "whiteTable",
-			"// whiteTable represents Tables 2 and 3 for a white run.\n")
-		write(w, build(blackCodes[:], 0), "blackTable",
-			"// blackTable represents Tables 2 and 3 for a black run.\n")
+		write(w, build(modeCodes[:], 0), "modeDecodeTable",
+			"// modeDecodeTable represents Table 1 and the End-of-Line code.\n")
+		write(w, build(whiteCodes[:], 0), "whiteDecodeTable",
+			"// whiteDecodeTable represents Tables 2 and 3 for a white run.\n")
+		write(w, build(blackCodes[:], 0), "blackDecodeTable",
+			"// blackDecodeTable represents Tables 2 and 3 for a black run.\n")
 		writeMaxCodeLength(w, modeCodes[:], whiteCodes[:], blackCodes[:])
 		finish(w, "table.go")
 	}
@@ -51,9 +51,9 @@ package ccitt
 `
 
 const headerComment = `
-// Each table is represented by an array of [2]int16's: a binary tree. Each
-// array element (other than element 0, which means invalid) is a branch node
-// in that tree. The root node is always element 1 (the second element).
+// Each decodeTable is represented by an array of [2]int16's: a binary tree.
+// Each array element (other than element 0, which means invalid) is a branch
+// node in that tree. The root node is always element 1 (the second element).
 //
 // To walk the tree, look at the next bit in the bit stream, using it to select
 // the first or second element of the [2]int16. If that int16 is 0, we have an
@@ -61,16 +61,16 @@ const headerComment = `
 // then we have a leaf node, whose value is the bitwise complement (the ^
 // operator) of that int16.
 //
-// Comments above each table also show the same structure visually. The "b123"
-// lines show the 123'rd branch node. The "=XXXXX" lines show an invalid code.
-// The "=v1234" lines show a leaf node with value 1234. When reading the bit
-// stream, a 0 or 1 bit means to go up or down, as you move left to right.
+// Comments above each decodeTable also show the same structure visually. The
+// "b123" lines show the 123'rd branch node. The "=XXXXX" lines show an invalid
+// code. The "=v1234" lines show a leaf node with value 1234. When reading the
+// bit stream, a 0 or 1 bit means to go up or down, as you move left to right.
 //
-// For example, in modeTable, branch node b005 is three steps up from the root
-// node, meaning that we have already seen "000". If the next bit is "0" then
-// we move to branch node b006. Otherwise, the next bit is "1", and we move to
-// the leaf node v0000 (also known as the modePass constant). Indeed, the bits
-// that encode modePass are "0001".
+// For example, in modeDecodeTable, branch node b005 is three steps up from the
+// root node, meaning that we have already seen "000". If the next bit is "0"
+// then we move to branch node b006. Otherwise, the next bit is "1", and we
+// move to the leaf node v0000 (also known as the modePass constant). Indeed,
+// the bits that encode modePass are "0001".
 //
 // Tables 1, 2 and 3 come from the "ITU-T Recommendation T.6: FACSIMILE CODING
 // SCHEMES AND CODING CONTROL FUNCTIONS FOR GROUP 4 FACSIMILE APPARATUS"

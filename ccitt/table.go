@@ -2,9 +2,9 @@
 
 package ccitt
 
-// Each table is represented by an array of [2]int16's: a binary tree. Each
-// array element (other than element 0, which means invalid) is a branch node
-// in that tree. The root node is always element 1 (the second element).
+// Each decodeTable is represented by an array of [2]int16's: a binary tree.
+// Each array element (other than element 0, which means invalid) is a branch
+// node in that tree. The root node is always element 1 (the second element).
 //
 // To walk the tree, look at the next bit in the bit stream, using it to select
 // the first or second element of the [2]int16. If that int16 is 0, we have an
@@ -12,16 +12,16 @@ package ccitt
 // then we have a leaf node, whose value is the bitwise complement (the ^
 // operator) of that int16.
 //
-// Comments above each table also show the same structure visually. The "b123"
-// lines show the 123'rd branch node. The "=XXXXX" lines show an invalid code.
-// The "=v1234" lines show a leaf node with value 1234. When reading the bit
-// stream, a 0 or 1 bit means to go up or down, as you move left to right.
+// Comments above each decodeTable also show the same structure visually. The
+// "b123" lines show the 123'rd branch node. The "=XXXXX" lines show an invalid
+// code. The "=v1234" lines show a leaf node with value 1234. When reading the
+// bit stream, a 0 or 1 bit means to go up or down, as you move left to right.
 //
-// For example, in modeTable, branch node b005 is three steps up from the root
-// node, meaning that we have already seen "000". If the next bit is "0" then
-// we move to branch node b006. Otherwise, the next bit is "1", and we move to
-// the leaf node v0000 (also known as the modePass constant). Indeed, the bits
-// that encode modePass are "0001".
+// For example, in modeDecodeTable, branch node b005 is three steps up from the
+// root node, meaning that we have already seen "000". If the next bit is "0"
+// then we move to branch node b006. Otherwise, the next bit is "1", and we
+// move to the leaf node v0000 (also known as the modePass constant). Indeed,
+// the bits that encode modePass are "0001".
 //
 // Tables 1, 2 and 3 come from the "ITU-T Recommendation T.6: FACSIMILE CODING
 // SCHEMES AND CODING CONTROL FUNCTIONS FOR GROUP 4 FACSIMILE APPARATUS"
@@ -29,7 +29,7 @@ package ccitt
 //
 // https://www.itu.int/rec/dologin_pub.asp?lang=e&id=T-REC-T.6-198811-I!!PDF-E&type=items
 
-// modeTable represents Table 1 and the End-of-Line code.
+// modeDecodeTable represents Table 1 and the End-of-Line code.
 //
 //                              +=XXXXX
 // b015                       +-+
@@ -62,7 +62,7 @@ package ccitt
 //        |   +=v0003
 // b001 +-+
 //        +=v0002
-var modeTable = [...][2]int16{
+var modeDecodeTable = [...][2]int16{
 	0:  {0, 0},
 	1:  {2, ^2},
 	2:  {3, 4},
@@ -81,7 +81,7 @@ var modeTable = [...][2]int16{
 	15: {0, ^10},
 }
 
-// whiteTable represents Tables 2 and 3 for a white run.
+// whiteDecodeTable represents Tables 2 and 3 for a white run.
 //
 //                      +=XXXXX
 // b059               +-+
@@ -292,7 +292,7 @@ var modeTable = [...][2]int16{
 //            | +=v0006
 // b015       +-+
 //              +=v0007
-var whiteTable = [...][2]int16{
+var whiteDecodeTable = [...][2]int16{
 	0:   {0, 0},
 	1:   {2, 3},
 	2:   {4, 5},
@@ -400,7 +400,7 @@ var whiteTable = [...][2]int16{
 	104: {^2496, ^2560},
 }
 
-// blackTable represents Tables 2 and 3 for a black run.
+// blackDecodeTable represents Tables 2 and 3 for a black run.
 //
 //                      +=XXXXX
 // b017               +-+
@@ -611,7 +611,7 @@ var whiteTable = [...][2]int16{
 //        | +=v0003
 // b003   +-+
 //          +=v0002
-var blackTable = [...][2]int16{
+var blackDecodeTable = [...][2]int16{
 	0:   {0, 0},
 	1:   {2, 3},
 	2:   {4, 5},

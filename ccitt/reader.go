@@ -107,7 +107,7 @@ func (b *bitReader) nextBit() (uint32, error) {
 	}
 }
 
-func decode(b *bitReader, table [][2]int16) (uint32, error) {
+func decode(b *bitReader, decodeTable [][2]int16) (uint32, error) {
 	nBitsRead, bitsRead, state := uint32(0), uint32(0), int32(1)
 	for {
 		bit, err := b.nextBit()
@@ -117,7 +117,7 @@ func decode(b *bitReader, table [][2]int16) (uint32, error) {
 		bitsRead |= bit << nBitsRead
 		nBitsRead++
 		// The "&1" is redundant, but can eliminate a bounds check.
-		state = int32(table[state][bit&1])
+		state = int32(decodeTable[state][bit&1])
 		if state < 0 {
 			return uint32(^state), nil
 		} else if state == 0 {
