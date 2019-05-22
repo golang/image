@@ -37,7 +37,7 @@ func TestMaxCodeLength(t *testing.T) {
 	}
 }
 
-func testTable(t *testing.T, table [][2]int16, codes []code, values []uint32) {
+func testDecodeTable(t *testing.T, decodeTable [][2]int16, codes []code, values []uint32) {
 	// Build a map from values to codes.
 	m := map[uint32]string{}
 	for _, code := range codes {
@@ -74,7 +74,7 @@ func testTable(t *testing.T, table [][2]int16, codes []code, values []uint32) {
 	}
 	finalValue := values[len(values)-1]
 	for {
-		v, err := decode(r, table)
+		v, err := decode(r, decodeTable)
 		if err != nil {
 			t.Fatalf("after got=%d: %v", got, err)
 		}
@@ -90,8 +90,8 @@ func testTable(t *testing.T, table [][2]int16, codes []code, values []uint32) {
 	}
 }
 
-func TestModeTable(t *testing.T) {
-	testTable(t, modeTable[:], modeCodes, []uint32{
+func TestModeDecodeTable(t *testing.T) {
+	testDecodeTable(t, modeDecodeTable[:], modeCodes, []uint32{
 		modePass,
 		modeV0,
 		modeV0,
@@ -107,42 +107,42 @@ func TestModeTable(t *testing.T) {
 	})
 }
 
-func TestWhiteTable(t *testing.T) {
-	testTable(t, whiteTable[:], whiteCodes, []uint32{
+func TestWhiteDecodeTable(t *testing.T) {
+	testDecodeTable(t, whiteDecodeTable[:], whiteCodes, []uint32{
 		0, 1, 256, 7, 128, 3, 2560,
 	})
 }
 
-func TestBlackTable(t *testing.T) {
-	testTable(t, blackTable[:], blackCodes, []uint32{
+func TestBlackDecodeTable(t *testing.T) {
+	testDecodeTable(t, blackDecodeTable[:], blackCodes, []uint32{
 		63, 64, 63, 64, 64, 63, 22, 1088, 2048, 7, 6, 5, 4, 3, 2, 1, 0,
 	})
 }
 
-func TestInvalidCode(t *testing.T) {
+func TestDecodeInvalidCode(t *testing.T) {
 	// The bit stream is:
 	// 1 010 000000011011
 	// Packing that LSB-first gives:
 	// 0b_1101_1000_0000_0101
 	src := []byte{0x05, 0xD8}
 
-	table := modeTable[:]
+	decodeTable := modeDecodeTable[:]
 	r := &bitReader{
 		r: bytes.NewReader(src),
 	}
 
 	// "1" decodes to the value 2.
-	if v, err := decode(r, table); v != 2 || err != nil {
+	if v, err := decode(r, decodeTable); v != 2 || err != nil {
 		t.Fatalf("decode #0: got (%v, %v), want (2, nil)", v, err)
 	}
 
 	// "010" decodes to the value 6.
-	if v, err := decode(r, table); v != 6 || err != nil {
+	if v, err := decode(r, decodeTable); v != 6 || err != nil {
 		t.Fatalf("decode #0: got (%v, %v), want (6, nil)", v, err)
 	}
 
 	// "00000001" is an invalid code.
-	if v, err := decode(r, table); v != 0 || err != errInvalidCode {
+	if v, err := decode(r, decodeTable); v != 0 || err != errInvalidCode {
 		t.Fatalf("decode #0: got (%v, %v), want (0, %v)", v, err, errInvalidCode)
 	}
 
