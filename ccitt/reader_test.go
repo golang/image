@@ -6,11 +6,46 @@ package ccitt
 
 import (
 	"bytes"
+	"fmt"
+	"image"
+	"image/png"
 	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"unsafe"
 )
+
+func compareImages(t *testing.T, img0 image.Image, img1 image.Image) {
+	t.Helper()
+
+	b0 := img0.Bounds()
+	b1 := img1.Bounds()
+	if b0 != b1 {
+		t.Fatalf("bounds differ: %v vs %v", b0, b1)
+	}
+
+	for y := b0.Min.Y; y < b0.Max.Y; y++ {
+		for x := b0.Min.X; x < b0.Max.X; x++ {
+			c0 := img0.At(x, y)
+			c1 := img1.At(x, y)
+			if c0 != c1 {
+				t.Fatalf("pixel at (%d, %d) differs: %v vs %v", x, y, c0, c1)
+			}
+		}
+	}
+}
+
+func decodePNG(fileName string) (image.Image, error) {
+	f, err := os.Open(fileName)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return png.Decode(f)
+}
 
 func TestMaxCodeLength(t *testing.T) {
 	br := bitReader{}
@@ -44,7 +79,7 @@ func testDecodeTable(t *testing.T, decodeTable [][2]int16, codes []code, values 
 		m[code.val] = code.str
 	}
 
-	// Build the encoded form of those values.
+	// Build the encoded form of those values in LSB order.
 	enc := []byte(nil)
 	bits := uint8(0)
 	nBits := uint32(0)
@@ -163,4 +198,134 @@ func TestDecodeInvalidCode(t *testing.T) {
 	}
 }
 
-// TODO: more tests.
+func TestReadRegular(t *testing.T) { testRead(t, false) }
+func TestReadInvert(t *testing.T)  { testRead(t, true) }
+
+func testRead(t *testing.T, invert bool) {
+	t.Helper()
+
+	const width, height = 153, 55
+	opts := &Options{
+		Invert: invert,
+	}
+
+	got := ""
+	{
+		f, err := os.Open("testdata/bw-gopher.ccitt_group3")
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		defer f.Close()
+		gotBytes, err := ioutil.ReadAll(NewReader(f, MSB, Group3, width, height, opts))
+		if err != nil {
+			t.Fatalf("ReadAll: %v", err)
+		}
+		got = string(gotBytes)
+	}
+
+	want := ""
+	{
+		img, err := decodePNG("testdata/bw-gopher.png")
+		if err != nil {
+			t.Fatalf("decodePNG: %v", err)
+		}
+		gray, ok := img.(*image.Gray)
+		if !ok {
+			t.Fatalf("decodePNG: got %T, want *image.Gray", img)
+		}
+		bounds := gray.Bounds()
+		if w := bounds.Dx(); w != width {
+			t.Fatalf("width: got %d, want %d", w, width)
+		}
+		if h := bounds.Dy(); h != height {
+			t.Fatalf("height: got %d, want %d", h, height)
+		}
+
+		// Prepare to extend each row's width to a multiple of 8, to simplify
+		// packing from 1 byte per pixel to 1 bit per pixel.
+		extended := make([]byte, (width+7)&^7)
+
+		wantBytes := []byte(nil)
+		for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+			rowPix := gray.Pix[(y-bounds.Min.Y)*gray.Stride:]
+			rowPix = rowPix[:width]
+			copy(extended, rowPix)
+
+			// Pack from 1 byte per pixel to 1 bit per pixel, MSB first.
+			byteValue := uint8(0)
+			for x, pixel := range extended {
+				byteValue |= (pixel & 0x80) >> uint(x&7)
+				if (x & 7) == 7 {
+					wantBytes = append(wantBytes, byteValue)
+					byteValue = 0
+				}
+			}
+		}
+		if invert {
+			invertBytes(wantBytes)
+		}
+		want = string(wantBytes)
+	}
+
+	// We expect a width of 153 pixels, which is 20 bytes per row (at 1 bit per
+	// pixel, plus 7 final bits of padding). Check that want is 20 * height
+	// bytes long, and if got != want, format them to split at every 20 bytes.
+
+	if n := len(want); n != 20*height {
+		t.Fatalf("len(want): got %d, want %d", n, 20*height)
+	}
+
+	format := func(s string) string {
+		b := []byte(nil)
+		for row := 0; len(s) >= 20; row++ {
+			b = append(b, fmt.Sprintf("row%02d: %02X\n", row, s[:20])...)
+			s = s[20:]
+		}
+		if len(s) > 0 {
+			b = append(b, fmt.Sprintf("%02X\n", s)...)
+		}
+		return string(b)
+	}
+
+	if got != want {
+		t.Fatalf("got:\n%s\nwant:\n%s", format(got), format(want))
+	}
+}
+
+func TestDecodeIntoGray(t *testing.T) {
+	for _, tt := range []struct {
+		fileName string
+		sf       SubFormat
+		w, h     int
+	}{
+		{"testdata/bw-gopher.ccitt_group3", Group3, 153, 55},
+		{"testdata/bw-gopher.ccitt_group4", Group4, 153, 55},
+	} {
+		t.Run(tt.fileName, func(t *testing.T) {
+			testDecodeIntoGray(t, tt.fileName, MSB, tt.sf, tt.w, tt.h, nil)
+		})
+	}
+}
+
+func testDecodeIntoGray(t *testing.T, fileName string, order Order, sf SubFormat, width int, height int, opts *Options) {
+	t.Helper()
+
+	f, err := os.Open(filepath.FromSlash(fileName))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer f.Close()
+
+	got := image.NewGray(image.Rect(0, 0, width, height))
+	if err := DecodeIntoGray(got, f, order, sf, opts); err != nil {
+		t.Fatalf("DecodeIntoGray: %v", err)
+	}
+
+	baseName := fileName[:len(fileName)-len(filepath.Ext(fileName))]
+	want, err := decodePNG(baseName + ".png")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	compareImages(t, got, want)
+}
