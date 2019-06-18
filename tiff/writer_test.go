@@ -42,6 +42,7 @@ func TestRoundtrip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		out := new(bytes.Buffer)
 		err = Encode(out, img, rt.opts)
 		if err != nil {
