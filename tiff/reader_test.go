@@ -193,6 +193,32 @@ func TestDecodeLZW(t *testing.T) {
 	compare(t, img0, img1)
 }
 
+// TestDecodeCCITT tests that decoding a PNG image and a CCITT compressed TIFF
+// image result in the same pixel data.
+func TestDecodeCCITT(t *testing.T) {
+	// TODO Add more tests.
+	for _, fn := range []string{
+		"bw-gopher",
+	} {
+		img0, err := load(fn + ".png")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		img1, err := load(fn + "_ccittGroup3.tiff")
+		if err != nil {
+			t.Fatal(err)
+		}
+		compare(t, img0, img1)
+
+		img2, err := load(fn + "_ccittGroup4.tiff")
+		if err != nil {
+			t.Fatal(err)
+		}
+		compare(t, img0, img2)
+	}
+}
+
 // TestDecodeTagOrder tests that a malformed image with unsorted IFD entries is
 // correctly rejected.
 func TestDecodeTagOrder(t *testing.T) {
