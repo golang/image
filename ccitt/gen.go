@@ -25,14 +25,26 @@ func main() {
 	{
 		w := &bytes.Buffer{}
 		w.WriteString(header)
-		w.WriteString(headerComment)
-		write(w, build(modeCodes[:], 0), "modeDecodeTable",
+		w.WriteString(decodeHeaderComment)
+		writeDecodeTable(w, build(modeCodes[:], 0), "modeDecodeTable",
 			"// modeDecodeTable represents Table 1 and the End-of-Line code.\n")
-		write(w, build(whiteCodes[:], 0), "whiteDecodeTable",
+		writeDecodeTable(w, build(whiteCodes[:], 0), "whiteDecodeTable",
 			"// whiteDecodeTable represents Tables 2 and 3 for a white run.\n")
-		write(w, build(blackCodes[:], 0), "blackDecodeTable",
+		writeDecodeTable(w, build(blackCodes[:], 0), "blackDecodeTable",
 			"// blackDecodeTable represents Tables 2 and 3 for a black run.\n")
 		writeMaxCodeLength(w, modeCodes[:], whiteCodes[:], blackCodes[:])
+		w.WriteString(encodeHeaderComment)
+		w.WriteString(bitStringTypeDef)
+		writeEncodeTable(w, modeCodes[:], "modeEncodeTable",
+			"// modeEncodeTable represents Table 1 and the End-of-Line code.\n")
+		writeEncodeTable(w, whiteCodes[:64], "whiteEncodeTable2",
+			"// whiteEncodeTable2 represents Table 2 for a white run.\n")
+		writeEncodeTable(w, whiteCodes[64:], "whiteEncodeTable3",
+			"// whiteEncodeTable3 represents Table 3 for a white run.\n")
+		writeEncodeTable(w, blackCodes[:64], "blackEncodeTable2",
+			"// blackEncodeTable2 represents Table 2 for a black run.\n")
+		writeEncodeTable(w, blackCodes[64:], "blackEncodeTable3",
+			"// blackEncodeTable3 represents Table 3 for a black run.\n")
 		finish(w, "table.go")
 	}
 
@@ -50,7 +62,7 @@ package ccitt
 
 `
 
-const headerComment = `
+const decodeHeaderComment = `
 // Each decodeTable is represented by an array of [2]int16's: a binary tree.
 // Each array element (other than element 0, which means invalid) is a branch
 // node in that tree. The root node is always element 1 (the second element).
@@ -77,6 +89,12 @@ const headerComment = `
 // specification:
 //
 // https://www.itu.int/rec/dologin_pub.asp?lang=e&id=T-REC-T.6-198811-I!!PDF-E&type=items
+
+
+`
+
+const encodeHeaderComment = `
+// Each encodeTable is represented by an array of bitStrings.
 
 
 `
@@ -128,7 +146,7 @@ func build(codes []code, prefixLen int) *node {
 	}
 }
 
-func write(w *bytes.Buffer, root *node, varName string, comment string) {
+func writeDecodeTable(w *bytes.Buffer, root *node, varName, comment string) {
 	assignBranchIndexes(root)
 
 	w.WriteString(comment)
@@ -148,6 +166,32 @@ func write(w *bytes.Buffer, root *node, varName string, comment string) {
 		}
 	}
 
+	fmt.Fprintf(w, "}\n\n")
+}
+
+const bitStringTypeDef = `
+// bitString is a pair of uint32 values representing a bit code.
+// The nBits low bits of bits make up the actual bit code.
+// Eg. bitString{0x0004, 8} represents the bitcode "00000100".
+type bitString struct {
+	bits  uint32
+	nBits uint32
+}
+
+`
+
+func writeEncodeTable(w *bytes.Buffer, codes []code, varName, comment string) {
+	w.WriteString(comment)
+	fmt.Fprintf(w, "var %s = [...]bitString{\n", varName)
+	for i, code := range codes {
+		s := code.str
+		n := uint32(len(s))
+		c := uint32(0)
+		for j := uint32(0); j < n; j++ {
+			c |= uint32(s[j]&1) << (n - j - 1)
+		}
+		fmt.Fprintf(w, "%d: {0x%04x, %v}, // %q \n", i, c, n, s)
+	}
 	fmt.Fprintf(w, "}\n\n")
 }
 

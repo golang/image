@@ -67,6 +67,12 @@ func invertBytes(b []byte) {
 	}
 }
 
+func reverseBitsWithinBytes(b []byte) {
+	for i, c := range b {
+		b[i] = bits.Reverse8(c)
+	}
+}
+
 type bitReader struct {
 	r io.Reader
 
@@ -139,10 +145,7 @@ func (b *bitReader) nextBit() (uint32, error) {
 		b.readErr = err
 
 		if b.order != LSB {
-			written := b.bytes[:b.bw]
-			for i, x := range written {
-				written[i] = bits.Reverse8(x)
-			}
+			reverseBitsWithinBytes(b.bytes[:b.bw])
 		}
 	}
 }
