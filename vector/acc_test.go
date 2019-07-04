@@ -40,7 +40,7 @@ func TestDivideByFFFF(t *testing.T) {
 // TestXxxSIMDUnaligned tests that unaligned SIMD loads/stores don't crash.
 
 func TestFixedAccumulateSIMDUnaligned(t *testing.T) {
-	if !haveFixedAccumulateSIMD {
+	if !haveAccumulateSIMD {
 		t.Skip("No SIMD implemention")
 	}
 
@@ -54,7 +54,7 @@ func TestFixedAccumulateSIMDUnaligned(t *testing.T) {
 }
 
 func TestFloatingAccumulateSIMDUnaligned(t *testing.T) {
-	if !haveFloatingAccumulateSIMD {
+	if !haveAccumulateSIMD {
 		t.Skip("No SIMD implemention")
 	}
 
@@ -71,7 +71,7 @@ func TestFloatingAccumulateSIMDUnaligned(t *testing.T) {
 // end of the dst buffer.
 
 func TestFixedAccumulateSIMDShortDst(t *testing.T) {
-	if !haveFixedAccumulateSIMD {
+	if !haveAccumulateSIMD {
 		t.Skip("No SIMD implemention")
 	}
 
@@ -95,7 +95,7 @@ func TestFixedAccumulateSIMDShortDst(t *testing.T) {
 }
 
 func TestFloatingAccumulateSIMDShortDst(t *testing.T) {
-	if !haveFloatingAccumulateSIMD {
+	if !haveAccumulateSIMD {
 		t.Skip("No SIMD implemention")
 	}
 
@@ -137,12 +137,12 @@ func testAcc(t *testing.T, in interface{}, mask []uint32, op string) {
 		maxN := 0
 		switch in := in.(type) {
 		case []uint32:
-			if simd && !haveFixedAccumulateSIMD {
+			if simd && !haveAccumulateSIMD {
 				continue
 			}
 			maxN = len(in)
 		case []float32:
-			if simd && !haveFloatingAccumulateSIMD {
+			if simd && !haveAccumulateSIMD {
 				continue
 			}
 			maxN = len(in)
@@ -385,7 +385,7 @@ func benchAcc(b *testing.B, in interface{}, op string, simd bool) {
 
 	switch in := in.(type) {
 	case []uint32:
-		if simd && !haveFixedAccumulateSIMD {
+		if simd && !haveAccumulateSIMD {
 			b.Skip("No SIMD implemention")
 		}
 
@@ -415,7 +415,7 @@ func benchAcc(b *testing.B, in interface{}, op string, simd bool) {
 		}
 
 	case []float32:
-		if simd && !haveFloatingAccumulateSIMD {
+		if simd && !haveAccumulateSIMD {
 			b.Skip("No SIMD implemention")
 		}
 
