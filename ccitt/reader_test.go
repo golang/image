@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"unsafe"
 )
@@ -198,25 +199,23 @@ func TestDecodeInvalidCode(t *testing.T) {
 	}
 }
 
-func TestReadRegular(t *testing.T) { testRead(t, false) }
-func TestReadInvert(t *testing.T)  { testRead(t, true) }
-
-func testRead(t *testing.T, invert bool) {
+func testRead(t *testing.T, fileName string, sf SubFormat, align, invert bool) {
 	t.Helper()
 
 	const width, height = 153, 55
 	opts := &Options{
+		Align:  align,
 		Invert: invert,
 	}
 
 	got := ""
 	{
-		f, err := os.Open("testdata/bw-gopher.ccitt_group3")
+		f, err := os.Open(fileName)
 		if err != nil {
 			t.Fatalf("Open: %v", err)
 		}
 		defer f.Close()
-		gotBytes, err := ioutil.ReadAll(NewReader(f, MSB, Group3, width, height, opts))
+		gotBytes, err := ioutil.ReadAll(NewReader(f, MSB, sf, width, height, opts))
 		if err != nil {
 			t.Fatalf("ReadAll: %v", err)
 		}
@@ -261,9 +260,6 @@ func testRead(t *testing.T, invert bool) {
 				}
 			}
 		}
-		if invert {
-			invertBytes(wantBytes)
-		}
 		want = string(wantBytes)
 	}
 
@@ -289,6 +285,27 @@ func testRead(t *testing.T, invert bool) {
 
 	if got != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", format(got), format(want))
+	}
+}
+
+func TestRead(t *testing.T) {
+	for _, fileName := range []string{
+		"testdata/bw-gopher.ccitt_group3",
+		"testdata/bw-gopher-aligned.ccitt_group3",
+		"testdata/bw-gopher-inverted.ccitt_group3",
+		"testdata/bw-gopher-inverted-aligned.ccitt_group3",
+		"testdata/bw-gopher.ccitt_group4",
+		"testdata/bw-gopher-aligned.ccitt_group4",
+		"testdata/bw-gopher-inverted.ccitt_group4",
+		"testdata/bw-gopher-inverted-aligned.ccitt_group4",
+	} {
+		subFormat := Group3
+		if strings.HasSuffix(fileName, "group4") {
+			subFormat = Group4
+		}
+		align := strings.Contains(fileName, "aligned")
+		invert := strings.Contains(fileName, "inverted")
+		testRead(t, fileName, subFormat, align, invert)
 	}
 }
 

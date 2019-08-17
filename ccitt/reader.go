@@ -269,6 +269,12 @@ func (z *reader) Read(p []byte) (int, error) {
 			}
 
 			byteValue := byte(0)
+			if z.invert {
+				// Set the end-of-row padding bits to 1 (if inverted) or 0. If inverted, the 1s
+				// are temporary, and will be flipped back to 0s by the invertBytes call below.
+				byteValue = 0xFF >> uint(numToPack)
+			}
+
 			for j := 0; j < numToPack; j++ {
 				byteValue |= (z.curr[z.ri] & 0x80) >> uint(j)
 				z.ri++
@@ -285,7 +291,6 @@ func (z *reader) Read(p []byte) (int, error) {
 	}
 
 	n := len(originalP) - len(p)
-	// TODO: when invert is true, should the end-of-row padding bits be 0 or 1?
 	if z.invert {
 		invertBytes(originalP[:n])
 	}
@@ -369,6 +374,10 @@ func (z *reader) decodeRow() error {
 	z.atStartOfRow = true
 	z.penColorIsWhite = true
 
+	if z.align {
+		z.br.alignToByteBoundary()
+	}
+
 	switch z.subFormat {
 	case Group3:
 		for ; z.wi < len(z.curr); z.atStartOfRow = false {
@@ -379,10 +388,6 @@ func (z *reader) decodeRow() error {
 		return z.decodeEOL()
 
 	case Group4:
-		if z.align {
-			z.br.alignToByteBoundary()
-		}
-
 		for ; z.wi < len(z.curr); z.atStartOfRow = false {
 			mode, err := decode(&z.br, modeDecodeTable[:])
 			if err != nil {
