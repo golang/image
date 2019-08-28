@@ -73,6 +73,43 @@ func reverseBitsWithinBytes(b []byte) {
 	}
 }
 
+// highBits writes to dst (1 bit per pixel, most significant bit first) the
+// high (0x80) bits from src (1 byte per pixel). It returns the number of bytes
+// written and read such that dst[:d] is the packed form of src[:s].
+//
+// For example, if src starts with the 8 bytes [0x7D, 0x7E, 0x7F, 0x80, 0x81,
+// 0x82, 0x00, 0xFF] then 0x1D will be written to dst[0].
+//
+// If src has (8 * len(dst)) or more bytes then only len(dst) bytes are
+// written, (8 * len(dst)) bytes are read, and invert is ignored.
+//
+// Otherwise, if len(src) is not a multiple of 8 then the final byte written to
+// dst is padded with 1 bits (if invert is true) or 0 bits. If inverted, the 1s
+// are typically temporary, e.g. they will be flipped back to 0s by an
+// invertBytes call in the highBits caller, reader.Read.
+func highBits(dst []byte, src []byte, invert bool) (d int, s int) {
+	for d < len(dst) {
+		numToPack := len(src) - s
+		if numToPack <= 0 {
+			break
+		} else if numToPack > 8 {
+			numToPack = 8
+		}
+
+		byteValue := byte(0)
+		if invert {
+			byteValue = 0xFF >> uint(numToPack)
+		}
+		for n := 0; n < numToPack; n++ {
+			byteValue |= (src[s] & 0x80) >> uint(n)
+			s++
+		}
+		dst[d] = byteValue
+		d++
+	}
+	return d, s
+}
+
 type bitReader struct {
 	r io.Reader
 
@@ -257,31 +294,10 @@ func (z *reader) Read(p []byte) (int, error) {
 			z.rowsRemaining--
 		}
 
-		// Pack from z.curr (1 byte per pixel) to p (1 bit per pixel), up to 8
-		// elements per iteration.
-		i := 0
-		for ; i < len(p); i++ {
-			numToPack := len(z.curr) - z.ri
-			if numToPack <= 0 {
-				break
-			} else if numToPack > 8 {
-				numToPack = 8
-			}
-
-			byteValue := byte(0)
-			if z.invert {
-				// Set the end-of-row padding bits to 1 (if inverted) or 0. If inverted, the 1s
-				// are temporary, and will be flipped back to 0s by the invertBytes call below.
-				byteValue = 0xFF >> uint(numToPack)
-			}
-
-			for j := 0; j < numToPack; j++ {
-				byteValue |= (z.curr[z.ri] & 0x80) >> uint(j)
-				z.ri++
-			}
-			p[i] = byteValue
-		}
-		p = p[i:]
+		// Pack from z.curr (1 byte per pixel) to p (1 bit per pixel).
+		packD, packS := highBits(p, z.curr[z.ri:], z.invert)
+		p = p[packD:]
+		z.ri += packS
 
 		// Prepare to decode the next row, if necessary.
 		if z.ri == len(z.curr) {
