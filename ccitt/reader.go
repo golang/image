@@ -88,24 +88,37 @@ func reverseBitsWithinBytes(b []byte) {
 // are typically temporary, e.g. they will be flipped back to 0s by an
 // invertBytes call in the highBits caller, reader.Read.
 func highBits(dst []byte, src []byte, invert bool) (d int, s int) {
-	for d < len(dst) {
-		numToPack := len(src) - s
-		if numToPack <= 0 {
-			break
-		} else if numToPack > 8 {
-			numToPack = 8
-		}
+	// Pack as many complete groups of 8 src bytes as we can.
+	n := len(src) / 8
+	if n > len(dst) {
+		n = len(dst)
+	}
+	dstN := dst[:n]
+	for i := range dstN {
+		src8 := src[i*8 : i*8+8]
+		dstN[i] = ((src8[0] & 0x80) >> 0) |
+			((src8[1] & 0x80) >> 1) |
+			((src8[2] & 0x80) >> 2) |
+			((src8[3] & 0x80) >> 3) |
+			((src8[4] & 0x80) >> 4) |
+			((src8[5] & 0x80) >> 5) |
+			((src8[6] & 0x80) >> 6) |
+			((src8[7] & 0x80) >> 7)
+	}
+	d, s = n, 8*n
+	dst, src = dst[d:], src[s:]
 
-		byteValue := byte(0)
+	// Pack up to 7 remaining src bytes, if there's room in dst.
+	if (len(dst) > 0) && (len(src) > 0) {
+		dstByte := byte(0)
 		if invert {
-			byteValue = 0xFF >> uint(numToPack)
+			dstByte = 0xFF >> uint(len(src))
 		}
-		for n := 0; n < numToPack; n++ {
-			byteValue |= (src[s] & 0x80) >> uint(n)
-			s++
+		for n, srcByte := range src {
+			dstByte |= (srcByte & 0x80) >> uint(n)
 		}
-		dst[d] = byteValue
-		d++
+		dst[0] = dstByte
+		d, s = d+1, s+len(src)
 	}
 	return d, s
 }
