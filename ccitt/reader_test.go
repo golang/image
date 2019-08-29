@@ -73,7 +73,7 @@ func simpleHB(dst []byte, src []byte, invert bool) (d int, s int) {
 	return d, s
 }
 
-func TestPackBits(t *testing.T) {
+func TestHighBits(t *testing.T) {
 	rng := rand.New(rand.NewSource(1))
 	dst0 := make([]byte, 3)
 	dst1 := make([]byte, 3)
@@ -114,7 +114,7 @@ func TestPackBits(t *testing.T) {
 	}
 }
 
-func BenchmarkPackBits(b *testing.B) {
+func BenchmarkHighBits(b *testing.B) {
 	rng := rand.New(rand.NewSource(1))
 	dst := make([]byte, 1024)
 	src := make([]byte, 7777)
