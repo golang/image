@@ -4,7 +4,7 @@
 
 // Package plan9font implements font faces for the Plan 9 font and subfont file
 // formats. These formats are described at
-// http://plan9.bell-labs.com/magic/man2html/6/font
+// https://9p.io/magic/man2html/6/font
 package plan9font // import "golang.org/x/image/font/plan9font"
 
 import (
@@ -24,7 +24,7 @@ import (
 // fontchar describes one character glyph in a subfont.
 //
 // For more detail, look for "struct Fontchar" in
-// http://plan9.bell-labs.com/magic/man2html/2/cachechars
+// https://9p.io/magic/man2html/2/cachechars
 type fontchar struct {
 	x      uint32 // X position in the image holding the glyphs.
 	top    uint8  // First non-zero scan line.
