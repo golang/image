@@ -134,7 +134,7 @@ type bitReader struct {
 	// order is whether to process r's bytes LSB first or MSB first.
 	order Order
 
-	// The low nBits bits of the bits field hold upcoming bits in LSB order.
+	// The high nBits bits of the bits field hold upcoming bits in MSB order.
 	bits  uint64
 	nBits uint32
 
@@ -146,7 +146,7 @@ type bitReader struct {
 
 func (b *bitReader) alignToByteBoundary() {
 	n := b.nBits & 7
-	b.bits >>= n
+	b.bits <<= n
 	b.nBits -= n
 }
 
@@ -161,10 +161,10 @@ const nextBitMaxNBits = 31
 func (b *bitReader) nextBit() (uint32, error) {
 	for {
 		if b.nBits > 0 {
-			bit := uint32(b.bits) & 1
-			b.bits >>= 1
+			bit := (b.bits >> 63) & 1
+			b.bits <<= 1
 			b.nBits--
-			return bit, nil
+			return uint32(bit), nil
 		}
 
 		if available := b.bw - b.br; available >= 4 {
@@ -174,12 +174,12 @@ func (b *bitReader) nextBit() (uint32, error) {
 			// checks that the generated maxCodeLength constant fits.
 			//
 			// If changing the Uint32 call, also change nextBitMaxNBits.
-			b.bits = uint64(binary.LittleEndian.Uint32(b.bytes[b.br:]))
+			b.bits = uint64(binary.BigEndian.Uint32(b.bytes[b.br:])) << 32
 			b.br += 4
 			b.nBits = 32
 			continue
 		} else if available > 0 {
-			b.bits = uint64(b.bytes[b.br])
+			b.bits = uint64(b.bytes[b.br]) << (7 * 8)
 			b.br++
 			b.nBits = 8
 			continue
@@ -194,20 +194,20 @@ func (b *bitReader) nextBit() (uint32, error) {
 		b.bw = uint32(n)
 		b.readErr = err
 
-		if b.order != LSB {
+		if b.order != MSB {
 			reverseBitsWithinBytes(b.bytes[:b.bw])
 		}
 	}
 }
 
 func decode(b *bitReader, decodeTable [][2]int16) (uint32, error) {
-	nBitsRead, bitsRead, state := uint32(0), uint32(0), int32(1)
+	nBitsRead, bitsRead, state := uint32(0), uint64(0), int32(1)
 	for {
 		bit, err := b.nextBit()
 		if err != nil {
 			return 0, err
 		}
-		bitsRead |= bit << nBitsRead
+		bitsRead |= uint64(bit) << (63 - nBitsRead)
 		nBitsRead++
 		// The "&1" is redundant, but can eliminate a bounds check.
 		state = int32(decodeTable[state][bit&1])
@@ -215,7 +215,7 @@ func decode(b *bitReader, decodeTable [][2]int16) (uint32, error) {
 			return uint32(^state), nil
 		} else if state == 0 {
 			// Unread the bits we've read, then return errInvalidCode.
-			b.bits = (b.bits << nBitsRead) | uint64(bitsRead)
+			b.bits = (b.bits >> nBitsRead) | bitsRead
 			b.nBits += nBitsRead
 			return 0, errInvalidCode
 		}
