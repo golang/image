@@ -164,7 +164,7 @@ func testDecodeTable(t *testing.T, decodeTable [][2]int16, codes []code, values 
 	// Build the encoded form of those values in LSB order.
 	enc := []byte(nil)
 	bits := uint8(0)
-	nBits := uint32(0)
+	nBits := uint8(7)
 	for _, v := range values {
 		code := m[v]
 		if code == "" {
@@ -172,22 +172,24 @@ func testDecodeTable(t *testing.T, decodeTable [][2]int16, codes []code, values 
 		}
 		for _, c := range code {
 			bits |= uint8(c&1) << nBits
-			nBits++
-			if nBits == 8 {
+			if nBits == 0 {
 				enc = append(enc, bits)
 				bits = 0
-				nBits = 0
+				nBits = 7
+				continue
 			}
+			nBits--
 		}
 	}
-	if nBits > 0 {
+	if nBits < 7 {
 		enc = append(enc, bits)
 	}
 
 	// Decode that encoded form.
 	got := []uint32(nil)
 	r := &bitReader{
-		r: bytes.NewReader(enc),
+		r:     bytes.NewReader(enc),
+		order: MSB,
 	}
 	finalValue := values[len(values)-1]
 	for {
