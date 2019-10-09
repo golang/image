@@ -284,6 +284,7 @@ func (z *reader) Read(p []byte) (int, error) {
 		// processing the first or second row.
 		if z.curr == nil {
 			if !z.seenStartOfImage {
+				// Start decode doesn't seem to actually pull data so we can also ignore this as a source of "bytes read and io.EOF" problems
 				if z.readErr = z.startDecode(); z.readErr != nil {
 					break
 				}
@@ -295,13 +296,14 @@ func (z *reader) Read(p []byte) (int, error) {
 		// Decode the next row, if necessary.
 		if z.atStartOfRow {
 			if z.rowsRemaining <= 0 {
-				if z.readErr = z.finishDecode(); z.readErr != nil {
-					break
-				}
-				z.readErr = io.EOF
+				// Decode a bunch of EOLs but since there's no data to make sure that we pack, we can break no matter what
+				z.readErr = z.finishDecode()
 				break
 			}
-			if z.readErr = z.decodeRow(); z.readErr != nil {
+			z.readErr = z.decodeRow()
+			if z.readErr != nil && z.readErr != io.EOF {
+				// Make sure that we don't break if io.EOF
+				// Since the underlying read might return n, io.EOF, not just 0, io.EOF, we have to make sure that we pack all the data before we break
 				break
 			}
 			z.rowsRemaining--
@@ -316,6 +318,15 @@ func (z *reader) Read(p []byte) (int, error) {
 		if z.ri == len(z.curr) {
 			z.ri, z.curr, z.prev = 0, z.prev, z.curr
 			z.atStartOfRow = true
+		}
+
+		if z.rowsRemaining <= 0 {
+			// We can be confident that since we break after all z.readErr != nil except for io.EOF, that we aren't overwritting anything here
+			z.readErr = io.EOF
+		}
+		// We have to wait to handle io.EOF because readers might return n bytes in addition to a io.EOF error
+		if z.readErr == io.EOF {
+			break
 		}
 	}
 

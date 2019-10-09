@@ -219,6 +219,20 @@ func TestDecodeCCITT(t *testing.T) {
 	}
 }
 
+func TestGroup3Failure(t *testing.T) {
+
+	for _, fn := range []string{
+		"group3_test",
+	} {
+		t.Run(fn, func(t *testing.T) {
+			_, err := load(fn + ".tiff")
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 // TestDecodeTagOrder tests that a malformed image with unsorted IFD entries is
 // correctly rejected.
 func TestDecodeTagOrder(t *testing.T) {
