@@ -161,27 +161,27 @@ func testDecodeTable(t *testing.T, decodeTable [][2]int16, codes []code, values 
 		m[code.val] = code.str
 	}
 
-	// Build the encoded form of those values in LSB order.
+	// Build the encoded form of those values in MSB order.
 	enc := []byte(nil)
 	bits := uint8(0)
-	nBits := uint8(7)
+	nBits := uint32(0)
 	for _, v := range values {
 		code := m[v]
 		if code == "" {
 			panic("unmapped code")
 		}
 		for _, c := range code {
-			bits |= uint8(c&1) << nBits
-			if nBits == 0 {
+			bits |= uint8(c&1) << (7 - nBits)
+			nBits++
+			if nBits == 8 {
 				enc = append(enc, bits)
 				bits = 0
-				nBits = 7
+				nBits = 0
 				continue
 			}
-			nBits--
 		}
 	}
-	if nBits < 7 {
+	if nBits > 0 {
 		enc = append(enc, bits)
 	}
 
