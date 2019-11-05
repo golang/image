@@ -5,8 +5,10 @@
 package bmp
 
 import (
+	"bytes"
 	"fmt"
 	"image"
+	"io"
 	"os"
 	"testing"
 
@@ -73,5 +75,15 @@ func TestDecode(t *testing.T) {
 			t.Errorf("%s: %v", tc, err)
 			continue
 		}
+	}
+}
+
+// TestEOF tests that decoding a BMP image returns io.ErrUnexpectedEOF
+//  when there are no headers or data is empty
+func TestEOF(t *testing.T) {
+	_, err := Decode(bytes.NewReader([]byte{}))
+
+	if err != io.ErrUnexpectedEOF {
+		t.Errorf("Error should be io.ErrUnexpectedEOF but got %v", err)
 	}
 }
