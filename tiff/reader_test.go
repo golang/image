@@ -198,9 +198,13 @@ func TestDecodeLZW(t *testing.T) {
 //  when there are no headers or data is empty
 func TestEOF(t *testing.T) {
 	_, err := Decode(bytes.NewReader([]byte{}))
-
 	if err != io.ErrUnexpectedEOF {
-		t.Errorf("Error should be io.ErrUnexpectedEOF but got %v", err)
+		t.Errorf("Error should be io.ErrUnexpectedEOF on empty []byte{} but got %v", err)
+	}
+
+	_, err = Decode(bytes.NewReader(nil))
+	if err != io.ErrUnexpectedEOF {
+		t.Errorf("Error should be io.ErrUnexpectedEOF on nil but got %v", err)
 	}
 }
 
