@@ -79,7 +79,7 @@ func TestDecode(t *testing.T) {
 }
 
 // TestEOF tests that decoding a BMP image returns io.ErrUnexpectedEOF
-//  when there are no headers or data is empty
+// when there are no headers or data is empty
 func TestEOF(t *testing.T) {
 	_, err := Decode(bytes.NewReader(nil))
 	if err != io.ErrUnexpectedEOF {
