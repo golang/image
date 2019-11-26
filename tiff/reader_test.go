@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"image"
+	"io"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -191,6 +192,15 @@ func TestDecodeLZW(t *testing.T) {
 	}
 
 	compare(t, img0, img1)
+}
+
+// TestEOF tests that decoding a TIFF image returns io.ErrUnexpectedEOF
+// when there are no headers or data is empty
+func TestEOF(t *testing.T) {
+	_, err := Decode(bytes.NewReader(nil))
+	if err != io.ErrUnexpectedEOF {
+		t.Errorf("Error should be io.ErrUnexpectedEOF on nil but got %v", err)
+	}
 }
 
 // TestDecodeCCITT tests that decoding a PNG image and a CCITT compressed TIFF
