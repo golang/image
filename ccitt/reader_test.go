@@ -381,6 +381,10 @@ func TestRead(t *testing.T) {
 		"testdata/bw-gopher-aligned.ccitt_group4",
 		"testdata/bw-gopher-inverted.ccitt_group4",
 		"testdata/bw-gopher-inverted-aligned.ccitt_group4",
+		"testdata/bw-gopher-truncated0.ccitt_group3",
+		"testdata/bw-gopher-truncated0.ccitt_group4",
+		"testdata/bw-gopher-truncated1.ccitt_group3",
+		"testdata/bw-gopher-truncated1.ccitt_group4",
 	} {
 		subFormat := Group3
 		if strings.HasSuffix(fileName, "group4") {
@@ -400,6 +404,10 @@ func TestDecodeIntoGray(t *testing.T) {
 	}{
 		{"testdata/bw-gopher.ccitt_group3", Group3, 153, 55},
 		{"testdata/bw-gopher.ccitt_group4", Group4, 153, 55},
+		{"testdata/bw-gopher-truncated0.ccitt_group3", Group3, 153, 55},
+		{"testdata/bw-gopher-truncated0.ccitt_group4", Group4, 153, 55},
+		{"testdata/bw-gopher-truncated1.ccitt_group3", Group3, 153, 55},
+		{"testdata/bw-gopher-truncated1.ccitt_group4", Group4, 153, 55},
 	} {
 		t.Run(tt.fileName, func(t *testing.T) {
 			testDecodeIntoGray(t, tt.fileName, MSB, tt.sf, tt.w, tt.h, nil)
@@ -421,8 +429,7 @@ func testDecodeIntoGray(t *testing.T, fileName string, order Order, sf SubFormat
 		t.Fatalf("DecodeIntoGray: %v", err)
 	}
 
-	baseName := fileName[:len(fileName)-len(filepath.Ext(fileName))]
-	want, err := decodePNG(baseName + ".png")
+	want, err := decodePNG("testdata/bw-gopher.png")
 	if err != nil {
 		t.Fatal(err)
 	}
