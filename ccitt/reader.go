@@ -16,6 +16,7 @@ import (
 )
 
 var (
+	errIncompleteCode          = errors.New("ccitt: incomplete code")
 	errInvalidBounds           = errors.New("ccitt: invalid bounds")
 	errInvalidCode             = errors.New("ccitt: invalid code")
 	errInvalidMode             = errors.New("ccitt: invalid mode")
@@ -205,6 +206,9 @@ func decode(b *bitReader, decodeTable [][2]int16) (uint32, error) {
 	for {
 		bit, err := b.nextBit()
 		if err != nil {
+			if err == io.EOF {
+				err = errIncompleteCode
+			}
 			return 0, err
 		}
 		bitsRead |= bit << (63 - nBitsRead)
@@ -269,6 +273,14 @@ type reader struct {
 	// seenStartOfImage is whether we've called the startDecode method.
 	seenStartOfImage bool
 
+	// truncated is whether the input is missing the final 6 consecutive EOL's
+	// (for Group3) or 2 consecutive EOL's (for Group4). Omitting that trailer
+	// (but otherwise padding to a byte boundary, with either all 0 bits or all
+	// 1 bits) is invalid according to the spec, but happens in practice when
+	// exporting from Adobe Acrobat to TIFF + CCITT. This package silently
+	// ignores CCITT input that has been truncated in that fashion.
+	truncated bool
+
 	// readErr is a sticky error for the Read method.
 	readErr error
 }
@@ -301,7 +313,7 @@ func (z *reader) Read(p []byte) (int, error) {
 				z.readErr = io.EOF
 				break
 			}
-			if z.readErr = z.decodeRow(); z.readErr != nil {
+			if z.readErr = z.decodeRow(z.rowsRemaining == 1); z.readErr != nil {
 				break
 			}
 			z.rowsRemaining--
@@ -355,6 +367,9 @@ func (z *reader) finishDecode() error {
 	numberOfEOLs := 0
 	switch z.subFormat {
 	case Group3:
+		if z.truncated {
+			return nil
+		}
 		// The stream ends with a RTC (Return To Control) of 6 consecutive
 		// EOL's, but we should have already just seen an EOL, either in
 		// z.startDecode (for a zero-height image) or in z.decodeRow.
@@ -369,6 +384,9 @@ func (z *reader) finishDecode() error {
 		} else if err == errInvalidCode {
 			// Try again, this time starting from a byte boundary.
 			z.br.alignToByteBoundary()
+		} else if err == errMissingEOL {
+			z.truncated = true
+			return nil
 		} else {
 			return err
 		}
@@ -391,6 +409,9 @@ func (z *reader) decodeEOL() error {
 	// cater for optional byte-alignment, or an arbitrary number (potentially
 	// more than 8) of 0-valued padding bits.
 	if mode, err := decode(&z.br, modeDecodeTable[:]); err != nil {
+		if err == errIncompleteCode {
+			return errMissingEOL
+		}
 		return err
 	} else if mode != modeEOL {
 		return errMissingEOL
@@ -398,7 +419,7 @@ func (z *reader) decodeEOL() error {
 	return nil
 }
 
-func (z *reader) decodeRow() error {
+func (z *reader) decodeRow(finalRow bool) error {
 	z.wi = 0
 	z.atStartOfRow = true
 	z.penColorIsWhite = true
@@ -414,7 +435,12 @@ func (z *reader) decodeRow() error {
 				return err
 			}
 		}
-		return z.decodeEOL()
+		err := z.decodeEOL()
+		if finalRow && (err == errMissingEOL) {
+			z.truncated = true
+			return nil
+		}
+		return err
 
 	case Group4:
 		for ; z.wi < len(z.curr); z.atStartOfRow = false {
@@ -654,7 +680,7 @@ func DecodeIntoGray(dst *image.Gray, r io.Reader, order Order, sf SubFormat, opt
 	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
 		p := (y - bounds.Min.Y) * dst.Stride
 		z.curr = dst.Pix[p : p+width]
-		if err := z.decodeRow(); err != nil {
+		if err := z.decodeRow(y+1 == bounds.Max.Y); err != nil {
 			return err
 		}
 		z.curr, z.prev = nil, z.curr
