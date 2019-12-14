@@ -222,7 +222,10 @@ func TestModeDecodeTable(t *testing.T) {
 		modeH,
 		modeVL1,
 		modeVL1,
-		modeEOL,
+		// The exact value of this final slice element doesn't really matter,
+		// except that testDecodeTable assumes that it (the finalValue) is
+		// different from every previous element.
+		modeVL3,
 	})
 }
 
@@ -282,7 +285,7 @@ func TestDecodeInvalidCode(t *testing.T) {
 	}
 }
 
-func testRead(t *testing.T, fileName string, sf SubFormat, align, invert bool) {
+func testRead(t *testing.T, fileName string, sf SubFormat, align, invert, truncated bool) {
 	t.Helper()
 
 	const width, height = 153, 55
@@ -369,6 +372,26 @@ func testRead(t *testing.T, fileName string, sf SubFormat, align, invert bool) {
 	if got != want {
 		t.Fatalf("got:\n%s\nwant:\n%s", format(got), format(want))
 	}
+
+	// Passing AutoDetectHeight should produce the same output, provided that
+	// the input hasn't truncated the trailing sequence of consecutive EOL's
+	// that marks the end of the image.
+	if !truncated {
+		f, err := os.Open(fileName)
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		defer f.Close()
+		adhBytes, err := ioutil.ReadAll(NewReader(f, MSB, sf, width, AutoDetectHeight, opts))
+		if err != nil {
+			t.Fatalf("ReadAll: %v", err)
+		}
+		if s := string(adhBytes); s != want {
+			t.Fatalf("AutoDetectHeight produced different output.\n"+
+				"height=%d:\n%s\nheight=%d:\n%s",
+				AutoDetectHeight, format(s), height, format(want))
+		}
+	}
 }
 
 func TestRead(t *testing.T) {
@@ -392,7 +415,8 @@ func TestRead(t *testing.T) {
 		}
 		align := strings.Contains(fileName, "aligned")
 		invert := strings.Contains(fileName, "inverted")
-		testRead(t, fileName, subFormat, align, invert)
+		truncated := strings.Contains(fileName, "truncated")
+		testRead(t, fileName, subFormat, align, invert, truncated)
 	}
 }
 
