@@ -7,6 +7,7 @@ package sfnt
 import (
 	"bytes"
 	"fmt"
+	"image"
 	"io/ioutil"
 	"path/filepath"
 	"testing"
@@ -209,6 +210,42 @@ func TestBounds(t *testing.T) {
 		}
 		if got != want {
 			t.Errorf("name=%q: Bounds: got %v, want %v", name, got, want)
+			continue
+		}
+	}
+}
+
+func TestMetrics(t *testing.T) {
+	cmapFont, err := ioutil.ReadFile(filepath.FromSlash("../testdata/cmapTest.ttf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	testCases := map[string]struct {
+		font []byte
+		want font.Metrics
+	}{
+		"goregular": {goregular.TTF, font.Metrics{Height: 2367, Ascent: 1935, Descent: 432, XHeight: 1086, CapHeight: 1480,
+			CaretSlope: image.Point{X: 0, Y: 1}}},
+		// cmapTest.ttf has a non-zero lineGap.
+		"cmapTest": {cmapFont, font.Metrics{Height: 1549, Ascent: 1365, Descent: 0, XHeight: 800, CapHeight: 800,
+			CaretSlope: image.Point{X: 20, Y: 100}}},
+	}
+	var b Buffer
+	for name, tc := range testCases {
+		f, err := Parse(tc.font)
+		if err != nil {
+			t.Errorf("name=%q: Parse: %v", name, err)
+			continue
+		}
+		ppem := fixed.Int26_6(f.UnitsPerEm())
+
+		got, err := f.Metrics(&b, ppem, font.HintingNone)
+		if err != nil {
+			t.Errorf("name=%q: Metrics: %v", name, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("name=%q: Metrics: got %v, want %v", name, got, tc.want)
 			continue
 		}
 	}
@@ -540,11 +577,11 @@ func TestTrueTypeSegments(t *testing.T) {
 		lineTo(136, 1297),
 		lineTo(136, 68),
 	}, {
-	// .null
-	// Empty glyph.
+		// .null
+		// Empty glyph.
 	}, {
-	// nonmarkingreturn
-	// Empty glyph.
+		// nonmarkingreturn
+		// Empty glyph.
 	}, {
 		// zero
 		// - contour #0
@@ -727,6 +764,30 @@ func TestPPEM(t *testing.T) {
 			t.Errorf("i=%d: %v", i, err)
 			continue
 		}
+	}
+}
+
+func TestPostInfo(t *testing.T) {
+	data, err := ioutil.ReadFile(filepath.FromSlash("../testdata/glyfTest.ttf"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	f, err := Parse(data)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	post := f.PostTable()
+	if post.ItalicAngle != -11.25 {
+		t.Error("ItalicAngle:", post.ItalicAngle)
+	}
+	if post.UnderlinePosition != -255 {
+		t.Error("UnderlinePosition:", post.UnderlinePosition)
+	}
+	if post.UnderlineThickness != 102 {
+		t.Error("UnderlineThickness:", post.UnderlineThickness)
+	}
+	if post.IsFixedPitch {
+		t.Error("IsFixedPitch:", post.IsFixedPitch)
 	}
 }
 

@@ -21,6 +21,7 @@ package sfnt // import "golang.org/x/image/font/sfnt"
 
 import (
 	"errors"
+	"image"
 	"io"
 
 	"golang.org/x/image/font"
@@ -76,6 +77,7 @@ var (
 	errInvalidDfont           = errors.New("sfnt: invalid dfont")
 	errInvalidFont            = errors.New("sfnt: invalid font")
 	errInvalidFontCollection  = errors.New("sfnt: invalid font collection")
+	errInvalidGPOSTable       = errors.New("sfnt: invalid GPOS table")
 	errInvalidGlyphData       = errors.New("sfnt: invalid glyph data")
 	errInvalidGlyphDataLength = errors.New("sfnt: invalid glyph data length")
 	errInvalidHeadTable       = errors.New("sfnt: invalid head table")
@@ -86,6 +88,7 @@ var (
 	errInvalidLocationData    = errors.New("sfnt: invalid location data")
 	errInvalidMaxpTable       = errors.New("sfnt: invalid maxp table")
 	errInvalidNameTable       = errors.New("sfnt: invalid name table")
+	errInvalidOS2Table        = errors.New("sfnt: invalid OS/2 table")
 	errInvalidPostTable       = errors.New("sfnt: invalid post table")
 	errInvalidSingleFont      = errors.New("sfnt: invalid single font (data is a font collection)")
 	errInvalidSourceData      = errors.New("sfnt: invalid source data")
@@ -95,11 +98,14 @@ var (
 
 	errUnsupportedCFFFDSelectTable     = errors.New("sfnt: unsupported CFF FDSelect table")
 	errUnsupportedCFFVersion           = errors.New("sfnt: unsupported CFF version")
+	errUnsupportedClassDefFormat       = errors.New("sfnt: unsupported class definition format")
 	errUnsupportedCmapEncodings        = errors.New("sfnt: unsupported cmap encodings")
 	errUnsupportedCompoundGlyph        = errors.New("sfnt: unsupported compound glyph")
+	errUnsupportedCoverageFormat       = errors.New("sfnt: unsupported coverage format")
+	errUnsupportedExtensionPosFormat   = errors.New("sfnt: unsupported extension positioning format")
+	errUnsupportedGPOSTable            = errors.New("sfnt: unsupported GPOS table")
 	errUnsupportedGlyphDataLength      = errors.New("sfnt: unsupported glyph data length")
 	errUnsupportedKernTable            = errors.New("sfnt: unsupported kern table")
-	errUnsupportedRealNumberEncoding   = errors.New("sfnt: unsupported real number encoding")
 	errUnsupportedNumberOfCmapSegments = errors.New("sfnt: unsupported number of cmap segments")
 	errUnsupportedNumberOfFontDicts    = errors.New("sfnt: unsupported number of font dicts")
 	errUnsupportedNumberOfFonts        = errors.New("sfnt: unsupported number of fonts")
@@ -108,6 +114,7 @@ var (
 	errUnsupportedNumberOfTables       = errors.New("sfnt: unsupported number of tables")
 	errUnsupportedPlatformEncoding     = errors.New("sfnt: unsupported platform encoding")
 	errUnsupportedPostTable            = errors.New("sfnt: unsupported post table")
+	errUnsupportedRealNumberEncoding   = errors.New("sfnt: unsupported real number encoding")
 	errUnsupportedTableOffsetLength    = errors.New("sfnt: unsupported table offset or length")
 	errUnsupportedType2Charstring      = errors.New("sfnt: unsupported Type 2 Charstring")
 )
@@ -242,6 +249,33 @@ func (s *source) view(buf []byte, offset, length int) ([]byte, error) {
 	return buf, nil
 }
 
+// varLenView returns bytes from the given offset for sub-tables with varying
+// length. The length of bytes is determined by staticLength plus n*itemLength,
+// where n is read as uint16 from countOffset (relative to offset). buf is an
+// optional scratch buffer (see source.view())
+func (s *source) varLenView(buf []byte, offset, staticLength, countOffset, itemLength int) ([]byte, int, error) {
+	if 0 > offset || offset > offset+staticLength {
+		return nil, 0, errInvalidBounds
+	}
+	if 0 > countOffset || countOffset+1 >= staticLength {
+		return nil, 0, errInvalidBounds
+	}
+
+	// read static part which contains our count
+	buf, err := s.view(buf, offset, staticLength)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	count := int(u16(buf[countOffset:]))
+	buf, err = s.view(buf, offset, staticLength+count*itemLength)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return buf, count, nil
+}
+
 // u16 returns the uint16 in the table t at the relative offset i.
 //
 // buf is an optional scratch buffer as per the source.view method.
@@ -331,7 +365,7 @@ func (c *Collection) initialize() error {
 		return errInvalidFontCollection
 	case dfontResourceDataOffset:
 		return c.parseDfont(buf, u32(buf[4:]), u32(buf[12:]))
-	case 0x00010000, 0x4f54544f:
+	case 0x00010000, 0x4f54544f, 0x74727565: // 0x10000, "OTTO", "true"
 		// Try parsing it as a single font instead of a collection.
 		c.offsets = []uint32{0}
 	case 0x74746366: // "ttcf".
@@ -555,7 +589,8 @@ type Font struct {
 	// https://www.microsoft.com/typography/otspec/otff.htm#otttables
 	// "Advanced Typographic Tables".
 	//
-	// TODO: base, gdef, gpos, gsub, jstf, math?
+	// TODO: base, gdef, gsub, jstf, math?
+	gpos table
 
 	// https://www.microsoft.com/typography/otspec/otff.htm#otttables
 	// "Other OpenType Tables".
@@ -564,17 +599,24 @@ type Font struct {
 	kern table
 
 	cached struct {
+		ascent           int32
+		capHeight        int32
 		glyphData        glyphData
 		glyphIndex       glyphIndexFunc
 		bounds           [4]int16
+		descent          int32
 		indexToLocFormat bool // false means short, true means long.
 		isColorBitmap    bool
 		isPostScript     bool
 		kernNumPairs     int32
 		kernOffset       int32
+		kernFuncs        []kernFunc
+		lineGap          int32
 		numHMetrics      int32
-		postTableVersion uint32
+		post             *PostTable
+		slope            [2]int32
 		unitsPerEm       Units
+		xHeight          int32
 	}
 }
 
@@ -621,7 +663,11 @@ func (f *Font) initialize(offset int, isDfont bool) error {
 	if err != nil {
 		return err
 	}
-	buf, numHMetrics, err := f.parseHhea(buf, numGlyphs)
+	buf, kernFuncs, err := f.parseGPOSKern(buf)
+	if err != nil {
+		return err
+	}
+	buf, ascent, descent, lineGap, run, rise, numHMetrics, err := f.parseHhea(buf, numGlyphs)
 	if err != nil {
 		return err
 	}
@@ -629,22 +675,42 @@ func (f *Font) initialize(offset int, isDfont bool) error {
 	if err != nil {
 		return err
 	}
-	buf, postTableVersion, err := f.parsePost(buf, numGlyphs)
+	buf, hasXHeightCapHeight, xHeight, capHeight, err := f.parseOS2(buf)
+	if err != nil {
+		return err
+	}
+	buf, post, err := f.parsePost(buf, numGlyphs)
 	if err != nil {
 		return err
 	}
 
+	f.cached.ascent = ascent
+	f.cached.capHeight = capHeight
 	f.cached.glyphData = glyphData
 	f.cached.glyphIndex = glyphIndex
 	f.cached.bounds = bounds
+	f.cached.descent = descent
 	f.cached.indexToLocFormat = indexToLocFormat
 	f.cached.isColorBitmap = isColorBitmap
 	f.cached.isPostScript = isPostScript
 	f.cached.kernNumPairs = kernNumPairs
 	f.cached.kernOffset = kernOffset
+	f.cached.kernFuncs = kernFuncs
+	f.cached.lineGap = lineGap
 	f.cached.numHMetrics = numHMetrics
-	f.cached.postTableVersion = postTableVersion
+	f.cached.post = post
+	f.cached.slope = [2]int32{run, rise}
 	f.cached.unitsPerEm = unitsPerEm
+	f.cached.xHeight = xHeight
+
+	if !hasXHeightCapHeight {
+		xh, ch, err := f.initOS2Version1()
+		if err != nil {
+			return err
+		}
+		f.cached.xHeight = xh
+		f.cached.capHeight = ch
+	}
 
 	return nil
 }
@@ -668,6 +734,8 @@ func (f *Font) initializeTables(offset int, isDfont bool) (buf1 []byte, isPostSc
 		// No-op.
 	case 0x4f54544f: // "OTTO".
 		isPostScript = true
+	case 0x74727565: // "true"
+		// No-op.
 	case 0x74746366: // "ttcf".
 		return nil, false, errInvalidSingleFont
 	}
@@ -722,6 +790,8 @@ func (f *Font) initializeTables(offset int, isDfont bool) (buf1 []byte, isPostSc
 			f.cmap = table{o, n}
 		case 0x676c7966:
 			f.glyf = table{o, n}
+		case 0x47504f53:
+			f.gpos = table{o, n}
 		case 0x68656164:
 			f.head = table{o, n}
 		case 0x68686561:
@@ -838,26 +908,49 @@ func (f *Font) parseHead(buf []byte) (buf1 []byte, bounds [4]int16, indexToLocFo
 	return buf, bounds, indexToLocFormat, unitsPerEm, nil
 }
 
-func (f *Font) parseHhea(buf []byte, numGlyphs int32) (buf1 []byte, numHMetrics int32, err error) {
+func (f *Font) parseHhea(buf []byte, numGlyphs int32) (buf1 []byte, ascent, descent, lineGap, run, rise, numHMetrics int32, err error) {
 	// https://www.microsoft.com/typography/OTSPEC/hhea.htm
 
 	if f.hhea.length != 36 {
-		return nil, 0, errInvalidHheaTable
+		return nil, 0, 0, 0, 0, 0, 0, errInvalidHheaTable
 	}
 	u, err := f.src.u16(buf, f.hhea, 34)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, 0, 0, 0, 0, err
 	}
 	if int32(u) > numGlyphs || u == 0 {
-		return nil, 0, errInvalidHheaTable
+		return nil, 0, 0, 0, 0, 0, 0, errInvalidHheaTable
 	}
-	return buf, int32(u), nil
+	a, err := f.src.u16(buf, f.hhea, 4)
+	if err != nil {
+		return nil, 0, 0, 0, 0, 0, 0, err
+	}
+	d, err := f.src.u16(buf, f.hhea, 6)
+	if err != nil {
+		return nil, 0, 0, 0, 0, 0, 0, err
+	}
+	l, err := f.src.u16(buf, f.hhea, 8)
+	if err != nil {
+		return nil, 0, 0, 0, 0, 0, 0, err
+	}
+	ru, err := f.src.u16(buf, f.hhea, 20)
+	if err != nil {
+		return nil, 0, 0, 0, 0, 0, 0, err
+	}
+	ri, err := f.src.u16(buf, f.hhea, 18)
+	if err != nil {
+		return nil, 0, 0, 0, 0, 0, 0, err
+	}
+	return buf, int32(int16(a)), int32(int16(d)), int32(int16(l)), int32(int16(ru)), int32(int16(ri)), int32(u), nil
 }
 
 func (f *Font) parseHmtx(buf []byte, numGlyphs, numHMetrics int32) (buf1 []byte, err error) {
 	// https://www.microsoft.com/typography/OTSPEC/hmtx.htm
 
-	if f.hmtx.length != uint32(2*numGlyphs+2*numHMetrics) {
+	// The spec says that the hmtx table's length should be
+	// "4*numHMetrics+2*(numGlyphs-numHMetrics)". However, some fonts seen in the
+	// wild omit the "2*(nG-nHM)". See https://github.com/golang/go/issues/28379
+	if f.hmtx.length != uint32(4*numHMetrics) && f.hmtx.length != uint32(4*numHMetrics+2*(numGlyphs-numHMetrics)) {
 		return nil, errInvalidHmtxTable
 	}
 	return buf, nil
@@ -920,8 +1013,8 @@ func (f *Font) parseKernVersion0(buf []byte, offset, length int) (buf1 []byte, k
 	if version := u16(buf); version != 0 {
 		return nil, 0, 0, errUnsupportedKernTable
 	}
-	subtableLength := int(u16(buf[2:]))
-	if subtableLength < headerSize || length < subtableLength {
+	subtableLengthU16 := u16(buf[2:])
+	if int(subtableLengthU16) < headerSize || length < int(subtableLengthU16) {
 		return nil, 0, 0, errInvalidKernTable
 	}
 	if coverageBits := buf[5]; coverageBits != 0x01 {
@@ -930,11 +1023,11 @@ func (f *Font) parseKernVersion0(buf []byte, offset, length int) (buf1 []byte, k
 	}
 	offset += headerSize
 	length -= headerSize
-	subtableLength -= headerSize
+	subtableLengthU16 -= headerSize
 
 	switch format := buf[4]; format {
 	case 0:
-		return f.parseKernFormat0(buf, offset, subtableLength)
+		return f.parseKernFormat0(buf, offset, length, subtableLengthU16)
 	case 2:
 		// If we could find such a font, we could write code to support it, but
 		// a comment in the equivalent FreeType code (sfnt/ttkern.c) says that
@@ -943,7 +1036,7 @@ func (f *Font) parseKernVersion0(buf []byte, offset, length int) (buf1 []byte, k
 	return nil, 0, 0, errUnsupportedKernTable
 }
 
-func (f *Font) parseKernFormat0(buf []byte, offset, length int) (buf1 []byte, kernNumPairs, kernOffset int32, err error) {
+func (f *Font) parseKernFormat0(buf []byte, offset, length int, subtableLengthU16 uint16) (buf1 []byte, kernNumPairs, kernOffset int32, err error) {
 	const headerSize, entrySize = 8, 6
 	if length < headerSize {
 		return nil, 0, 0, errInvalidKernTable
@@ -953,7 +1046,13 @@ func (f *Font) parseKernFormat0(buf []byte, offset, length int) (buf1 []byte, ke
 		return nil, 0, 0, err
 	}
 	kernNumPairs = int32(u16(buf))
-	if length != headerSize+entrySize*int(kernNumPairs) {
+
+	// The subtable length from the kern table is only uint16. Fonts like
+	// Cambria, Calibri or Corbel have more then 10k kerning pairs and the
+	// actual subtable size is truncated to uint16. Compare size with KERN
+	// length and truncated size with subtable length.
+	n := headerSize + entrySize*int(kernNumPairs)
+	if (length < n) || (subtableLengthU16 != uint16(n)) {
 		return nil, 0, 0, errInvalidKernTable
 	}
 	return buf, kernNumPairs, int32(offset) + headerSize, nil
@@ -1027,28 +1126,160 @@ func (f *Font) parseGlyphData(buf []byte, numGlyphs int32, indexToLocFormat, isP
 	return buf, ret, isColorBitmap, nil
 }
 
-func (f *Font) parsePost(buf []byte, numGlyphs int32) (buf1 []byte, postTableVersion uint32, err error) {
+func (f *Font) glyphTopOS2(b *Buffer, ppem fixed.Int26_6, r rune) (int32, error) {
+	ind, err := f.GlyphIndex(b, r)
+	if err != nil && err != ErrNotFound {
+		return 0, err
+	} else if ind == 0 {
+		return 0, nil
+	}
+	// Y axis points down
+	var min fixed.Int26_6
+	seg, err := f.LoadGlyph(b, ind, ppem, nil)
+	if err != nil {
+		return 0, err
+	}
+	for _, s := range seg {
+		for _, p := range s.Args {
+			if p.Y < min {
+				min = p.Y
+			}
+		}
+	}
+	return int32(min), nil
+}
+
+func (f *Font) initOS2Version1() (xHeight, capHeight int32, err error) {
+	ppem := fixed.Int26_6(f.UnitsPerEm())
+	var b Buffer
+
+	// sxHeight equal to the top of the unscaled and unhinted glyph bounding box
+	// of the glyph encoded at U+0078 (LATIN SMALL LETTER X).
+	xh, err := f.glyphTopOS2(&b, ppem, 'x')
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// sCapHeight may be set equal to the top of the unscaled and unhinted glyph
+	// bounding box of the glyph encoded at U+0048 (LATIN CAPITAL LETTER H).
+	ch, err := f.glyphTopOS2(&b, ppem, 'H')
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return int32(xh), int32(ch), nil
+}
+
+func (f *Font) parseOS2(buf []byte) (buf1 []byte, hasXHeightCapHeight bool, xHeight, capHeight int32, err error) {
+	// https://docs.microsoft.com/da-dk/typography/opentype/spec/os2
+
+	if f.os2.length == 0 {
+		// Apple TrueType fonts might omit the OS/2 table.
+		return buf, false, 0, 0, nil
+	} else if f.os2.length < 2 {
+		return nil, false, 0, 0, errInvalidOS2Table
+	}
+	vers, err := f.src.u16(buf, f.os2, 0)
+	if err != nil {
+		return nil, false, 0, 0, err
+	}
+	if vers <= 1 {
+		const headerSize = 86
+		if f.os2.length < headerSize {
+			return nil, false, 0, 0, errInvalidOS2Table
+		}
+		// Will resolve xHeight and capHeight later, see initOS2Version1.
+		return buf, false, 0, 0, nil
+	}
+	const headerSize = 96
+	if f.os2.length < headerSize {
+		return nil, false, 0, 0, errInvalidOS2Table
+	}
+	xh, err := f.src.u16(buf, f.os2, 86)
+	if err != nil {
+		return nil, false, 0, 0, err
+	}
+	ch, err := f.src.u16(buf, f.os2, 88)
+	if err != nil {
+		return nil, false, 0, 0, err
+	}
+	return buf, true, int32(int16(xh)), int32(int16(ch)), nil
+}
+
+// PostTable represents an information stored in the PostScript font section.
+type PostTable struct {
+	// Version of the version tag of the "post" table.
+	Version uint32
+	// ItalicAngle in counter-clockwise degrees from the vertical. Zero for
+	// upright text, negative for text that leans to the right (forward).
+	ItalicAngle float64
+	// UnderlinePosition is the suggested distance of the top of the
+	// underline from the baseline (negative values indicate below baseline).
+	UnderlinePosition int16
+	// Suggested values for the underline thickness.
+	UnderlineThickness int16
+	// IsFixedPitch indicates that the font is not proportionally spaced
+	// (i.e. monospaced).
+	IsFixedPitch bool
+}
+
+// PostTable returns the information from the font's "post" table. It can
+// return nil, if the font doesn't have such a table.
+//
+// See https://docs.microsoft.com/en-us/typography/opentype/spec/post
+func (f *Font) PostTable() *PostTable {
+	return f.cached.post
+}
+
+func (f *Font) parsePost(buf []byte, numGlyphs int32) (buf1 []byte, post *PostTable, err error) {
 	// https://www.microsoft.com/typography/otspec/post.htm
 
 	const headerSize = 32
 	if f.post.length < headerSize {
-		return nil, 0, errInvalidPostTable
+		return nil, nil, errInvalidPostTable
 	}
 	u, err := f.src.u32(buf, f.post, 0)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
+
 	switch u {
+	case 0x10000:
+		// No-op.
 	case 0x20000:
 		if f.post.length < headerSize+2+2*uint32(numGlyphs) {
-			return nil, 0, errInvalidPostTable
+			return nil, nil, errInvalidPostTable
 		}
 	case 0x30000:
 		// No-op.
 	default:
-		return nil, 0, errUnsupportedPostTable
+		return nil, nil, errUnsupportedPostTable
 	}
-	return buf, u, nil
+
+	ang, err := f.src.u32(buf, f.post, 4)
+	if err != nil {
+		return nil, nil, err
+	}
+	up, err := f.src.u16(buf, f.post, 8)
+	if err != nil {
+		return nil, nil, err
+	}
+	ut, err := f.src.u16(buf, f.post, 10)
+	if err != nil {
+		return nil, nil, err
+	}
+	fp, err := f.src.u32(buf, f.post, 12)
+	if err != nil {
+		return nil, nil, err
+	}
+	post = &PostTable{
+		Version:            u,
+		ItalicAngle:        float64(int32(ang)) / 0x10000,
+		UnderlinePosition:  int16(up),
+		UnderlineThickness: int16(ut),
+		IsFixedPitch:       fp != 0,
+	}
+	return buf, post, nil
 }
 
 // Bounds returns the union of a Font's glyphs' bounds.
@@ -1173,30 +1404,20 @@ func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, opts *Load
 	return b.segments, nil
 }
 
-// GlyphName returns the name of the x'th glyph.
-//
-// Not every font contains glyph names. If not present, GlyphName will return
-// ("", nil).
-//
-// If present, the glyph name, provided by the font, is assumed to follow the
-// Adobe Glyph List Specification:
-// https://github.com/adobe-type-tools/agl-specification/blob/master/README.md
-//
-// This is also known as the "Adobe Glyph Naming convention", the "Adobe
-// document [for] Unicode and Glyph Names" or "PostScript glyph names".
-//
-// It returns ErrNotFound if the glyph index is out of range.
-func (f *Font) GlyphName(b *Buffer, x GlyphIndex) (string, error) {
-	if int(x) >= f.NumGlyphs() {
+func (f *Font) glyphNameFormat10(x GlyphIndex) (string, error) {
+	if x >= numBuiltInPostNames {
 		return "", ErrNotFound
 	}
-	if f.cached.postTableVersion != 0x20000 {
-		return "", nil
-	}
+	// https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6post.html
+	i := builtInPostNamesOffsets[x+0]
+	j := builtInPostNamesOffsets[x+1]
+	return builtInPostNamesData[i:j], nil
+}
+
+func (f *Font) glyphNameFormat20(b *Buffer, x GlyphIndex) (string, error) {
 	if b == nil {
 		b = &Buffer{}
 	}
-
 	// The wire format for a Version 2 post table is documented at:
 	// https://www.microsoft.com/typography/otspec/post.htm
 	const glyphNameIndexOffset = 34
@@ -1245,6 +1466,36 @@ func (f *Font) GlyphName(b *Buffer, x GlyphIndex) (string, error) {
 	}
 }
 
+// GlyphName returns the name of the x'th glyph.
+//
+// Not every font contains glyph names. If not present, GlyphName will return
+// ("", nil).
+//
+// If present, the glyph name, provided by the font, is assumed to follow the
+// Adobe Glyph List Specification:
+// https://github.com/adobe-type-tools/agl-specification/blob/master/README.md
+//
+// This is also known as the "Adobe Glyph Naming convention", the "Adobe
+// document [for] Unicode and Glyph Names" or "PostScript glyph names".
+//
+// It returns ErrNotFound if the glyph index is out of range.
+func (f *Font) GlyphName(b *Buffer, x GlyphIndex) (string, error) {
+	if int(x) >= f.NumGlyphs() {
+		return "", ErrNotFound
+	}
+	if f.cached.post == nil {
+		return "", nil
+	}
+	switch f.cached.post.Version {
+	case 0x10000:
+		return f.glyphNameFormat10(x)
+	case 0x20000:
+		return f.glyphNameFormat20(b, x)
+	default:
+		return "", nil
+	}
+}
+
 // GlyphAdvance returns the advance width for the x'th glyph. ppem is the
 // number of pixels in 1 em.
 //
@@ -1284,10 +1535,32 @@ func (f *Font) GlyphAdvance(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, h font.
 //
 // It returns ErrNotFound if either glyph index is out of range.
 func (f *Font) Kern(b *Buffer, x0, x1 GlyphIndex, ppem fixed.Int26_6, h font.Hinting) (fixed.Int26_6, error) {
-	// TODO: how should this work with the GPOS table and CFF fonts?
-	// https://www.microsoft.com/typography/otspec/kern.htm says that
-	// "OpenType™ fonts containing CFF outlines are not supported by the 'kern'
-	// table and must use the 'GPOS' OpenType Layout table."
+
+	// Use GPOS kern tables if available.
+	if f.cached.kernFuncs != nil {
+		for _, kf := range f.cached.kernFuncs {
+			adv, err := kf(x0, x1)
+			if err == ErrNotFound {
+				continue
+			}
+			if err != nil {
+				return 0, err
+			}
+			kern := fixed.Int26_6(adv)
+			kern = scale(kern*ppem, f.cached.unitsPerEm)
+			if h == font.HintingFull {
+				// Quantize the fixed.Int26_6 value to the nearest pixel.
+				kern = (kern + 32) &^ 63
+			}
+			return kern, nil
+		}
+		return 0, ErrNotFound
+	}
+
+	// Fallback to kern table.
+
+	// TODO: Convert kern table handling into kernFunc and decide in Parse if
+	// GPOS or kern should be used.
 
 	if n := f.NumGlyphs(); int(x0) >= n || int(x1) >= n {
 		return 0, ErrNotFound
@@ -1334,6 +1607,27 @@ func (f *Font) Kern(b *Buffer, x0, x1 GlyphIndex, ppem fixed.Int26_6, h font.Hin
 		}
 	}
 	return 0, nil
+}
+
+// Metrics returns the metrics of this font.
+func (f *Font) Metrics(b *Buffer, ppem fixed.Int26_6, h font.Hinting) (font.Metrics, error) {
+	m := font.Metrics{
+		Height:     scale(fixed.Int26_6(f.cached.ascent-f.cached.descent+f.cached.lineGap)*ppem, f.cached.unitsPerEm),
+		Ascent:     +scale(fixed.Int26_6(f.cached.ascent)*ppem, f.cached.unitsPerEm),
+		Descent:    -scale(fixed.Int26_6(f.cached.descent)*ppem, f.cached.unitsPerEm),
+		XHeight:    scale(fixed.Int26_6(f.cached.xHeight)*ppem, f.cached.unitsPerEm),
+		CapHeight:  scale(fixed.Int26_6(f.cached.capHeight)*ppem, f.cached.unitsPerEm),
+		CaretSlope: image.Point{X: int(f.cached.slope[0]), Y: int(f.cached.slope[1])},
+	}
+	if h == font.HintingFull {
+		// Quantize up to a whole pixel.
+		m.Height = (m.Height + 63) &^ 63
+		m.Ascent = (m.Ascent + 63) &^ 63
+		m.Descent = (m.Descent + 63) &^ 63
+		m.XHeight = (m.XHeight + 63) &^ 63
+		m.CapHeight = (m.CapHeight + 63) &^ 63
+	}
+	return m, nil
 }
 
 // Name returns the name value keyed by the given NameID.
