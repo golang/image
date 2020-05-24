@@ -5,7 +5,7 @@
 // Package tiff implements a TIFF image decoder and encoder.
 //
 // The TIFF specification is at http://partners.adobe.com/public/developer/en/tiff/TIFF6.pdf
-package tiff // import "golang.org/x/image/tiff"
+package tiff
 
 import (
 	"compress/zlib"
@@ -17,7 +17,7 @@ import (
 	"io/ioutil"
 	"math"
 
-	"golang.org/x/image/tiff/lzw"
+	"github.com/jetuuuu/image/tiff/lzw"
 )
 
 // A FormatError reports that the input is not a valid TIFF image.
@@ -37,10 +37,22 @@ func (e UnsupportedError) Error() string {
 
 var errNoPixels = FormatError("not enough pixel data")
 
+type Resolution struct {
+	X, Y int
+}
+
+type Info struct {
+	image.Config
+	Resolution
+	PageCount int
+}
+
 type decoder struct {
 	r         io.ReaderAt
 	byteOrder binary.ByteOrder
 	config    image.Config
+	res       Resolution
+	pageCount int
 	mode      imageMode
 	bpp       uint
 	features  map[int][]uint
@@ -60,6 +72,15 @@ func (d *decoder) firstVal(tag int) uint {
 		return 0
 	}
 	return f[0]
+}
+
+func (d *decoder) secondVal(tag int) uint {
+	f := d.features[tag]
+	if len(f) < 2 {
+		return 0
+	}
+
+	return f[1]
 }
 
 // ifdUint decodes the IFD entry in p, which must be of the Byte, Short
@@ -104,6 +125,10 @@ func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
 		for i := uint32(0); i < count; i++ {
 			u[i] = uint(d.byteOrder.Uint32(raw[4*i : 4*(i+1)]))
 		}
+	case dtRational:
+		for i := uint32(0); i < count; i++ {
+			u[i] = uint(d.byteOrder.Uint32(raw[4*i : 4*(i+1)]))
+		}
 	default:
 		return nil, UnsupportedError("data type")
 	}
@@ -129,7 +154,10 @@ func (d *decoder) parseIFD(p []byte) (int, error) {
 		tTileOffsets,
 		tTileByteCounts,
 		tImageLength,
-		tImageWidth:
+		tImageWidth,
+		tXResolution,
+		tYResolution,
+		tPageNumber:
 		val, err := d.ifdUint(p)
 		if err != nil {
 			return 0, err
@@ -437,6 +465,11 @@ func newDecoder(r io.Reader) (*decoder, error) {
 	d.config.Width = int(d.firstVal(tImageWidth))
 	d.config.Height = int(d.firstVal(tImageLength))
 
+	d.res.X = int(d.firstVal(tXResolution))
+	d.res.Y = int(d.firstVal(tYResolution))
+
+	d.pageCount = int(d.secondVal(tPageNumber))
+
 	if _, ok := d.features[tBitsPerSample]; !ok {
 		return nil, FormatError("BitsPerSample tag missing")
 	}
@@ -534,6 +567,15 @@ func DecodeConfig(r io.Reader) (image.Config, error) {
 		return image.Config{}, err
 	}
 	return d.config, nil
+}
+
+func DecodeInfo(r io.Reader) (Info, error) {
+	d, err := newDecoder(r)
+	if err != nil {
+		return Info{}, err
+	}
+
+	return Info{d.config, d.res, d.pageCount}, nil
 }
 
 // Decode reads a TIFF image from r and returns it as an image.Image.
