@@ -5,7 +5,7 @@
 // Package tiff implements a TIFF image decoder and encoder.
 //
 // The TIFF specification is at http://partners.adobe.com/public/developer/en/tiff/TIFF6.pdf
-package tiff
+package tiff // import "golang.org/x/image/tiff"
 
 import (
 	"compress/zlib"
@@ -20,6 +20,32 @@ import (
 	"golang.org/x/image/ccitt"
 	"golang.org/x/image/tiff/lzw"
 )
+
+// MeasurementResolutionUnit is the units of measure for resolution
+type MeasurementResolutionUnit int
+
+const (
+	// None is no absolute unit of measurement.
+	None MeasurementResolutionUnit = 1
+	// Inch unit of measurement.
+	Inch MeasurementResolutionUnit = 2
+	// Centimeter unit of measurement.
+	Centimeter MeasurementResolutionUnit = 3
+)
+
+// An Info is container for image.Config, a TIFF iamge resolution and the number of the page a TIFF image.
+type Info struct {
+	image.Config
+	// XResolution is the number of pixels per ResolutionUnit in the image.Config.Width direction.
+	XResolution int
+	// YResolution is the number of pixels per ResolutionUnit in the image.Config.Width direction.
+	YResolution int
+	// UnitResolution is the unit of measurement for XResolution and YResolution.
+	UnitResolution MeasurementResolutionUnit
+	//PageCount is the number of the page from which a TIFF image was scanned.
+	// If PageCount is 0, the total number of pages in the document is not available.
+	PageCount int
+}
 
 // A FormatError reports that the input is not a valid TIFF image.
 type FormatError string
@@ -38,21 +64,14 @@ func (e UnsupportedError) Error() string {
 
 var errNoPixels = FormatError("not enough pixel data")
 
-type Resolution struct {
-	X, Y int
-}
-
-type Info struct {
-	image.Config
-	Resolution
-	PageCount int
-}
-
 type decoder struct {
-	r         io.ReaderAt
-	byteOrder binary.ByteOrder
-	config    image.Config
-	res       Resolution
+	r          io.ReaderAt
+	byteOrder  binary.ByteOrder
+	config     image.Config
+	resolution struct {
+		x, y int
+		unit MeasurementResolutionUnit
+	}
 	pageCount int
 	mode      imageMode
 	bpp       uint
@@ -122,11 +141,7 @@ func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
 		for i := uint32(0); i < count; i++ {
 			u[i] = uint(d.byteOrder.Uint16(raw[2*i : 2*(i+1)]))
 		}
-	case dtLong:
-		for i := uint32(0); i < count; i++ {
-			u[i] = uint(d.byteOrder.Uint32(raw[4*i : 4*(i+1)]))
-		}
-	case dtRational:
+	case dtLong, dtRational:
 		for i := uint32(0); i < count; i++ {
 			u[i] = uint(d.byteOrder.Uint32(raw[4*i : 4*(i+1)]))
 		}
@@ -158,6 +173,7 @@ func (d *decoder) parseIFD(p []byte) (int, error) {
 		tImageWidth,
 		tXResolution,
 		tYResolution,
+		tResolutionUnit,
 		tPageNumber,
 		tFillOrder,
 		tT4Options,
@@ -475,8 +491,17 @@ func newDecoder(r io.Reader) (*decoder, error) {
 	d.config.Width = int(d.firstVal(tImageWidth))
 	d.config.Height = int(d.firstVal(tImageLength))
 
-	d.res.X = int(d.firstVal(tXResolution))
-	d.res.Y = int(d.firstVal(tYResolution))
+	d.resolution.x = int(d.firstVal(tXResolution))
+	d.resolution.y = int(d.firstVal(tYResolution))
+
+	switch int(d.firstVal(tResolutionUnit)) {
+	case 2:
+		d.resolution.unit = Inch
+	case 3:
+		d.resolution.unit = Centimeter
+	default:
+		d.resolution.unit = None
+	}
 
 	d.pageCount = int(d.secondVal(tPageNumber))
 
@@ -580,13 +605,15 @@ func DecodeConfig(r io.Reader) (image.Config, error) {
 	return d.config, nil
 }
 
-func DecodeInfo(r io.Reader) (Info, error) {
+// DecodeTIFFInfo returns the page count and resolution of a TIFF image without
+// decoding the entire image
+func DecodeTIFFInfo(r io.Reader) (Info, error) {
 	d, err := newDecoder(r)
 	if err != nil {
 		return Info{}, err
 	}
 
-	return Info{d.config, d.res, d.pageCount}, nil
+	return Info{d.config, d.resolution.x, d.resolution.y, d.resolution.unit, d.pageCount}, nil
 }
 
 func ccittFillOrder(tiffFillOrder uint) ccitt.Order {
