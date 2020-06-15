@@ -1522,7 +1522,7 @@ func (f *Font) GlyphBounds(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, h font.H
 		x = n
 	}
 
-	buf, err := b.view(&f.src, int(f.hmtx.offset)+int(4*x), 2)
+	buf, err := b.view(&f.src, int(f.hmtx.offset)+4*int(x), 2)
 	if err != nil {
 		return fixed.Rectangle26_6{}, 0, err
 	}
@@ -1602,7 +1602,7 @@ func (f *Font) GlyphAdvance(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, h font.
 		x = n
 	}
 
-	buf, err := b.view(&f.src, int(f.hmtx.offset)+int(4*x), 2)
+	buf, err := b.view(&f.src, int(f.hmtx.offset)+4*int(x), 2)
 	if err != nil {
 		return 0, err
 	}
