@@ -1518,11 +1518,12 @@ func (f *Font) GlyphBounds(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, h font.H
 	// optimization, the number of records can be less than the number of
 	// glyphs, in which case the advance width value of the last record applies
 	// to all remaining glyph IDs."
+	metricIndex := x
 	if n := GlyphIndex(f.cached.numHMetrics - 1); x > n {
-		x = n
+		metricIndex = n
 	}
 
-	buf, err := b.view(&f.src, int(f.hmtx.offset)+4*int(x), 2)
+	buf, err := b.view(&f.src, int(f.hmtx.offset)+4*int(metricIndex), 2)
 	if err != nil {
 		return fixed.Rectangle26_6{}, 0, err
 	}
