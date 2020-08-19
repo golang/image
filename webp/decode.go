@@ -24,6 +24,11 @@ var (
 	fccVP8L = riff.FourCC{'V', 'P', '8', 'L'}
 	fccVP8X = riff.FourCC{'V', 'P', '8', 'X'}
 	fccWEBP = riff.FourCC{'W', 'E', 'B', 'P'}
+	fccICCP = riff.FourCC{'I', 'C', 'C', 'P'}
+	fccXMP  = riff.FourCC{'X', 'M', 'P', ' '}
+	fccANIM = riff.FourCC{'A', 'N', 'I', 'M'}
+	fccANMF = riff.FourCC{'A', 'N', 'M', 'F'}
+	fccEXIF = riff.FourCC{'E', 'X', 'I', 'F'}
 )
 
 func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
@@ -126,8 +131,8 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 				alphaBit        = 1 << 4
 				iccProfileBit   = 1 << 5
 			)
-			if buf[0] != alphaBit {
-				return nil, image.Config{}, errors.New("webp: non-Alpha VP8X is not implemented")
+			if buf[0] == alphaBit {
+				wantAlpha = true
 			}
 			widthMinusOne = uint32(buf[4]) | uint32(buf[5])<<8 | uint32(buf[6])<<16
 			heightMinusOne = uint32(buf[7]) | uint32(buf[8])<<8 | uint32(buf[9])<<16
@@ -138,8 +143,11 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 					Height:     int(heightMinusOne) + 1,
 				}, nil
 			}
-			wantAlpha = true
-
+		case fccICCP:
+		case fccXMP:
+		case fccANIM:
+		case fccANMF:
+		case fccEXIF:
 		default:
 			return nil, image.Config{}, errInvalidFormat
 		}
