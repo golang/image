@@ -304,18 +304,18 @@ func loadCompoundGlyf(f *Font, b *Buffer, data []byte, stackBottom, recursionDep
 			return err
 		}
 		dx, dy := fixed.Int26_6(elem.dx), fixed.Int26_6(elem.dy)
-		segs := b.segments[base:]
+		segments := b.segments[base:]
 		if elem.hasTransform {
 			txx := elem.transformXX
 			txy := elem.transformXY
 			tyx := elem.transformYX
 			tyy := elem.transformYY
-			for j := range segs {
-				transformArgs(&segs[j].Args, txx, txy, tyx, tyy, dx, dy)
+			for j := range segments {
+				transformArgs(&segments[j].Args, txx, txy, tyx, tyy, dx, dy)
 			}
 		} else {
-			for j := range segs {
-				translateArgs(&segs[j].Args, dx, dy)
+			for j := range segments {
+				translateArgs(&segments[j].Args, dx, dy)
 			}
 		}
 	}

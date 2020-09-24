@@ -1358,7 +1358,7 @@ type LoadGlyphOptions struct {
 // It returns ErrNotFound if the glyph index is out of range. It returns
 // ErrColoredGlyph if the glyph is not a monochrome vector glyph, such as a
 // colored (bitmap or vector) emoji glyph.
-func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, opts *LoadGlyphOptions) ([]Segment, error) {
+func (f *Font) LoadGlyph(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, opts *LoadGlyphOptions) (Segments, error) {
 	if b == nil {
 		b = &Buffer{}
 	}
@@ -1529,6 +1529,10 @@ func (f *Font) GlyphBounds(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, h font.H
 	}
 	advance = fixed.Int26_6(u16(buf))
 	advance = scale(advance*ppem, f.cached.unitsPerEm)
+	if h == font.HintingFull {
+		// Quantize the fixed.Int26_6 value to the nearest pixel.
+		advance = (advance + 32) &^ 63
+	}
 
 	// Ignore the hmtx LSB entries and the glyf bounding boxes. Instead, always
 	// calculate bounds from the segments. OpenType does contain the bounds for
@@ -1536,51 +1540,13 @@ func (f *Font) GlyphBounds(b *Buffer, x GlyphIndex, ppem fixed.Int26_6, h font.H
 	// compound glyphs. CFF/PostScript also have no explicit bounds and must be
 	// obtained from the segments.
 
-	seg, err := f.LoadGlyph(b, x, ppem, &LoadGlyphOptions{
+	segments, err := f.LoadGlyph(b, x, ppem, &LoadGlyphOptions{
 		// TODO: pass h, the font.Hinting.
 	})
 	if err != nil {
 		return fixed.Rectangle26_6{}, 0, err
 	}
-
-	if len(seg) > 0 {
-		bounds.Min.X = fixed.Int26_6(+(1 << 31) - 1)
-		bounds.Min.Y = fixed.Int26_6(+(1 << 31) - 1)
-		bounds.Max.X = fixed.Int26_6(-(1 << 31) + 0)
-		bounds.Max.Y = fixed.Int26_6(-(1 << 31) + 0)
-		for _, s := range seg {
-			n := 1
-			switch s.Op {
-			case SegmentOpQuadTo:
-				n = 2
-			case SegmentOpCubeTo:
-				n = 3
-			}
-			for i := 0; i < n; i++ {
-				if bounds.Max.X < s.Args[i].X {
-					bounds.Max.X = s.Args[i].X
-				}
-				if bounds.Min.X > s.Args[i].X {
-					bounds.Min.X = s.Args[i].X
-				}
-				if bounds.Max.Y < s.Args[i].Y {
-					bounds.Max.Y = s.Args[i].Y
-				}
-				if bounds.Min.Y > s.Args[i].Y {
-					bounds.Min.Y = s.Args[i].Y
-				}
-			}
-		}
-	}
-
-	if h == font.HintingFull {
-		// Quantize the fixed.Int26_6 value to the nearest pixel.
-		advance = (advance + 32) &^ 63
-		// TODO: hinting of bounds should be handled by LoadGlyph. See TODO
-		// above.
-	}
-
-	return bounds, advance, nil
+	return segments.Bounds(), advance, nil
 }
 
 // GlyphAdvance returns the advance width for the x'th glyph. ppem is the
@@ -1807,7 +1773,7 @@ type Buffer struct {
 	// buf is a byte buffer for when a Font's source is an io.ReaderAt.
 	buf []byte
 	// segments holds glyph vector path segments.
-	segments []Segment
+	segments Segments
 	// compoundStack holds the components of a TrueType compound glyph.
 	compoundStack [maxCompoundStackSize]struct {
 		glyphIndex   GlyphIndex
@@ -1852,6 +1818,47 @@ const (
 	SegmentOpQuadTo
 	SegmentOpCubeTo
 )
+
+// Segments is a slice of Segment.
+type Segments []Segment
+
+// Bounds returns s' bounding box. It returns an empty rectangle if s is empty.
+func (s Segments) Bounds() (bounds fixed.Rectangle26_6) {
+	if len(s) == 0 {
+		return fixed.Rectangle26_6{}
+	}
+
+	bounds.Min.X = fixed.Int26_6(+(1 << 31) - 1)
+	bounds.Min.Y = fixed.Int26_6(+(1 << 31) - 1)
+	bounds.Max.X = fixed.Int26_6(-(1 << 31) + 0)
+	bounds.Max.Y = fixed.Int26_6(-(1 << 31) + 0)
+
+	for _, seg := range s {
+		n := 1
+		switch seg.Op {
+		case SegmentOpQuadTo:
+			n = 2
+		case SegmentOpCubeTo:
+			n = 3
+		}
+		for i := 0; i < n; i++ {
+			if bounds.Max.X < seg.Args[i].X {
+				bounds.Max.X = seg.Args[i].X
+			}
+			if bounds.Min.X > seg.Args[i].X {
+				bounds.Min.X = seg.Args[i].X
+			}
+			if bounds.Max.Y < seg.Args[i].Y {
+				bounds.Max.Y = seg.Args[i].Y
+			}
+			if bounds.Min.Y > seg.Args[i].Y {
+				bounds.Min.Y = seg.Args[i].Y
+			}
+		}
+	}
+
+	return bounds
+}
 
 // translateArgs applies a translation to args.
 func translateArgs(args *[3]fixed.Point26_6, dx, dy fixed.Int26_6) {

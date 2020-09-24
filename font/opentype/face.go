@@ -94,12 +94,16 @@ func (f *Face) Glyph(dot fixed.Point26_6, r rune) (dr image.Rectangle, mask imag
 		return image.Rectangle{}, nil, image.Point{}, 0, false
 	}
 
-	segments, err := f.f.LoadGlyph(&f.buf, x, f.scale, nil)
+	// Call f.f.GlyphAdvance before f.f.LoadGlyph because the LoadGlyph docs
+	// say this about the &f.buf argument: the segments become invalid to use
+	// once [the buffer] is re-used.
+
+	advance, err = f.f.GlyphAdvance(&f.buf, x, f.scale, f.hinting)
 	if err != nil {
 		return image.Rectangle{}, nil, image.Point{}, 0, false
 	}
 
-	bounds, advance, err := f.f.GlyphBounds(&f.buf, x, f.scale, f.hinting)
+	segments, err := f.f.LoadGlyph(&f.buf, x, f.scale, nil)
 	if err != nil {
 		return image.Rectangle{}, nil, image.Point{}, 0, false
 	}
@@ -110,11 +114,12 @@ func (f *Face) Glyph(dot fixed.Point26_6, r rune) (dr image.Rectangle, mask imag
 	//  - 2.5  is a float32 number, "two and a half"
 	// Using 26.6 fixed point numbers means that there are 64 sub-pixel units
 	// in 1 integer pixel unit.
+
 	// Translate the sub-pixel bounding box from glyph space (where the glyph
 	// origin is at (0:00, 0:00)) to dst space (where the glyph origin is at
 	// the dot). dst space is the coordinate space that contains both the dot
-	// (a sub-pixel position) and dr (a pixel rectangle).
-	dBounds := bounds.Add(dot)
+	// (a sub-pixel position) and dr (an integer-pixel rectangle).
+	dBounds := segments.Bounds().Add(dot)
 
 	// Quantize the sub-pixel bounds (dBounds) to integer-pixel bounds (dr).
 	dr.Min.X = dBounds.Min.X.Floor()
