@@ -2,13 +2,19 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package opentype implements the font.Face interface based on SFNT
-// font file formats.
+// Package opentype implements a glyph rasterizer for TTF (TrueType Fonts) and
+// OTF (OpenType Fonts).
+//
+// This package provides a high-level API, centered on the NewFace function,
+// implementing the golang.org/x/image/font.Face interface.
+//
+// The sibling golang.org/x/image/font/sfnt package provides a low-level API.
 package opentype // import "golang.org/x/image/font/opentype"
 
 import (
 	"image"
 	"image/draw"
+	"io"
 
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/sfnt"
@@ -16,8 +22,52 @@ import (
 	"golang.org/x/image/vector"
 )
 
+// ParseCollection parses an OpenType font collection, such as TTC or OTC data,
+// from a []byte data source.
+//
+// If passed data for a single font, a TTF or OTF instead of a TTC or OTC, it
+// will return a collection containing 1 font.
+func ParseCollection(src []byte) (*Collection, error) {
+	return sfnt.ParseCollection(src)
+}
+
+// ParseCollectionReaderAt parses an OpenType collection, such as TTC or OTC
+// data, from an io.ReaderAt data source.
+//
+// If passed data for a single font, a TTF or OTF instead of a TTC or OTC, it
+// will return a collection containing 1 font.
+func ParseCollectionReaderAt(src io.ReaderAt) (*Collection, error) {
+	return sfnt.ParseCollectionReaderAt(src)
+}
+
+// Collection is a collection of one or more fonts.
+//
+// All of the Collection methods are safe to call concurrently.
+type Collection = sfnt.Collection
+
+// Parse parses an OpenType font, such as TTF or OTF data, from a []byte data
+// source.
+func Parse(src []byte) (*Font, error) {
+	return sfnt.Parse(src)
+}
+
+// ParseReaderAt parses an OpenType font, such as TTF or OTF data, from an
+// io.ReaderAt data source.
+func ParseReaderAt(src io.ReaderAt) (*Font, error) {
+	return sfnt.ParseReaderAt(src)
+}
+
+// Font is an OpenType font, also known as an SFNT font.
+//
+// All of the Font methods are safe to call concurrently, as long as each call
+// has a different *sfnt.Buffer (or nil).
+//
+// The Font methods that don't take a *sfnt.Buffer argument are always safe to
+// call concurrently.
+type Font = sfnt.Font
+
 // FaceOptions describes the possible options given to NewFace when
-// creating a new font.Face from a sfnt.Font.
+// creating a new font.Face from a Font.
 type FaceOptions struct {
 	Size    float64      // Size is the font size in points
 	DPI     float64      // DPI is the dots per inch resolution
@@ -32,9 +82,11 @@ func defaultFaceOptions() *FaceOptions {
 	}
 }
 
-// Face implements the font.Face interface for sfnt.Font values.
+// Face implements the font.Face interface for Font values.
+//
+// A Face is not safe to use concurrently.
 type Face struct {
-	f       *sfnt.Font
+	f       *Font
 	hinting font.Hinting
 	scale   fixed.Int26_6
 
@@ -46,9 +98,10 @@ type Face struct {
 	mask image.Alpha
 }
 
-// NewFace returns a new font.Face for the given sfnt.Font.
-// if opts is nil, sensible defaults will be used.
-func NewFace(f *sfnt.Font, opts *FaceOptions) (font.Face, error) {
+// NewFace returns a new font.Face for the given Font.
+//
+// If opts is nil, sensible defaults will be used.
+func NewFace(f *Font, opts *FaceOptions) (font.Face, error) {
 	if opts == nil {
 		opts = defaultFaceOptions()
 	}
