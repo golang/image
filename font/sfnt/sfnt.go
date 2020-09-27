@@ -4,8 +4,14 @@
 
 //go:generate go run gen.go
 
-// Package sfnt implements a decoder for SFNT font file formats, including
-// TrueType and OpenType.
+// Package sfnt implements a decoder for TTF (TrueType Fonts) and OTF
+// (OpenType Fonts). Such fonts are also known as SFNT fonts.
+//
+// This package provides a low-level API and does not depend on vector
+// rasterization packages.
+//
+// The sibling golang.org/x/image/font/opentype package provides a high-level
+// API, including glyph rasterization.
 package sfnt // import "golang.org/x/image/font/sfnt"
 
 // This implementation was written primarily to the

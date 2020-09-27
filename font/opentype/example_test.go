@@ -14,7 +14,6 @@ import (
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/goitalic"
 	"golang.org/x/image/font/opentype"
-	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -26,7 +25,7 @@ func ExampleNewFace() {
 		startingDotY = 28
 	)
 
-	f, err := sfnt.Parse(goitalic.TTF)
+	f, err := opentype.Parse(goitalic.TTF)
 	if err != nil {
 		log.Fatalf("Parse: %v", err)
 	}
