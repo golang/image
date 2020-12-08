@@ -1,5 +1,7 @@
 # Go Images
 
+[![Go Reference](https://pkg.go.dev/badge/golang.org/x/image.svg)](https://pkg.go.dev/golang.org/x/image)
+
 This repository holds supplementary Go image libraries.
 
 ## Download/Install
