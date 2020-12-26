@@ -458,6 +458,37 @@ func TestGlyphIndex(t *testing.T) {
 	}
 }
 
+func TestThaiGlyph(t *testing.T) {
+	var testcases = []struct {
+		curr rune
+		prev rune
+		want GlyphIndex
+	}{
+		{
+			'้', 'ื', 723,
+		},
+	}
+	data, err := ioutil.ReadFile(filepath.FromSlash("../testdata/prompt-regular.ttf"))
+	if err != nil {
+		panic(err)
+	}
+
+	font, err := Parse(data)
+	if err != nil {
+		panic(err)
+	}
+	var b Buffer
+	for _, tc := range testcases {
+		index, err := font.GlyphIndex(&b, '้', 'ื')
+		if err != nil {
+			t.Errorf("GlpyhIndex with %v, %v return error %w", tc.curr, tc.prev, err)
+		}
+		if index != tc.want {
+			t.Errorf("GlpyhIndex with %v, %v return %v but want %v", tc.curr, tc.prev, index, tc.want)
+		}
+	}
+}
+
 func testGlyphIndex(t *testing.T, data []byte, cmapFormat int) {
 	if cmapFormat >= 0 {
 		originalSupportedCmapFormat := supportedCmapFormat
@@ -911,6 +942,16 @@ func TestGlyphName(t *testing.T) {
 			t.Errorf("r=%q: got %q, want %q", tc.r, got, tc.want)
 			continue
 		}
+
+		gidx, err := f.GlyphIndexFromName(&b, tc.want)
+		if err != nil {
+			t.Errorf("r=%q: GlyphIndex: %v", tc.r, err)
+			continue
+		}
+		if gidx != x {
+			t.Errorf("gidx=%v: expect %v", gidx, x)
+		}
+
 	}
 }
 

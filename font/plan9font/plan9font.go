@@ -76,7 +76,7 @@ func (f *subface) Metrics() font.Metrics {
 	}
 }
 
-func (f *subface) Glyph(dot fixed.Point26_6, r rune) (
+func (f *subface) Glyph(dot fixed.Point26_6, r rune, prev ...rune) (
 	dr image.Rectangle, mask image.Image, maskp image.Point, advance fixed.Int26_6, ok bool) {
 
 	r -= f.firstRune
@@ -163,7 +163,7 @@ func (f *face) Metrics() font.Metrics {
 	}
 }
 
-func (f *face) Glyph(dot fixed.Point26_6, r rune) (
+func (f *face) Glyph(dot fixed.Point26_6, r rune, prev ...rune) (
 	dr image.Rectangle, mask image.Image, maskp image.Point, advance fixed.Int26_6, ok bool) {
 
 	if s, rr := f.subface(r); s != nil {

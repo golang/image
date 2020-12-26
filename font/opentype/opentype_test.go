@@ -28,6 +28,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
 }
 
 var runeTests = []struct {
@@ -107,6 +108,7 @@ func TestFaceGlyph(t *testing.T) {
 			continue
 		}
 	}
+
 }
 
 func BenchmarkFaceGlyph(b *testing.B) {

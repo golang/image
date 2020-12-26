@@ -1328,8 +1328,24 @@ type glyphIndexFunc func(f *Font, b *Buffer, r rune) (GlyphIndex, error)
 // codes that do not correspond to any glyph in the font should be mapped to
 // glyph index 0. The glyph at this location must be a special glyph
 // representing a missing character, commonly known as .notdef."
-func (f *Font) GlyphIndex(b *Buffer, r rune) (GlyphIndex, error) {
-	return f.cached.glyphIndex(f, b, r)
+func (f *Font) GlyphIndex(b *Buffer, r rune, prev ...rune) (GlyphIndex, error) {
+
+	x, err := f.cached.glyphIndex(f, b, r)
+	if err != nil {
+		return 0, err
+	}
+	if isth, prefix := thChar(r), thPrefixFromRune(r, prev...); isth && prefix != "'" {
+		xname, err := f.GlyphName(b, x)
+		if err != nil {
+			return 0, err
+		}
+
+		x, err = f.GlyphIndexFromName(b, xname+prefix)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return x, nil
 }
 
 func (f *Font) viewGlyphData(b *Buffer, x GlyphIndex) (buf []byte, offset, length uint32, err error) {
@@ -1419,7 +1435,18 @@ func (f *Font) glyphNameFormat10(x GlyphIndex) (string, error) {
 	j := builtInPostNamesOffsets[x+1]
 	return builtInPostNamesData[i:j], nil
 }
+func (f *Font) GlyphIndexFromName(b *Buffer, name string) (GlyphIndex, error) {
 
+	// TODO make a better iterate logic here
+	for i := 0; i < f.NumGlyphs(); i++ {
+		if gname, err := f.GlyphName(b, GlyphIndex(i)); gname == name {
+			return GlyphIndex(i), nil
+		} else if err != nil {
+			return 0, err
+		}
+	}
+	return 0, nil
+}
 func (f *Font) glyphNameFormat20(b *Buffer, x GlyphIndex) (string, error) {
 	if b == nil {
 		b = &Buffer{}

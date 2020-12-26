@@ -86,7 +86,7 @@ func (f *Face) Metrics() font.Metrics {
 	}
 }
 
-func (f *Face) Glyph(dot fixed.Point26_6, r rune) (
+func (f *Face) Glyph(dot fixed.Point26_6, r rune, prev ...rune) (
 	dr image.Rectangle, mask image.Image, maskp image.Point, advance fixed.Int26_6, ok bool) {
 
 loop:

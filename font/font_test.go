@@ -20,7 +20,7 @@ func (toyFace) Close() error {
 	return nil
 }
 
-func (toyFace) Glyph(dot fixed.Point26_6, r rune) (image.Rectangle, image.Image, image.Point, fixed.Int26_6, bool) {
+func (toyFace) Glyph(dot fixed.Point26_6, r rune, prev ...rune) (image.Rectangle, image.Image, image.Point, fixed.Int26_6, bool) {
 	panic("unimplemented")
 }
 

@@ -43,7 +43,7 @@ type Face interface {
 	// The contents of the mask image returned by one Glyph call may change
 	// after the next Glyph call. Callers that want to cache the mask must make
 	// a copy.
-	Glyph(dot fixed.Point26_6, r rune) (
+	Glyph(dot fixed.Point26_6, r rune, prev ...rune) (
 		dr image.Rectangle, mask image.Image, maskp image.Point, advance fixed.Int26_6, ok bool)
 
 	// GlyphBounds returns the bounding box of r's glyph, drawn at a dot equal
@@ -170,7 +170,7 @@ func (d *Drawer) DrawString(s string) {
 		if prevC >= 0 {
 			d.Dot.X += d.Face.Kern(prevC, c)
 		}
-		dr, mask, maskp, advance, ok := d.Face.Glyph(d.Dot, c)
+		dr, mask, maskp, advance, ok := d.Face.Glyph(d.Dot, c, prevC)
 		if !ok {
 			// TODO: is falling back on the U+FFFD glyph the responsibility of
 			// the Drawer or the Face?
