@@ -106,6 +106,7 @@ var (
 	errUnsupportedCFFVersion           = errors.New("sfnt: unsupported CFF version")
 	errUnsupportedClassDefFormat       = errors.New("sfnt: unsupported class definition format")
 	errUnsupportedCmapEncodings        = errors.New("sfnt: unsupported cmap encodings")
+	errUnsupportedCollection           = errors.New("sfnt: unsupported collection")
 	errUnsupportedCompoundGlyph        = errors.New("sfnt: unsupported compound glyph")
 	errUnsupportedCoverageFormat       = errors.New("sfnt: unsupported coverage format")
 	errUnsupportedExtensionPosFormat   = errors.New("sfnt: unsupported extension positioning format")
@@ -320,6 +321,9 @@ type table struct {
 //
 // If passed data for a single font, a TTF or OTF instead of a TTC or OTC, it
 // will return a collection containing 1 font.
+//
+// The caller should not modify src while the Collection or its Fonts remain in
+// use.
 func ParseCollection(src []byte) (*Collection, error) {
 	c := &Collection{src: source{b: src}}
 	if err := c.initialize(); err != nil {
@@ -333,6 +337,9 @@ func ParseCollection(src []byte) (*Collection, error) {
 //
 // If passed data for a single font, a TTF or OTF instead of a TTC or OTC, it
 // will return a collection containing 1 font.
+//
+// The caller should not modify or close src while the Collection or its Fonts
+// remain in use.
 func ParseCollectionReaderAt(src io.ReaderAt) (*Collection, error) {
 	c := &Collection{src: source{r: src}}
 	if err := c.initialize(); err != nil {
@@ -512,6 +519,8 @@ func (c *Collection) Font(i int) (*Font, error) {
 
 // Parse parses an SFNT font, such as TTF or OTF data, from a []byte data
 // source.
+//
+// The caller should not modify src while the Font remains in use.
 func Parse(src []byte) (*Font, error) {
 	f := &Font{src: source{b: src}}
 	if err := f.initialize(0, false); err != nil {
@@ -522,6 +531,8 @@ func Parse(src []byte) (*Font, error) {
 
 // ParseReaderAt parses an SFNT font, such as TTF or OTF data, from an
 // io.ReaderAt data source.
+//
+// The caller should not modify or close src while the Font remains in use.
 func ParseReaderAt(src io.ReaderAt) (*Font, error) {
 	f := &Font{src: source{r: src}}
 	if err := f.initialize(0, false); err != nil {
@@ -560,6 +571,10 @@ func ParseReaderAt(src io.ReaderAt) (*Font, error) {
 // further scaling necessary.
 type Font struct {
 	src source
+
+	// initialOffset is the file offset of the start of the font. This may be
+	// non-zero for fonts within a font collection.
+	initialOffset int32
 
 	// https://www.microsoft.com/typography/otspec/otff.htm#otttables
 	// "Required Tables".
@@ -607,6 +622,7 @@ type Font struct {
 	cached struct {
 		ascent           int32
 		capHeight        int32
+		finalTableOffset int32
 		glyphData        glyphData
 		glyphIndex       glyphIndexFunc
 		bounds           [4]int16
@@ -636,7 +652,7 @@ func (f *Font) initialize(offset int, isDfont bool) error {
 	if !f.src.valid() {
 		return errInvalidSourceData
 	}
-	buf, isPostScript, err := f.initializeTables(offset, isDfont)
+	buf, finalTableOffset, isPostScript, err := f.initializeTables(offset, isDfont)
 	if err != nil {
 		return err
 	}
@@ -692,6 +708,7 @@ func (f *Font) initialize(offset int, isDfont bool) error {
 
 	f.cached.ascent = ascent
 	f.cached.capHeight = capHeight
+	f.cached.finalTableOffset = finalTableOffset
 	f.cached.glyphData = glyphData
 	f.cached.glyphIndex = glyphIndex
 	f.cached.bounds = bounds
@@ -721,21 +738,25 @@ func (f *Font) initialize(offset int, isDfont bool) error {
 	return nil
 }
 
-func (f *Font) initializeTables(offset int, isDfont bool) (buf1 []byte, isPostScript bool, err error) {
+func (f *Font) initializeTables(offset int, isDfont bool) (buf1 []byte, finalTableOffset int32, isPostScript bool, err error) {
+	f.initialOffset = int32(offset)
+	if int(f.initialOffset) != offset {
+		return nil, 0, false, errUnsupportedTableOffsetLength
+	}
 	// https://www.microsoft.com/typography/otspec/otff.htm "Organization of an
 	// OpenType Font" says that "The OpenType font starts with the Offset
 	// Table", which is 12 bytes.
 	buf, err := f.src.view(nil, offset, 12)
 	if err != nil {
-		return nil, false, err
+		return nil, 0, false, err
 	}
 	// When updating the cases in this switch statement, also update the
 	// Collection.initialize method.
 	switch u32(buf) {
 	default:
-		return nil, false, errInvalidFont
+		return nil, 0, false, errInvalidFont
 	case dfontResourceDataOffset:
-		return nil, false, errInvalidSingleFont
+		return nil, 0, false, errInvalidSingleFont
 	case 0x00010000:
 		// No-op.
 	case 0x4f54544f: // "OTTO".
@@ -743,25 +764,25 @@ func (f *Font) initializeTables(offset int, isDfont bool) (buf1 []byte, isPostSc
 	case 0x74727565: // "true"
 		// No-op.
 	case 0x74746366: // "ttcf".
-		return nil, false, errInvalidSingleFont
+		return nil, 0, false, errInvalidSingleFont
 	}
 	numTables := int(u16(buf[4:]))
 	if numTables > maxNumTables {
-		return nil, false, errUnsupportedNumberOfTables
+		return nil, 0, false, errUnsupportedNumberOfTables
 	}
 
 	// "The Offset Table is followed immediately by the Table Record entries...
 	// sorted in ascending order by tag", 16 bytes each.
 	buf, err = f.src.view(buf, offset+12, 16*numTables)
 	if err != nil {
-		return nil, false, err
+		return nil, 0, false, err
 	}
 	for b, first, prevTag := buf, true, uint32(0); len(b) > 0; b = b[16:] {
 		tag := u32(b)
 		if first {
 			first = false
 		} else if tag <= prevTag {
-			return nil, false, errInvalidTableTagOrder
+			return nil, 0, false, errInvalidTableTagOrder
 		}
 		prevTag = tag
 
@@ -772,16 +793,19 @@ func (f *Font) initializeTables(offset int, isDfont bool) (buf1 []byte, isPostSc
 			origO := o
 			o += uint32(offset)
 			if o < origO {
-				return nil, false, errUnsupportedTableOffsetLength
+				return nil, 0, false, errUnsupportedTableOffsetLength
 			}
 		}
 		if o > maxTableOffset || n > maxTableLength {
-			return nil, false, errUnsupportedTableOffsetLength
+			return nil, 0, false, errUnsupportedTableOffsetLength
 		}
 		// We ignore the checksums, but "all tables must begin on four byte
 		// boundries [sic]".
 		if o&3 != 0 {
-			return nil, false, errInvalidTableOffset
+			return nil, 0, false, errInvalidTableOffset
+		}
+		if finalTableOffset < int32(o+n) {
+			finalTableOffset = int32(o + n)
 		}
 
 		// Match the 4-byte tag as a uint32. For example, "OS/2" is 0x4f532f32.
@@ -816,7 +840,11 @@ func (f *Font) initializeTables(offset int, isDfont bool) (buf1 []byte, isPostSc
 			f.post = table{o, n}
 		}
 	}
-	return buf, isPostScript, nil
+
+	if (f.src.b != nil) && (int(finalTableOffset) > len(f.src.b)) {
+		return nil, 0, false, errInvalidSourceData
+	}
+	return buf, finalTableOffset, isPostScript, nil
 }
 
 func (f *Font) parseCmap(buf []byte) (buf1 []byte, glyphIndex glyphIndexFunc, err error) {
@@ -1687,6 +1715,63 @@ func (f *Font) Metrics(b *Buffer, ppem fixed.Int26_6, h font.Hinting) (font.Metr
 		m.CapHeight = (m.CapHeight + 63) &^ 63
 	}
 	return m, nil
+}
+
+// WriteSourceTo writes the source data (the []byte or io.ReaderAt passed to
+// Parse or ParseReaderAt) to w.
+//
+// It returns the number of bytes written. On success, this is the final offset
+// of the furthest SFNT table in the source. This may be less than the length
+// of the []byte or io.ReaderAt originally passed.
+func (f *Font) WriteSourceTo(b *Buffer, w io.Writer) (int64, error) {
+	if f.initialOffset != 0 {
+		// TODO: when extracting a single font (i.e. TTF) out of a font
+		// collection (i.e. TTC), write only the i'th font and not the (i-1)
+		// previous fonts. Subtly, in the file format, table offsets may be
+		// relative to the start of the resource (for dfont collections) or the
+		// start of the file (otherwise). If we were to extract a single font
+		// here, we might need to dynamically patch the table offsets, bearing
+		// in mind that f.src.b is conceptually a 'read-only' slice of bytes.
+		return 0, errUnsupportedCollection
+	}
+
+	if f.src.b != nil {
+		n, err := w.Write(f.src.b[:f.cached.finalTableOffset])
+		return int64(n), err
+	}
+
+	// We have an io.ReaderAt source, not a []byte. It is tempting to see if
+	// the io.ReaderAt optionally implements the io.WriterTo interface, but we
+	// don't for two reasons:
+	//  - We want to write exactly f.cached.finalTableOffset bytes, even if the
+	//    underlying 'file' is larger, to be consistent with the []byte flavor.
+	//  - We document that "Font methods are safe to call concurrently" and
+	//    while io.ReaderAt is stateless (the offset is an argument), the
+	//    io.Reader / io.Writer abstractions are stateful (the current position
+	//    is a field) and mutable state generally isn't concurrent-safe.
+
+	if b == nil {
+		b = &Buffer{}
+	}
+	finalTableOffset := int(f.cached.finalTableOffset)
+	numBytesWritten := int64(0)
+	for offset := 0; offset < finalTableOffset; {
+		length := finalTableOffset - offset
+		if length > 4096 {
+			length = 4096
+		}
+		view, err := b.view(&f.src, offset, length)
+		if err != nil {
+			return numBytesWritten, err
+		}
+		n, err := w.Write(view)
+		numBytesWritten += int64(n)
+		if err != nil {
+			return numBytesWritten, err
+		}
+		offset += length
+	}
+	return numBytesWritten, nil
 }
 
 // Name returns the name value keyed by the given NameID.

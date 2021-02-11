@@ -125,7 +125,7 @@ func TestTrueTypeParse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	testTrueType(t, f)
+	testTrueType(t, f, goregular.TTF)
 }
 
 func TestTrueTypeParseReaderAt(t *testing.T) {
@@ -133,10 +133,10 @@ func TestTrueTypeParseReaderAt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseReaderAt: %v", err)
 	}
-	testTrueType(t, f)
+	testTrueType(t, f, goregular.TTF)
 }
 
-func testTrueType(t *testing.T, f *Font) {
+func testTrueType(t *testing.T, f *Font, wantSrc []byte) {
 	if got, want := f.UnitsPerEm(), Units(2048); got != want {
 		t.Errorf("UnitsPerEm: got %d, want %d", got, want)
 	}
@@ -145,6 +145,14 @@ func testTrueType(t *testing.T, f *Font) {
 	// that "The WGL4 character set... [has] more than 650 characters in all.
 	if got, want := f.NumGlyphs(), 650; got <= want {
 		t.Errorf("NumGlyphs: got %d, want > %d", got, want)
+	}
+	buf := &bytes.Buffer{}
+	if n, err := f.WriteSourceTo(nil, buf); err != nil {
+		t.Fatalf("WriteSourceTo: %v", err)
+	} else if n != int64(len(wantSrc)) {
+		t.Fatalf("WriteSourceTo: got %d, want %d", n, len(wantSrc))
+	} else if gotSrc := buf.Bytes(); !bytes.Equal(gotSrc, wantSrc) {
+		t.Fatalf("WriteSourceTo: contents differ")
 	}
 }
 
