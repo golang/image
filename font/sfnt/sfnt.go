@@ -4,14 +4,30 @@
 
 //go:generate go run gen.go
 
-// Package sfnt implements a decoder for TTF (TrueType Fonts) and OTF
-// (OpenType Fonts). Such fonts are also known as SFNT fonts.
+// Package sfnt implements a decoder for TTF (TrueType Fonts) and OTF (OpenType
+// Fonts). Such fonts are also known as SFNT fonts.
 //
 // This package provides a low-level API and does not depend on vector
-// rasterization packages.
+// rasterization packages. Glyphs are represented as vectors, not pixels.
 //
 // The sibling golang.org/x/image/font/opentype package provides a high-level
 // API, including glyph rasterization.
+//
+// This package provides a decoder in that it produces a TTF's glyphs (and
+// other metadata such as advance width and kerning pairs): give me the 'A'
+// from times_new_roman.ttf.
+//
+// Unlike the image.Image decoder functions (gif.Decode, jpeg.Decode and
+// png.Decode) in Go's standard library, an sfnt.Font needs ongoing access to
+// the TTF data (as a []byte or io.ReaderAt) after the sfnt.ParseXxx functions
+// return. If parsing a []byte, its elements are assumed immutable while the
+// sfnt.Font remains in use. If parsing an *os.File, you should not close the
+// file until after you're done with the sfnt.Font.
+//
+// The []byte or io.ReaderAt data given to ParseXxx can be re-written to
+// another io.Writer, copying the underlying TTF file, but this package does
+// not provide an encoder. Specifically, there is no API to build a different
+// TTF file, whether 'from scratch' or by modifying an existing one.
 package sfnt // import "golang.org/x/image/font/sfnt"
 
 // This implementation was written primarily to the
@@ -323,7 +339,7 @@ type table struct {
 // will return a collection containing 1 font.
 //
 // The caller should not modify src while the Collection or its Fonts remain in
-// use.
+// use. See the package documentation for details.
 func ParseCollection(src []byte) (*Collection, error) {
 	c := &Collection{src: source{b: src}}
 	if err := c.initialize(); err != nil {
@@ -339,7 +355,7 @@ func ParseCollection(src []byte) (*Collection, error) {
 // will return a collection containing 1 font.
 //
 // The caller should not modify or close src while the Collection or its Fonts
-// remain in use.
+// remain in use. See the package documentation for details.
 func ParseCollectionReaderAt(src io.ReaderAt) (*Collection, error) {
 	c := &Collection{src: source{r: src}}
 	if err := c.initialize(); err != nil {
@@ -520,7 +536,8 @@ func (c *Collection) Font(i int) (*Font, error) {
 // Parse parses an SFNT font, such as TTF or OTF data, from a []byte data
 // source.
 //
-// The caller should not modify src while the Font remains in use.
+// The caller should not modify src while the Font remains in use. See the
+// package documentation for details.
 func Parse(src []byte) (*Font, error) {
 	f := &Font{src: source{b: src}}
 	if err := f.initialize(0, false); err != nil {
@@ -532,7 +549,8 @@ func Parse(src []byte) (*Font, error) {
 // ParseReaderAt parses an SFNT font, such as TTF or OTF data, from an
 // io.ReaderAt data source.
 //
-// The caller should not modify or close src while the Font remains in use.
+// The caller should not modify or close src while the Font remains in use. See
+// the package documentation for details.
 func ParseReaderAt(src io.ReaderAt) (*Font, error) {
 	f := &Font{src: source{r: src}}
 	if err := f.initialize(0, false); err != nil {
