@@ -25,6 +25,7 @@ func Example_rasterizeGlyph() {
 		originY = 32
 	)
 
+	// Load the 'G' glyph from the Go Regular font.
 	f, err := sfnt.Parse(goregular.TTF)
 	if err != nil {
 		log.Fatalf("Parse: %v", err)
@@ -42,6 +43,7 @@ func Example_rasterizeGlyph() {
 		log.Fatalf("LoadGlyph: %v", err)
 	}
 
+	// Translate and scale that glyph as we pass it to a vector.Rasterizer.
 	r := vector.NewRasterizer(width, height)
 	r.DrawOp = draw.Src
 	for _, seg := range segments {
@@ -77,9 +79,12 @@ func Example_rasterizeGlyph() {
 		}
 	}
 
+	// Finish the rasterization: the conversion from vector graphics (shapes)
+	// to raster graphics (pixels).
 	dst := image.NewAlpha(image.Rect(0, 0, width, height))
 	r.Draw(dst, dst.Bounds(), image.Opaque, image.Point{})
 
+	// Visualize the pixels.
 	const asciiArt = ".++8"
 	buf := make([]byte, 0, height*(width+1))
 	for y := 0; y < height; y++ {
