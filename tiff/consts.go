@@ -60,6 +60,7 @@ const (
 	tXResolution    = 282
 	tYResolution    = 283
 	tResolutionUnit = 296
+	tPageNumber     = 297
 
 	tPredictor    = 317
 	tColorMap     = 320
