@@ -9,6 +9,7 @@ import (
 	"compress/zlib"
 	"encoding/binary"
 	"image"
+	"image/jpeg"
 	"io"
 	"sort"
 )
@@ -285,6 +286,15 @@ type Options struct {
 	Predictor bool
 }
 
+type discard struct{}
+
+func (discard) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+func (discard) Close() error {
+	return nil
+}
+
 // Encode writes the image m to w. opt determines the options used for
 // encoding, such as the compression type. If opt is nil, an uncompressed
 // image is written.
@@ -333,6 +343,12 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 			imageLen = d.X * d.Y * 4
 		}
 		err = binary.Write(w, enc, uint32(imageLen+8))
+		if err != nil {
+			return err
+		}
+	case cJPEG:
+		dst = discard{}
+		err = jpeg.Encode(&buf, m, nil)
 		if err != nil {
 			return err
 		}

@@ -65,6 +65,9 @@ const (
 	tColorMap     = 320
 	tExtraSamples = 338
 	tSampleFormat = 339
+
+	// https://www.adobe.io/content/dam/udp/en/open/standards/tiff/TIFFphotoshop.pdf
+	tJPEG = 347 // page 7
 )
 
 // Compression types (defined in various places in the spec and supplements).
@@ -130,6 +133,7 @@ const (
 	LZW
 	CCITTGroup3
 	CCITTGroup4
+	JPEG
 )
 
 // specValue returns the compression type constant from the TIFF spec that
@@ -144,6 +148,8 @@ func (c CompressionType) specValue() uint32 {
 		return cG3
 	case CCITTGroup4:
 		return cG4
+	case JPEG:
+		return cJPEG
 	}
 	return cNone
 }

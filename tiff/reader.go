@@ -8,11 +8,14 @@
 package tiff // import "golang.org/x/image/tiff"
 
 import (
+	"bytes"
 	"compress/zlib"
 	"encoding/binary"
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
+	"image/jpeg"
 	"io"
 	"io/ioutil"
 	"math"
@@ -51,6 +54,8 @@ type decoder struct {
 	off   int    // Current offset in buf.
 	v     uint32 // Buffer value for reading with arbitrary bit depths.
 	nbits uint   // Remaining number of bits in v.
+
+	tmp image.Image // Store temporary image for jpeg compression
 }
 
 // firstVal returns the first uint of the features entry with the given tag,
@@ -396,6 +401,39 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 	return nil
 }
 
+// decodeJPEG decodes the jpeg data of an image.
+// It reads from d.tmp and writes the strip or tile into dst.
+func (d *decoder) decodeJPEG(dst image.Image, xmin, ymin, xmax, ymax int) {
+	rMaxX := minInt(xmax, dst.Bounds().Max.X)
+	rMaxY := minInt(ymax, dst.Bounds().Max.Y)
+
+	var img draw.Image
+	switch d.mode {
+	case mGray, mGrayInvert:
+		if d.bpp == 16 {
+			img = dst.(*image.Gray16)
+		} else {
+			img = dst.(*image.Gray)
+		}
+	case mPaletted:
+		img = dst.(*image.Paletted)
+	case mRGB, mNRGBA, mRGBA:
+		if d.bpp == 16 {
+			img = dst.(*image.RGBA64)
+		} else {
+			img = dst.(*image.RGBA)
+		}
+	case mCMYK:
+		img = dst.(*image.CMYK)
+	}
+
+	for y := 0; y+ymin < rMaxY; y++ {
+		for x := 0; x+xmin < rMaxX; x++ {
+			img.Set(x+xmin, y+ymin, d.tmp.At(x, y))
+		}
+	}
+}
+
 func newDecoder(r io.Reader) (*decoder, error) {
 	d := &decoder{
 		r:        newReaderAt(r),
@@ -673,6 +711,45 @@ func Decode(r io.Reader) (img image.Image, err error) {
 				r := lzw.NewReader(io.NewSectionReader(d.r, offset, n), lzw.MSB, 8)
 				d.buf, err = ioutil.ReadAll(r)
 				r.Close()
+			case cJPEG:
+				var tjpeg bool
+				var buf bytes.Buffer
+				// According to the spec, JPEGTables is an optional field. The purpose of it is to
+				// predefine JPEG quantization and/or Huffman tables for subsequent use by JPEG image segments.
+				// When it is specified, these tables need not be duplicated in each segment.
+				// Start with SOI marker and end with EOI marker.
+				b := make([]byte, len(d.features[tJPEG]))
+				for i := range d.features[tJPEG] {
+					b[i] = uint8(d.features[tJPEG][i])
+				}
+				if len(b) > 2 {
+					tjpeg = true
+					// Write to buffer without EOI marker.
+					buf.Write(b[:len(b)-2])
+				} else if len(b) != 0 {
+					return nil, FormatError("bad JPEGTables field")
+				}
+				// JPEG image segment should start with SOI marker and end with EOI marker.
+				b, err = io.ReadAll(io.NewSectionReader(d.r, offset, n))
+				if err != nil {
+					return nil, err
+				}
+				if len(b) < 4 {
+					return nil, FormatError("bad JPEG image segment")
+				}
+				if tjpeg {
+					// Write JPEG image segment to buffer without SOI marker.
+					// When this is done, buffer data will be a full JPEG format data.
+					buf.Write(b[2:])
+				} else {
+					// Write full JPEG image segment to buffer.
+					buf.Write(b)
+				}
+				// Decode as a JPEG image.
+				d.tmp, err = jpeg.Decode(&buf)
+				if err != nil {
+					return nil, err
+				}
 			case cDeflate, cDeflateOld:
 				var r io.ReadCloser
 				r, err = zlib.NewReader(io.NewSectionReader(d.r, offset, n))
@@ -694,9 +771,13 @@ func Decode(r io.Reader) (img image.Image, err error) {
 			ymin := j * blockHeight
 			xmax := xmin + blkW
 			ymax := ymin + blkH
-			err = d.decode(img, xmin, ymin, xmax, ymax)
-			if err != nil {
-				return nil, err
+			if d.firstVal(tCompression) == cJPEG {
+				d.decodeJPEG(img, xmin, ymin, xmax, ymax)
+			} else {
+				err = d.decode(img, xmin, ymin, xmax, ymax)
+				if err != nil {
+					return nil, err
+				}
 			}
 		}
 	}
