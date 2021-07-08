@@ -76,16 +76,25 @@ func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
 		return nil, FormatError("bad IFD entry")
 	}
 
+	tag := d.byteOrder.Uint16(p[0:2])
 	datatype := d.byteOrder.Uint16(p[2:4])
-	if dt := int(datatype); dt <= 0 || dt >= len(lengths) {
+	if dt := int(datatype); dt <= 0 || dt >= len(lengths) && tag != tJPEG {
 		return nil, UnsupportedError("IFD entry datatype")
 	}
 
+	// tJPEG's type is dtUndefined which size is same as dtByte.
+	var length uint32
+	if tag != tJPEG {
+		length = lengths[datatype]
+	} else {
+		length = 1
+	}
+
 	count := d.byteOrder.Uint32(p[4:8])
-	if count > math.MaxInt32/lengths[datatype] {
+	if count > math.MaxInt32/length {
 		return nil, FormatError("IFD data too large")
 	}
-	if datalen := lengths[datatype] * count; datalen > 4 {
+	if datalen := length * count; datalen > 4 {
 		// The IFD contains a pointer to the real value.
 		raw = make([]byte, datalen)
 		_, err = d.r.ReadAt(raw, int64(d.byteOrder.Uint32(p[8:12])))
@@ -98,7 +107,7 @@ func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
 
 	u = make([]uint, count)
 	switch datatype {
-	case dtByte:
+	case dtByte, dtUndefined:
 		for i := uint32(0); i < count; i++ {
 			u[i] = uint(raw[i])
 		}
@@ -138,7 +147,8 @@ func (d *decoder) parseIFD(p []byte) (int, error) {
 		tImageWidth,
 		tFillOrder,
 		tT4Options,
-		tT6Options:
+		tT6Options,
+		tJPEG:
 		val, err := d.ifdUint(p)
 		if err != nil {
 			return 0, err

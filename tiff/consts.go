@@ -29,6 +29,8 @@ const (
 	dtShort    = 3
 	dtLong     = 4
 	dtRational = 5
+
+	dtUndefined = 7 // JPEGTables field is required to have type code UNDEFINED
 )
 
 // The length of one instance of each data type in bytes.
