@@ -229,6 +229,51 @@ func TestDecodeCCITT(t *testing.T) {
 	}
 }
 
+func delta(u0, u1 uint32) int64 {
+	d := int64(u0) - int64(u1)
+	if d < 0 {
+		return -d
+	}
+	return d
+}
+
+// averageDelta returns the average delta in RGB space. The two images must
+// have the same bounds.
+func averageDelta(m0, m1 image.Image) int64 {
+	b := m0.Bounds()
+	var sum, n int64
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			c0 := m0.At(x, y)
+			c1 := m1.At(x, y)
+			r0, g0, b0, _ := c0.RGBA()
+			r1, g1, b1, _ := c1.RGBA()
+			sum += delta(r0, r1)
+			sum += delta(g0, g1)
+			sum += delta(b0, b1)
+			n += 3
+		}
+	}
+	return sum / n
+}
+
+// TestDecodeJPEG tests decoding an image use JPEG compression.
+func TestDecodeJPEG(t *testing.T) {
+	img, err := openImage("video-001.tiff")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	img2, err := openImage("video-001-jpeg.tiff")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := int64(6 << 8)
+	if got := averageDelta(img, img2); got > want {
+		t.Errorf("average delta too high; got %d, want <= %d", got, want)
+	}
+}
+
 // TestDecodeTagOrder tests that a malformed image with unsorted IFD entries is
 // correctly rejected.
 func TestDecodeTagOrder(t *testing.T) {
