@@ -55,7 +55,8 @@ type decoder struct {
 	v     uint32 // Buffer value for reading with arbitrary bit depths.
 	nbits uint   // Remaining number of bits in v.
 
-	tmp image.Image // Store temporary image for jpeg compression
+	jpegTables []byte      // Store JPEGTables data
+	tmp        image.Image // Store temporary image for jpeg compression
 }
 
 // firstVal returns the first uint of the features entry with the given tag,
@@ -406,6 +407,8 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 				copy(img.Pix[min:max], d.buf[i0:i1])
 			}
 		}
+	case mYCbCr:
+		return UnsupportedError("color model YCbCr not in JPEG compression")
 	}
 
 	return nil
@@ -413,7 +416,7 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 
 // decodeJPEG decodes the jpeg data of an image.
 // It reads from d.tmp and writes the strip or tile into dst.
-func (d *decoder) decodeJPEG(dst image.Image, xmin, ymin, xmax, ymax int) {
+func (d *decoder) decodeJPEG(dst image.Image, xmin, ymin, xmax, ymax int) (image.Image, error) {
 	rMaxX := minInt(xmax, dst.Bounds().Max.X)
 	rMaxY := minInt(ymax, dst.Bounds().Max.Y)
 
@@ -435,6 +438,14 @@ func (d *decoder) decodeJPEG(dst image.Image, xmin, ymin, xmax, ymax int) {
 		}
 	case mCMYK:
 		img = dst.(*image.CMYK)
+	case mYCbCr:
+		// only support for single segment.
+		if dst.Bounds() == d.tmp.Bounds() {
+			dst = d.tmp
+		} else {
+			return nil, UnsupportedError("color model YCbCr with multiple segments in JPEG compression")
+		}
+		return dst, nil
 	}
 
 	for y := 0; y+ymin < rMaxY; y++ {
@@ -442,6 +453,8 @@ func (d *decoder) decodeJPEG(dst image.Image, xmin, ymin, xmax, ymax int) {
 			img.Set(x+xmin, y+ymin, d.tmp.At(x, y))
 		}
 	}
+
+	return dst, nil
 }
 
 func newDecoder(r io.Reader) (*decoder, error) {
@@ -578,6 +591,12 @@ func newDecoder(r io.Reader) (*decoder, error) {
 		} else {
 			d.config.ColorModel = color.GrayModel
 		}
+	case pYCbCr:
+		d.mode = mYCbCr
+		if d.bpp == 16 {
+			return nil, UnsupportedError(fmt.Sprintf("YCbCr BitsPerSample of %d", d.bpp))
+		}
+		d.config.ColorModel = color.YCbCrModel
 	default:
 		return nil, UnsupportedError("color model")
 	}
@@ -681,6 +700,21 @@ func Decode(r io.Reader) (img image.Image, err error) {
 		} else {
 			img = image.NewRGBA(imgRect)
 		}
+	case mYCbCr:
+		img = image.NewYCbCr(imgRect, 0)
+	}
+
+	// According to the spec, JPEGTables is an optional field. The purpose of it is to
+	// predefine JPEG quantization and/or Huffman tables for subsequent use by JPEG image segments.
+	// Start with SOI marker and end with EOI marker.
+	if d.firstVal(tCompression) == cJPEG {
+		d.jpegTables = make([]byte, len(d.features[tJPEG]))
+		for i := range d.features[tJPEG] {
+			d.jpegTables[i] = uint8(d.features[tJPEG][i])
+		}
+		if l := len(d.jpegTables); l != 0 && l < 4 {
+			return nil, FormatError("bad JPEGTables field")
+		}
 	}
 
 	for i := 0; i < blocksAcross; i++ {
@@ -722,43 +756,31 @@ func Decode(r io.Reader) (img image.Image, err error) {
 				d.buf, err = ioutil.ReadAll(r)
 				r.Close()
 			case cJPEG:
-				var tjpeg bool
-				var buf bytes.Buffer
-				// According to the spec, JPEGTables is an optional field. The purpose of it is to
-				// predefine JPEG quantization and/or Huffman tables for subsequent use by JPEG image segments.
-				// When it is specified, these tables need not be duplicated in each segment.
-				// Start with SOI marker and end with EOI marker.
-				b := make([]byte, len(d.features[tJPEG]))
-				for i := range d.features[tJPEG] {
-					b[i] = uint8(d.features[tJPEG][i])
-				}
-				if len(b) > 2 {
-					tjpeg = true
-					// Write to buffer without EOI marker.
-					buf.Write(b[:len(b)-2])
-				} else if len(b) != 0 {
-					return nil, FormatError("bad JPEGTables field")
-				}
 				// JPEG image segment should start with SOI marker and end with EOI marker.
-				b, err = io.ReadAll(io.NewSectionReader(d.r, offset, n))
+				b, err := io.ReadAll(io.NewSectionReader(d.r, offset, n))
 				if err != nil {
 					return nil, err
 				}
 				if len(b) < 4 {
 					return nil, FormatError("bad JPEG image segment")
 				}
-				if tjpeg {
-					// Write JPEG image segment to buffer without SOI marker.
-					// When this is done, buffer data will be a full JPEG format data.
-					buf.Write(b[2:])
-				} else {
-					// Write full JPEG image segment to buffer.
-					buf.Write(b)
-				}
 				// Decode as a JPEG image.
-				d.tmp, err = jpeg.Decode(&buf)
+				d.tmp, err = jpeg.Decode(bytes.NewBuffer(b))
 				if err != nil {
-					return nil, err
+					var buf bytes.Buffer
+					if len(d.jpegTables) != 0 {
+						// Write JPEGTables data to buffer without EOI marker.
+						buf.Write(d.jpegTables[:len(d.jpegTables)-2])
+					} else {
+						return nil, err
+					}
+					// Write JPEG image segment to buffer without SOI marker.
+					// When this is done, buffer data should be a full JPEG format data.
+					buf.Write(b[2:])
+					d.tmp, err = jpeg.Decode(&buf)
+					if err != nil {
+						return nil, err
+					}
 				}
 			case cDeflate, cDeflateOld:
 				var r io.ReadCloser
@@ -782,12 +804,12 @@ func Decode(r io.Reader) (img image.Image, err error) {
 			xmax := xmin + blkW
 			ymax := ymin + blkH
 			if d.firstVal(tCompression) == cJPEG {
-				d.decodeJPEG(img, xmin, ymin, xmax, ymax)
+				img, err = d.decodeJPEG(img, xmin, ymin, xmax, ymax)
 			} else {
 				err = d.decode(img, xmin, ymin, xmax, ymax)
-				if err != nil {
-					return nil, err
-				}
+			}
+			if err != nil {
+				return nil, err
 			}
 		}
 	}
