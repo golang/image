@@ -8,11 +8,14 @@
 package tiff // import "golang.org/x/image/tiff"
 
 import (
+	"bytes"
 	"compress/zlib"
 	"encoding/binary"
 	"fmt"
 	"image"
 	"image/color"
+	"image/draw"
+	"image/jpeg"
 	"io"
 	"io/ioutil"
 	"math"
@@ -51,6 +54,9 @@ type decoder struct {
 	off   int    // Current offset in buf.
 	v     uint32 // Buffer value for reading with arbitrary bit depths.
 	nbits uint   // Remaining number of bits in v.
+
+	jpegTables []byte      // Store JPEGTables data
+	tmp        image.Image // Store temporary image for jpeg compression
 }
 
 // firstVal returns the first uint of the features entry with the given tag,
@@ -71,16 +77,25 @@ func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
 		return nil, FormatError("bad IFD entry")
 	}
 
+	tag := d.byteOrder.Uint16(p[0:2])
 	datatype := d.byteOrder.Uint16(p[2:4])
-	if dt := int(datatype); dt <= 0 || dt >= len(lengths) {
+	if dt := int(datatype); dt <= 0 || dt >= len(lengths) && tag != tJPEG {
 		return nil, UnsupportedError("IFD entry datatype")
 	}
 
+	// tJPEG's type is dtUndefined which size is same as dtByte.
+	var length uint32
+	if tag != tJPEG {
+		length = lengths[datatype]
+	} else {
+		length = 1
+	}
+
 	count := d.byteOrder.Uint32(p[4:8])
-	if count > math.MaxInt32/lengths[datatype] {
+	if count > math.MaxInt32/length {
 		return nil, FormatError("IFD data too large")
 	}
-	if datalen := lengths[datatype] * count; datalen > 4 {
+	if datalen := length * count; datalen > 4 {
 		// The IFD contains a pointer to the real value.
 		raw = make([]byte, datalen)
 		_, err = d.r.ReadAt(raw, int64(d.byteOrder.Uint32(p[8:12])))
@@ -93,7 +108,7 @@ func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
 
 	u = make([]uint, count)
 	switch datatype {
-	case dtByte:
+	case dtByte, dtUndefined:
 		for i := uint32(0); i < count; i++ {
 			u[i] = uint(raw[i])
 		}
@@ -133,7 +148,8 @@ func (d *decoder) parseIFD(p []byte) (int, error) {
 		tImageWidth,
 		tFillOrder,
 		tT4Options,
-		tT6Options:
+		tT6Options,
+		tJPEG:
 		val, err := d.ifdUint(p)
 		if err != nil {
 			return 0, err
@@ -391,9 +407,54 @@ func (d *decoder) decode(dst image.Image, xmin, ymin, xmax, ymax int) error {
 				copy(img.Pix[min:max], d.buf[i0:i1])
 			}
 		}
+	case mYCbCr:
+		return UnsupportedError("color model YCbCr not in JPEG compression")
 	}
 
 	return nil
+}
+
+// decodeJPEG decodes the jpeg data of an image.
+// It reads from d.tmp and writes the strip or tile into dst.
+func (d *decoder) decodeJPEG(dst image.Image, xmin, ymin, xmax, ymax int) (image.Image, error) {
+	rMaxX := minInt(xmax, dst.Bounds().Max.X)
+	rMaxY := minInt(ymax, dst.Bounds().Max.Y)
+
+	var img draw.Image
+	switch d.mode {
+	case mGray, mGrayInvert:
+		if d.bpp == 16 {
+			img = dst.(*image.Gray16)
+		} else {
+			img = dst.(*image.Gray)
+		}
+	case mPaletted:
+		img = dst.(*image.Paletted)
+	case mRGB, mNRGBA, mRGBA:
+		if d.bpp == 16 {
+			img = dst.(*image.RGBA64)
+		} else {
+			img = dst.(*image.RGBA)
+		}
+	case mCMYK:
+		img = dst.(*image.CMYK)
+	case mYCbCr:
+		// only support for single segment.
+		if dst.Bounds() == d.tmp.Bounds() {
+			dst = d.tmp
+		} else {
+			return nil, UnsupportedError("color model YCbCr with multiple segments in JPEG compression")
+		}
+		return dst, nil
+	}
+
+	for y := 0; y+ymin < rMaxY; y++ {
+		for x := 0; x+xmin < rMaxX; x++ {
+			img.Set(x+xmin, y+ymin, d.tmp.At(x, y))
+		}
+	}
+
+	return dst, nil
 }
 
 func newDecoder(r io.Reader) (*decoder, error) {
@@ -530,6 +591,12 @@ func newDecoder(r io.Reader) (*decoder, error) {
 		} else {
 			d.config.ColorModel = color.GrayModel
 		}
+	case pYCbCr:
+		d.mode = mYCbCr
+		if d.bpp == 16 {
+			return nil, UnsupportedError(fmt.Sprintf("YCbCr BitsPerSample of %d", d.bpp))
+		}
+		d.config.ColorModel = color.YCbCrModel
 	default:
 		return nil, UnsupportedError("color model")
 	}
@@ -633,6 +700,21 @@ func Decode(r io.Reader) (img image.Image, err error) {
 		} else {
 			img = image.NewRGBA(imgRect)
 		}
+	case mYCbCr:
+		img = image.NewYCbCr(imgRect, 0)
+	}
+
+	// According to the spec, JPEGTables is an optional field. The purpose of it is to
+	// predefine JPEG quantization and/or Huffman tables for subsequent use by JPEG image segments.
+	// Start with SOI marker and end with EOI marker.
+	if d.firstVal(tCompression) == cJPEG {
+		d.jpegTables = make([]byte, len(d.features[tJPEG]))
+		for i := range d.features[tJPEG] {
+			d.jpegTables[i] = uint8(d.features[tJPEG][i])
+		}
+		if l := len(d.jpegTables); l != 0 && l < 4 {
+			return nil, FormatError("bad JPEGTables field")
+		}
 	}
 
 	for i := 0; i < blocksAcross; i++ {
@@ -673,6 +755,33 @@ func Decode(r io.Reader) (img image.Image, err error) {
 				r := lzw.NewReader(io.NewSectionReader(d.r, offset, n), lzw.MSB, 8)
 				d.buf, err = ioutil.ReadAll(r)
 				r.Close()
+			case cJPEG:
+				// JPEG image segment should start with SOI marker and end with EOI marker.
+				b, err := io.ReadAll(io.NewSectionReader(d.r, offset, n))
+				if err != nil {
+					return nil, err
+				}
+				if len(b) < 4 {
+					return nil, FormatError("bad JPEG image segment")
+				}
+				// Decode as a JPEG image.
+				d.tmp, err = jpeg.Decode(bytes.NewBuffer(b))
+				if err != nil {
+					var buf bytes.Buffer
+					if len(d.jpegTables) != 0 {
+						// Write JPEGTables data to buffer without EOI marker.
+						buf.Write(d.jpegTables[:len(d.jpegTables)-2])
+					} else {
+						return nil, err
+					}
+					// Write JPEG image segment to buffer without SOI marker.
+					// When this is done, buffer data should be a full JPEG format data.
+					buf.Write(b[2:])
+					d.tmp, err = jpeg.Decode(&buf)
+					if err != nil {
+						return nil, err
+					}
+				}
 			case cDeflate, cDeflateOld:
 				var r io.ReadCloser
 				r, err = zlib.NewReader(io.NewSectionReader(d.r, offset, n))
@@ -694,7 +803,11 @@ func Decode(r io.Reader) (img image.Image, err error) {
 			ymin := j * blockHeight
 			xmax := xmin + blkW
 			ymax := ymin + blkH
-			err = d.decode(img, xmin, ymin, xmax, ymax)
+			if d.firstVal(tCompression) == cJPEG {
+				img, err = d.decodeJPEG(img, xmin, ymin, xmax, ymax)
+			} else {
+				err = d.decode(img, xmin, ymin, xmax, ymax)
+			}
 			if err != nil {
 				return nil, err
 			}
