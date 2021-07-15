@@ -427,8 +427,7 @@ func Encode(w io.Writer, m image.Image, opt *Options) error {
 	// JPEG compression uses jpeg.Encode to encoding image which writes Gray or YCbCr image.
 	if compression == cJPEG {
 		switch m.(type) {
-		case *image.Gray:
-		default:
+		case *image.YCbCr:
 			// Minimum Requirements for YCbCr Images. (See page 94).
 			photometricInterpretation = uint32(pYCbCr)
 			samplesPerPixel = 3
