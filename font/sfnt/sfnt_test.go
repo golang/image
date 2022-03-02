@@ -567,7 +567,7 @@ func TestPostScriptSegments(t *testing.T) {
 	// drawn in a consistent direction. Clockwise for external paths,
 	// anti-clockwise for internal paths. (Actually PostScript requires the
 	// exact opposite, but FontForge reverses PostScript contours when it loads
-	// them so that everything is consistant internally -- and reverses them
+	// them so that everything is consistent internally -- and reverses them
 	// again when it saves them, of course)."
 	//
 	// The .notdef glyph isn't explicitly in the SFD file, but for some unknown
