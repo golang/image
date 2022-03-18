@@ -75,6 +75,15 @@ func TestRoundtrip2(t *testing.T) {
 	compare(t, m0, m1)
 }
 
+func TestUnsupported(t *testing.T) {
+	img := image.NewGray(image.Rect(0, 0, 1, 1))
+	out := new(bytes.Buffer)
+	err := Encode(out, img, &Options{Compression: LZW})
+	if err == nil {
+		t.Error("tiff.Encode(LZW): no error returned, expected an error")
+	}
+}
+
 func benchmarkEncode(b *testing.B, name string, pixelSize int) {
 	b.Helper()
 	img, err := openImage(name)
