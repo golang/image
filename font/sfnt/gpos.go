@@ -14,7 +14,7 @@ const (
 	hexFeatureKern = uint32(0x6b65726e) // kern
 )
 
-//kernFunc returns the unscaled kerning value for kerning pair a+b.
+// kernFunc returns the unscaled kerning value for kerning pair a+b.
 // Returns ErrNotFound if no kerning is specified for this pair.
 type kernFunc func(a, b GlyphIndex) (int16, error)
 

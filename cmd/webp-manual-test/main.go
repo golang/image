@@ -2,8 +2,9 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+//go:build ignore
 // +build ignore
-//
+
 // This build tag means that "go install golang.org/x/image/..." doesn't
 // install this manual test. Use "go run main.go" to explicitly run it.
 

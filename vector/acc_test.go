@@ -288,15 +288,19 @@ var sixteen float32 = 16
 // "wrong". We're testing that we cope with them being different.
 //
 // On GOARCH=amd64, printing x and y gives:
-//   0.0142602495543672
-//   0.014260249212384224
+//
+//	0.0142602495543672
+//	0.014260249212384224
 //
 // On GOARCH=wasm,  printing x and y gives:
-//   0.0142602495543672
-//   0.0142602495543672
+//
+//	0.0142602495543672
+//	0.0142602495543672
 //
 // The infinitely precise (mathematical) answer is:
-//   0.014260249554367201426024955436720142602495543672recurring...
+//
+//	0.014260249554367201426024955436720142602495543672recurring...
+//
 // See https://play.golang.org/p/RxzKSdD_suE
 //
 // This test establishes a lower bound on approxEquals' tolerance constant.
