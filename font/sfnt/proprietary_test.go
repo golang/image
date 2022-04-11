@@ -599,9 +599,9 @@ var proprietaryGlyphIndexTestCases = map[string]map[rune]GlyphIndex{
 
 // proprietaryGlyphTestCases hold a sample of each font's glyph vectors. The
 // numerical values can be verified by running the ttx tool, remembering that:
-//	- for PostScript glyphs, ttx coordinates are relative.
-//	- for TrueType glyphs, ttx coordinates are absolute, and consecutive
-//	  off-curve points implies an on-curve point at the midpoint.
+//   - for PostScript glyphs, ttx coordinates are relative.
+//   - for TrueType glyphs, ttx coordinates are absolute, and consecutive
+//     off-curve points implies an on-curve point at the midpoint.
 var proprietaryGlyphTestCases = map[string]map[rune][]Segment{
 	"adobe/SourceHanSansSC-Regular.otf": {
 		'!': {

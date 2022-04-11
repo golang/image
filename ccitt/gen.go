@@ -224,9 +224,9 @@ func writeComment(w *bytes.Buffer, n *node, prefix string, down bool) {
 		writeComment(w, n.children[0], prefixUp, false)
 		defer writeComment(w, n.children[1], prefixDown, true)
 
-		fmt.Fprintf(w, "// b%03d ", n.branchIndex)
+		fmt.Fprintf(w, "//\tb%03d ", n.branchIndex)
 	} else {
-		fmt.Fprintf(w, "//      ")
+		fmt.Fprintf(w, "//\t     ")
 	}
 
 	w.WriteString(prefix[:len(prefix)-2])
