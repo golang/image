@@ -146,12 +146,21 @@ func testTrueType(t *testing.T, f *Font, wantSrc []byte) {
 	if got, want := f.NumGlyphs(), 650; got <= want {
 		t.Errorf("NumGlyphs: got %d, want > %d", got, want)
 	}
+
 	buf := &bytes.Buffer{}
-	if n, err := f.WriteSourceTo(nil, buf); err != nil {
+	n, err := f.WriteSourceTo(nil, buf)
+	if err != nil {
 		t.Fatalf("WriteSourceTo: %v", err)
-	} else if n != int64(len(wantSrc)) {
-		t.Fatalf("WriteSourceTo: got %d, want %d", n, len(wantSrc))
-	} else if gotSrc := buf.Bytes(); !bytes.Equal(gotSrc, wantSrc) {
+	}
+
+	// Some TTF tools pad their output so that the file sizes are multiples of
+	// 4. Round up before comparison.
+	got := (n + 3) &^ 3
+	have := (int64(len(wantSrc)) + 3) &^ 3
+
+	if (n > int64(len(wantSrc))) || (got != have) {
+		t.Fatalf("WriteSourceTo: got %d, want %d (with rounding)", n, len(wantSrc))
+	} else if gotSrc := buf.Bytes(); !bytes.Equal(gotSrc, wantSrc[:n]) {
 		t.Fatalf("WriteSourceTo: contents differ")
 	}
 }
@@ -173,17 +182,17 @@ func TestBounds(t *testing.T) {
 		"gobold": {
 			Min: fixed.Point26_6{
 				X: -452,
-				Y: -2193,
+				Y: -2291,
 			},
 			Max: fixed.Point26_6{
 				X: 2190,
-				Y: 432,
+				Y: 492,
 			},
 		},
 		"gomono": {
 			Min: fixed.Point26_6{
 				X: 0,
-				Y: -2227,
+				Y: -2291,
 			},
 			Max: fixed.Point26_6{
 				X: 1229,
@@ -193,7 +202,7 @@ func TestBounds(t *testing.T) {
 		"goregular": {
 			Min: fixed.Point26_6{
 				X: -440,
-				Y: -2118,
+				Y: -2291,
 			},
 			Max: fixed.Point26_6{
 				X: 2160,
@@ -420,9 +429,11 @@ func TestGoRegularGlyphIndex(t *testing.T) {
 		// Go-Regular.ttf.
 		//
 		// The actual values are ad hoc, and result from whatever tools the
-		// Bigelow & Holmes type foundry used and the order in which they
-		// crafted the glyphs. They may change over time as newer versions of
-		// the font are released.
+		// Bigelow & Holmes type foundry used, the order in which they crafted
+		// the glyphs and post-processing tools such as
+		// (https://github.com/nigeltao/fontscripts/tree/master/cmd/ttfreindex).
+		// They may change over time as newer versions of the font are
+		// released.
 
 		{'\u0020', 3},  // U+0020 SPACE
 		{'\u0021', 4},  // U+0021 EXCLAMATION MARK
@@ -433,12 +444,12 @@ func TestGoRegularGlyphIndex(t *testing.T) {
 		{'\u0026', 9},  // U+0026 AMPERSAND
 		{'\u0027', 10}, // U+0027 APOSTROPHE
 
-		{'\u03bd', 396}, // U+03BD GREEK SMALL LETTER NU
-		{'\u03be', 397}, // U+03BE GREEK SMALL LETTER XI
-		{'\u03bf', 398}, // U+03BF GREEK SMALL LETTER OMICRON
-		{'\u03c0', 399}, // U+03C0 GREEK SMALL LETTER PI
-		{'\u03c1', 400}, // U+03C1 GREEK SMALL LETTER RHO
-		{'\u03c2', 401}, // U+03C2 GREEK SMALL LETTER FINAL SIGMA
+		{'\u03bd', 413}, // U+03BD GREEK SMALL LETTER NU
+		{'\u03be', 414}, // U+03BE GREEK SMALL LETTER XI
+		{'\u03bf', 415}, // U+03BF GREEK SMALL LETTER OMICRON
+		{'\u03c0', 416}, // U+03C0 GREEK SMALL LETTER PI
+		{'\u03c1', 417}, // U+03C1 GREEK SMALL LETTER RHO
+		{'\u03c2', 418}, // U+03C2 GREEK SMALL LETTER FINAL SIGMA
 	}
 
 	var b Buffer
