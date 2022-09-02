@@ -102,7 +102,6 @@ func decodeNRGBA(r io.Reader, c image.Config, topDown, allowAlpha bool) (image.I
 		for i := 0; i < len(p); i += 4 {
 			// BMP images are stored in BGRA order rather than RGBA order.
 			p[i+0], p[i+2] = p[i+2], p[i+0]
-			// set alpha to 0xFF when the alpha channel is not supported.
 			if !allowAlpha {
 				p[i+3] = 0xFF
 			}
@@ -139,9 +138,9 @@ func DecodeConfig(r io.Reader) (image.Config, error) {
 
 func decodeConfig(r io.Reader) (config image.Config, bitsPerPixel int, topDown bool, allowAlpha bool, err error) {
 	// We only support those BMP images with one of the following DIB headers:
-	// - BITMAPINFOHEADER
-	// - BITMAPV4HEADER
-	// - BITMAPV5HEADER
+	// - BITMAPINFOHEADER (40 bytes)
+	// - BITMAPV4HEADER (108 bytes)
+	// - BITMAPV5HEADER (124 bytes)
 	const (
 		fileHeaderLen   = 14
 		infoHeaderLen   = 40
@@ -215,11 +214,27 @@ func decodeConfig(r io.Reader) (config image.Config, bitsPerPixel int, topDown b
 		if offset != fileHeaderLen+infoLen {
 			return image.Config{}, 0, false, false, ErrUnsupported
 		}
-		// We only support BITMAPINFOHEADER, BITMAPV4HEADER and BITMAPV5HEADER
-		// with compression set to BI_RGB or BI_BITFIELDS as of now.
-		// Among the combinations, BITMAPINFOHEADER does not support the alpha
-		// channel while BITMAPV4HEADER and BITMAPV5HEADER does.
-		allowAlpha = (infoLen != infoHeaderLen)
+		// 32 bits per pixel is possibly RGBX (X is padding) or RGBA (A is
+		// alpha transparency). However, for BMP images, "Alpha is a
+		// poorly-documented and inconsistently-used feature" says
+		// https://source.chromium.org/chromium/chromium/src/+/bc0a792d7ebc587190d1a62ccddba10abeea274b:third_party/blink/renderer/platform/image-decoders/bmp/bmp_image_reader.cc;l=621
+		//
+		// That goes on to say "BITMAPV3HEADER+ have an alpha bitmask in the
+		// info header... so we respect it at all times... [For earlier
+		// (smaller) headers we] ignore alpha in Windows V3 BMPs except inside
+		// ICO files".
+		//
+		// "Ignore" means to always set alpha to 0xFF (fully opaque):
+		// https://source.chromium.org/chromium/chromium/src/+/bc0a792d7ebc587190d1a62ccddba10abeea274b:third_party/blink/renderer/platform/image-decoders/bmp/bmp_image_reader.h;l=272
+		//
+		// Confusingly, "Windows V3" does not correspond to BITMAPV3HEADER, but
+		// instead corresponds to the earlier (smaller) BITMAPINFOHEADER:
+		// https://source.chromium.org/chromium/chromium/src/+/bc0a792d7ebc587190d1a62ccddba10abeea274b:third_party/blink/renderer/platform/image-decoders/bmp/bmp_image_reader.cc;l=258
+		//
+		// This Go package does not support ICO files and the (infoLen >
+		// infoHeaderLen) condition distinguishes BITMAPINFOHEADER (40 bytes)
+		// vs later (larger) headers.
+		allowAlpha = infoLen > infoHeaderLen
 		return image.Config{ColorModel: color.RGBAModel, Width: width, Height: height}, 32, topDown, allowAlpha, nil
 	}
 	return image.Config{}, 0, false, false, ErrUnsupported
