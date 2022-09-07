@@ -66,13 +66,13 @@ func (z *Rasterizer) floatingLineTo(bx, by float32) {
 		//
 		// See the discussion at
 		// https://groups.google.com/d/topic/golang-dev/Sti0bl2xUXQ/discussion
-		xNext := x + float32(dy*dxdy)
+		xNext := x + dy*dxdy
 		if y < 0 {
 			x = xNext
 			continue
 		}
 		buf := z.bufF32[y*width:]
-		d := float32(dy * dir)
+		d := dy * dir
 		x0, x1 := x, xNext
 		if x > xNext {
 			x0, x1 = x1, x0
@@ -83,48 +83,48 @@ func (z *Rasterizer) floatingLineTo(bx, by float32) {
 		x1Ceil := float32(x1i)
 
 		if x1i <= x0i+1 {
-			xmf := float32(0.5*(x+xNext)) - x0Floor
+			xmf := 0.5*(x+xNext) - x0Floor
 			if i := clamp(x0i+0, width); i < uint(len(buf)) {
-				buf[i] += d - float32(d*xmf)
+				buf[i] += d - d*xmf
 			}
 			if i := clamp(x0i+1, width); i < uint(len(buf)) {
-				buf[i] += float32(d * xmf)
+				buf[i] += d * xmf
 			}
 		} else {
 			s := 1 / (x1 - x0)
 			x0f := x0 - x0Floor
 			oneMinusX0f := 1 - x0f
-			a0 := float32(0.5 * s * oneMinusX0f * oneMinusX0f)
+			a0 := 0.5 * s * oneMinusX0f * oneMinusX0f
 			x1f := x1 - x1Ceil + 1
-			am := float32(0.5 * s * x1f * x1f)
+			am := 0.5 * s * x1f * x1f
 
 			if i := clamp(x0i, width); i < uint(len(buf)) {
-				buf[i] += float32(d * a0)
+				buf[i] += d * a0
 			}
 
 			if x1i == x0i+2 {
 				if i := clamp(x0i+1, width); i < uint(len(buf)) {
-					buf[i] += float32(d * (1 - a0 - am))
+					buf[i] += d * (1 - a0 - am)
 				}
 			} else {
-				a1 := float32(s * (1.5 - x0f))
+				a1 := s * (1.5 - x0f)
 				if i := clamp(x0i+1, width); i < uint(len(buf)) {
-					buf[i] += float32(d * (a1 - a0))
+					buf[i] += d * (a1 - a0)
 				}
-				dTimesS := float32(d * s)
+				dTimesS := d * s
 				for xi := x0i + 2; xi < x1i-1; xi++ {
 					if i := clamp(xi, width); i < uint(len(buf)) {
 						buf[i] += dTimesS
 					}
 				}
-				a2 := a1 + float32(s*float32(x1i-x0i-3))
+				a2 := a1 + s*float32(x1i-x0i-3)
 				if i := clamp(x1i-1, width); i < uint(len(buf)) {
-					buf[i] += float32(d * (1 - a2 - am))
+					buf[i] += d * (1 - a2 - am)
 				}
 			}
 
 			if i := clamp(x1i, width); i < uint(len(buf)) {
-				buf[i] += float32(d * am)
+				buf[i] += d * am
 			}
 		}
 
