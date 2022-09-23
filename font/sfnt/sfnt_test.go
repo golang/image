@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -233,7 +233,7 @@ func TestBounds(t *testing.T) {
 }
 
 func TestMetrics(t *testing.T) {
-	cmapFont, err := ioutil.ReadFile(filepath.FromSlash("../testdata/cmapTest.ttf"))
+	cmapFont, err := os.ReadFile(filepath.FromSlash("../testdata/cmapTest.ttf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -467,7 +467,7 @@ func TestGoRegularGlyphIndex(t *testing.T) {
 }
 
 func TestGlyphIndex(t *testing.T) {
-	data, err := ioutil.ReadFile(filepath.FromSlash("../testdata/cmapTest.ttf"))
+	data, err := os.ReadFile(filepath.FromSlash("../testdata/cmapTest.ttf"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -778,7 +778,7 @@ func TestTrueTypeSegments(t *testing.T) {
 }
 
 func testSegments(t *testing.T, filename string, wants [][]Segment) {
-	data, err := ioutil.ReadFile(filepath.FromSlash("../testdata/" + filename))
+	data, err := os.ReadFile(filepath.FromSlash("../testdata/" + filename))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -816,7 +816,7 @@ func testSegments(t *testing.T, filename string, wants [][]Segment) {
 }
 
 func TestPPEM(t *testing.T) {
-	data, err := ioutil.ReadFile(filepath.FromSlash("../testdata/glyfTest.ttf"))
+	data, err := os.ReadFile(filepath.FromSlash("../testdata/glyfTest.ttf"))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -870,7 +870,7 @@ func TestPPEM(t *testing.T) {
 }
 
 func TestPostInfo(t *testing.T) {
-	data, err := ioutil.ReadFile(filepath.FromSlash("../testdata/glyfTest.ttf"))
+	data, err := os.ReadFile(filepath.FromSlash("../testdata/glyfTest.ttf"))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}

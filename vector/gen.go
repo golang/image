@@ -9,8 +9,8 @@ package main
 
 import (
 	"bytes"
-	"io/ioutil"
 	"log"
+	"os"
 	"strings"
 	"text/template"
 )
@@ -27,7 +27,7 @@ const (
 )
 
 func main() {
-	tmpl, err := ioutil.ReadFile("gen_acc_amd64.s.tmpl")
+	tmpl, err := os.ReadFile("gen_acc_amd64.s.tmpl")
 	if err != nil {
 		log.Fatalf("ReadFile: %v", err)
 	}
@@ -64,7 +64,7 @@ func main() {
 		}
 	}
 
-	if err := ioutil.WriteFile("acc_amd64.s", out.Bytes(), 0666); err != nil {
+	if err := os.WriteFile("acc_amd64.s", out.Bytes(), 0666); err != nil {
 		log.Fatalf("WriteFile: %v", err)
 	}
 }

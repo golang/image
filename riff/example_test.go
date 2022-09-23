@@ -7,7 +7,6 @@ package riff_test
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"strings"
 
@@ -60,7 +59,7 @@ func dump(r *riff.Reader, indent string) error {
 			}
 			continue
 		}
-		b, err := ioutil.ReadAll(chunkData)
+		b, err := io.ReadAll(chunkData)
 		if err != nil {
 			return err
 		}

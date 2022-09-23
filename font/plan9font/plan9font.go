@@ -247,7 +247,7 @@ func (f *face) subface(r rune) (*subface, rune) {
 
 // ParseFont parses a Plan 9 font file. data is the contents of that font file,
 // which gives relative filenames for subfont files. readFile returns the
-// contents of those subfont files. It is similar to io/ioutil's ReadFile
+// contents of those subfont files. It is similar to os's ReadFile
 // function, except that it takes a relative filename instead of an absolute
 // one.
 func ParseFont(data []byte, readFile func(relFilename string) ([]byte, error)) (font.Face, error) {

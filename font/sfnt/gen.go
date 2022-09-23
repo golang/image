@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
-	"io/ioutil"
 	"log"
 )
 
@@ -53,8 +52,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("format.Source: %v\n\n----\n%s\n----", err, dstUnformatted)
 	}
-	if err := ioutil.WriteFile("data.go", dst, 0666); err != nil {
-		log.Fatalf("ioutil.WriteFile: %v", err)
+	if err := os.WriteFile("data.go", dst, 0666); err != nil {
+		log.Fatalf("os.WriteFile: %v", err)
 	}
 }
 

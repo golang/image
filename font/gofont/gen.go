@@ -21,7 +21,6 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -56,7 +55,7 @@ func do(ttfName string) {
 	if err := os.Mkdir(pkgName, 0777); err != nil && !os.IsExist(err) {
 		log.Fatal(err)
 	}
-	src, err := ioutil.ReadFile(filepath.Join("ttfs", ttfName))
+	src, err := os.ReadFile(filepath.Join("ttfs", ttfName))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -87,7 +86,7 @@ func do(ttfName string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := ioutil.WriteFile(filepath.Join(pkgName, "data.go"), dst, 0666); err != nil {
+	if err := os.WriteFile(filepath.Join(pkgName, "data.go"), dst, 0666); err != nil {
 		log.Fatal(err)
 	}
 }

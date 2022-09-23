@@ -36,7 +36,7 @@ go test golang.org/x/image/font/sfnt -test.run=ProprietaryMicrosoft -args -propr
 import (
 	"errors"
 	"flag"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -250,7 +250,7 @@ func testProprietary(t *testing.T, proprietor, filename string, minNumGlyphs, fi
 	default:
 		panic("unreachable")
 	}
-	file, err := ioutil.ReadFile(filepath.Join(dir, basename))
+	file, err := os.ReadFile(filepath.Join(dir, basename))
 	if err != nil {
 		t.Fatalf("%v\nPerhaps you need to set the -%sDir flag?", err, proprietor)
 	}

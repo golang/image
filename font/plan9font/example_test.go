@@ -7,7 +7,6 @@ package plan9font_test
 import (
 	"image"
 	"image/draw"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -20,7 +19,7 @@ import (
 
 func ExampleParseFont() {
 	readFile := func(name string) ([]byte, error) {
-		return ioutil.ReadFile(filepath.FromSlash(path.Join("../testdata/fixed", name)))
+		return os.ReadFile(filepath.FromSlash(path.Join("../testdata/fixed", name)))
 	}
 	fontData, err := readFile("unicode.7x13.font")
 	if err != nil {

@@ -16,7 +16,6 @@ package riff // import "golang.org/x/image/riff"
 import (
 	"errors"
 	"io"
-	"io/ioutil"
 	"math"
 )
 
@@ -103,7 +102,7 @@ func (z *Reader) Next() (chunkID FourCC, chunkLen uint32, chunkData io.Reader, e
 	if z.chunkLen != 0 {
 		want := z.chunkLen
 		var got int64
-		got, z.err = io.Copy(ioutil.Discard, z.chunkReader)
+		got, z.err = io.Copy(io.Discard, z.chunkReader)
 		if z.err == nil && uint32(got) != want {
 			z.err = errShortChunkData
 		}
