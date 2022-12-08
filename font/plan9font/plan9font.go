@@ -330,7 +330,9 @@ func ParseSubfont(data []byte, firstRune rune) (font.Face, error) {
 	height := atoi(data[1*12:])
 	ascent := atoi(data[2*12:])
 	data = data[3*12:]
-	if len(data) != 6*(n+1) {
+	if n < 0 || height < 0 || ascent < 0 {
+		return nil, errors.New("plan9font: invalid subfont: dimension too large")
+	} else if len(data) != 6*(n+1) {
 		return nil, errors.New("plan9font: invalid subfont: data length mismatch")
 	}
 
@@ -455,7 +457,8 @@ func parseImage(data []byte) (remainingData []byte, m *plan9Image, retErr error)
 		depth = 2
 	}
 	r := ator(hdr[1*12:])
-	if r.Min.X > r.Max.X || r.Min.Y > r.Max.Y {
+	if r.Min.X < 0 || r.Max.X < 0 || r.Min.Y < 0 || r.Max.Y < 0 ||
+		r.Min.X > r.Max.X || r.Min.Y > r.Max.Y {
 		return nil, nil, errors.New("plan9font: invalid image: bad rectangle")
 	}
 
@@ -475,8 +478,9 @@ func parseImage(data []byte) (remainingData []byte, m *plan9Image, retErr error)
 		maxy := atoi(data[0*12:])
 		nb := atoi(data[1*12:])
 		data = data[2*12:]
-
-		if len(data) < nb {
+		if maxy < 0 || nb < 0 {
+			return nil, nil, errors.New("plan9font: invalid image: dimension too large")
+		} else if len(data) < nb {
 			return nil, nil, errors.New("plan9font: invalid image: data band length mismatch")
 		}
 		buf := data[:nb]
@@ -601,6 +605,9 @@ func atoi(b []byte) int {
 	n := 0
 	for ; i < len(b) && '0' <= b[i] && b[i] <= '9'; i++ {
 		n = n*10 + int(b[i]) - '0'
+		if n > 999999 {
+			return -1
+		}
 	}
 	return n
 }
