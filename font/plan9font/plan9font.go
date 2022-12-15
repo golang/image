@@ -370,6 +370,8 @@ type plan9Image struct {
 }
 
 func (m *plan9Image) byteoffset(x, y int) int {
+	x -= m.rect.Min.X
+	y -= m.rect.Min.Y
 	a := y * m.width
 	if m.depth < 8 {
 		// We need to always round down, but Go rounds toward zero.
