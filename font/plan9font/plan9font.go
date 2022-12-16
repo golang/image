@@ -465,6 +465,11 @@ func parseImage(data []byte) (remainingData []byte, m *plan9Image, retErr error)
 	}
 
 	width := bytesPerLine(r, depth)
+	// These bounds are somewhat arbitrary, but multiplying them together won't
+	// overflow an int32.
+	if (width > 0xffff) || (r.Dy() > 0x7fff) {
+		return nil, nil, errors.New("plan9font: unsupported dimensions")
+	}
 	m = &plan9Image{
 		depth: depth,
 		width: width,
