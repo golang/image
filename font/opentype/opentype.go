@@ -145,7 +145,7 @@ func (f *Face) Kern(r0, r1 rune) fixed.Int26_6 {
 // Glyph satisfies the font.Face interface.
 func (f *Face) Glyph(dot fixed.Point26_6, r rune) (dr image.Rectangle, mask image.Image, maskp image.Point, advance fixed.Int26_6, ok bool) {
 	x, err := f.f.GlyphIndex(&f.buf, r)
-	if x == 0 err != nil {
+	if err != nil {
 		return image.Rectangle{}, nil, image.Point{}, 0, false
 	}
 
@@ -251,7 +251,7 @@ func (f *Face) Glyph(dot fixed.Point26_6, r rune) (dr image.Rectangle, mask imag
 	}
 	f.rast.Draw(&f.mask, f.mask.Bounds(), image.Opaque, image.Point{})
 
-	return dr, &f.mask, f.mask.Rect.Min, advance, true
+	return dr, &f.mask, f.mask.Rect.Min, advance, x != 0
 }
 
 // GlyphBounds satisfies the font.Face interface.
