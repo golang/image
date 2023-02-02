@@ -256,14 +256,16 @@ func (f *Face) Glyph(dot fixed.Point26_6, r rune) (dr image.Rectangle, mask imag
 
 // GlyphBounds satisfies the font.Face interface.
 func (f *Face) GlyphBounds(r rune) (bounds fixed.Rectangle26_6, advance fixed.Int26_6, ok bool) {
-	bounds, advance, err := f.f.GlyphBounds(&f.buf, f.index(r), f.scale, f.hinting)
-	return bounds, advance, err == nil
+	index := f.index(r)
+	bounds, advance, err := f.f.GlyphBounds(&f.buf, index, f.scale, f.hinting)
+	return bounds, advance, err == nil || index == 0
 }
 
 // GlyphAdvance satisfies the font.Face interface.
 func (f *Face) GlyphAdvance(r rune) (advance fixed.Int26_6, ok bool) {
-	advance, err := f.f.GlyphAdvance(&f.buf, f.index(r), f.scale, f.hinting)
-	return advance, err == nil
+	index := f.index(r)
+	advance, err := f.f.GlyphAdvance(&f.buf, index, f.scale, f.hinting)
+	return advance, err == nil || index == 0
 }
 
 func (f *Face) index(r rune) sfnt.GlyphIndex {
