@@ -292,7 +292,7 @@ var sixteen float32 = 16
 //	0.0142602495543672
 //	0.014260249212384224
 //
-// On GOARCH=wasm,  printing x and y gives:
+// On GOARCH=wasm, printing x and y gives:
 //
 //	0.0142602495543672
 //	0.0142602495543672
