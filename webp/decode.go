@@ -10,6 +10,7 @@ import (
 	"image"
 	"image/color"
 	"io"
+	"math/bits"
 
 	"golang.org/x/image/riff"
 	"golang.org/x/image/vp8"
@@ -154,9 +155,17 @@ func readAlpha(chunkData io.Reader, widthMinusOne, heightMinusOne uint32, compre
 	case 0:
 		w := int(widthMinusOne) + 1
 		h := int(heightMinusOne) + 1
-		alpha = make([]byte, w*h)
-		if _, err := io.ReadFull(chunkData, alpha); err != nil {
+		// Overflow check
+		if hi, _ := bits.Mul64(uint64(w), uint64(h)); hi != 0  {
+			return nil, 0, errInvalidFormat
+		}
+		size := w * h
+		alpha, err := io.ReadAll(io.LimitReader(chunkData, int64(size)))
+		if err != nil {
 			return nil, 0, err
+		}
+		if len(alpha) != size {
+			return nil, 0, errInvalidFormat
 		}
 		return alpha, w, nil
 
