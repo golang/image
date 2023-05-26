@@ -102,9 +102,6 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 			return m, image.Config{}, nil
 
 		case fccVP8L:
-			if wantAlpha || alpha != nil {
-				return nil, image.Config{}, errInvalidFormat
-			}
 			if configOnly {
 				c, err := vp8l.DecodeConfig(chunkData)
 				return nil, c, err

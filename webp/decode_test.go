@@ -179,6 +179,7 @@ func TestDecodeVP8L(t *testing.T) {
 		"gopher-doc.8bpp",
 		"tux",
 		"yellow_rose",
+		"gopher-doc.with-alpha",
 	}
 
 loop:
