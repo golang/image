@@ -6,13 +6,16 @@ package tiff
 
 import (
 	"bytes"
+	"compress/zlib"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"image"
 	"io"
 	"io/ioutil"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 
@@ -414,13 +417,17 @@ func TestLargeIFDEntry(t *testing.T) {
 // benchmarkDecode benchmarks the decoding of an image.
 func benchmarkDecode(b *testing.B, filename string) {
 	b.Helper()
-	b.StopTimer()
 	contents, err := ioutil.ReadFile(testdataDir + filename)
 	if err != nil {
 		b.Fatal(err)
 	}
-	r := &buffer{buf: contents}
-	b.StartTimer()
+	benchmarkDecodeData(b, contents)
+}
+
+func benchmarkDecodeData(b *testing.B, data []byte) {
+	b.Helper()
+	r := &buffer{buf: data}
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := Decode(r)
 		if err != nil {
@@ -431,3 +438,148 @@ func benchmarkDecode(b *testing.B, filename string) {
 
 func BenchmarkDecodeCompressed(b *testing.B)   { benchmarkDecode(b, "video-001.tiff") }
 func BenchmarkDecodeUncompressed(b *testing.B) { benchmarkDecode(b, "video-001-uncompressed.tiff") }
+
+func BenchmarkZeroHeightTile(b *testing.B) {
+	enc := binary.BigEndian
+	data := newTIFF(enc)
+	data = appendIFD(data, enc, map[uint16]interface{}{
+		tImageWidth:  uint32(4294967295),
+		tImageLength: uint32(0),
+		tTileWidth:   uint32(1),
+		tTileLength:  uint32(0),
+	})
+	benchmarkDecodeData(b, data)
+}
+
+func BenchmarkRepeatedOversizedTileData(b *testing.B) {
+	const (
+		imageWidth  = 256
+		imageHeight = 256
+		tileWidth   = 8
+		tileLength  = 8
+		numTiles    = (imageWidth * imageHeight) / (tileWidth * tileLength)
+	)
+
+	// Create a chunk of tile data that decompresses to a large size.
+	zdata := func() []byte {
+		var zbuf bytes.Buffer
+		zw := zlib.NewWriter(&zbuf)
+		zeros := make([]byte, 1024)
+		for i := 0; i < 1<<16; i++ {
+			zw.Write(zeros)
+		}
+		zw.Close()
+		return zbuf.Bytes()
+	}()
+
+	enc := binary.BigEndian
+	data := newTIFF(enc)
+
+	zoff := len(data)
+	data = append(data, zdata...)
+
+	// Each tile refers to the same compressed data chunk.
+	var tileoffs []uint32
+	var tilesizes []uint32
+	for i := 0; i < numTiles; i++ {
+		tileoffs = append(tileoffs, uint32(zoff))
+		tilesizes = append(tilesizes, uint32(len(zdata)))
+	}
+
+	data = appendIFD(data, enc, map[uint16]interface{}{
+		tImageWidth:                uint32(imageWidth),
+		tImageLength:               uint32(imageHeight),
+		tTileWidth:                 uint32(tileWidth),
+		tTileLength:                uint32(tileLength),
+		tTileOffsets:               tileoffs,
+		tTileByteCounts:            tilesizes,
+		tCompression:               uint16(cDeflate),
+		tBitsPerSample:             []uint16{16, 16, 16},
+		tPhotometricInterpretation: uint16(pRGB),
+	})
+	benchmarkDecodeData(b, data)
+}
+
+type byteOrder interface {
+	binary.ByteOrder
+	binary.AppendByteOrder
+}
+
+// newTIFF returns the TIFF header.
+func newTIFF(enc byteOrder) []byte {
+	b := []byte{0, 0, 0, 42, 0, 0, 0, 0}
+	switch enc.Uint16([]byte{1, 0}) {
+	case 0x1:
+		b[0], b[1] = 'I', 'I'
+	case 0x100:
+		b[0], b[1] = 'M', 'M'
+	default:
+		panic("odd byte order")
+	}
+	return b
+}
+
+// appendIFD appends an IFD to the TIFF in b,
+// updating the IFD location in the header.
+func appendIFD(b []byte, enc byteOrder, entries map[uint16]interface{}) []byte {
+	var tags []uint16
+	for tag := range entries {
+		tags = append(tags, tag)
+	}
+	sort.Slice(tags, func(i, j int) bool {
+		return tags[i] < tags[j]
+	})
+
+	var ifd []byte
+	for _, tag := range tags {
+		ifd = enc.AppendUint16(ifd, tag)
+		switch v := entries[tag].(type) {
+		case uint16:
+			ifd = enc.AppendUint16(ifd, dtShort)
+			ifd = enc.AppendUint32(ifd, 1)
+			ifd = enc.AppendUint16(ifd, v)
+			ifd = enc.AppendUint16(ifd, v)
+		case uint32:
+			ifd = enc.AppendUint16(ifd, dtLong)
+			ifd = enc.AppendUint32(ifd, 1)
+			ifd = enc.AppendUint32(ifd, v)
+		case []uint16:
+			ifd = enc.AppendUint16(ifd, dtShort)
+			ifd = enc.AppendUint32(ifd, uint32(len(v)))
+			switch len(v) {
+			case 0:
+				ifd = enc.AppendUint32(ifd, 0)
+			case 1:
+				ifd = enc.AppendUint16(ifd, v[0])
+				ifd = enc.AppendUint16(ifd, v[1])
+			default:
+				ifd = enc.AppendUint32(ifd, uint32(len(b)))
+				for _, e := range v {
+					b = enc.AppendUint16(b, e)
+				}
+			}
+		case []uint32:
+			ifd = enc.AppendUint16(ifd, dtLong)
+			ifd = enc.AppendUint32(ifd, uint32(len(v)))
+			switch len(v) {
+			case 0:
+				ifd = enc.AppendUint32(ifd, 0)
+			case 1:
+				ifd = enc.AppendUint32(ifd, v[0])
+			default:
+				ifd = enc.AppendUint32(ifd, uint32(len(b)))
+				for _, e := range v {
+					b = enc.AppendUint32(b, e)
+				}
+			}
+		default:
+			panic(fmt.Errorf("unhandled type %T", v))
+		}
+	}
+
+	enc.PutUint32(b[4:8], uint32(len(b)))
+	b = enc.AppendUint16(b, uint16(len(entries)))
+	b = append(b, ifd...)
+	b = enc.AppendUint32(b, 0)
+	return b
+}
