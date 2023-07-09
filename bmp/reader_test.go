@@ -41,6 +41,8 @@ func compare(img0, img1 image.Image) error {
 func TestDecode(t *testing.T) {
 	testCases := []string{
 		"colormap",
+		"colormap-0",
+		"colormap-251",
 		"video-001",
 		"yellow_rose-small",
 		"yellow_rose-small-v5",
