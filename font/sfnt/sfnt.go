@@ -209,7 +209,7 @@ func u32(b []byte) uint32 {
 // source is a source of byte data. Conceptually, it is like an io.ReaderAt,
 // except that a common source of SFNT font data is in-memory instead of
 // on-disk: a []byte containing the entire data, either as a global variable
-// (e.g. "goregular.TTF") or the result of an ioutil.ReadFile call. In such
+// (e.g. "goregular.TTF") or the result of an os.ReadFile call. In such
 // cases, as an optimization, we skip the io.Reader / io.ReaderAt model of
 // copying from the source to a caller-supplied buffer, and instead provide
 // direct access to the underlying []byte data.

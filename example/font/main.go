@@ -18,7 +18,6 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -52,19 +51,19 @@ func main() {
 	}
 	var face font.Face
 	if strings.HasSuffix(*fontFlag, ".font") {
-		fontData, err := ioutil.ReadFile(*fontFlag)
+		fontData, err := os.ReadFile(*fontFlag)
 		if err != nil {
 			log.Fatal(err)
 		}
 		dir := filepath.Dir(*fontFlag)
 		face, err = plan9font.ParseFont(fontData, func(name string) ([]byte, error) {
-			return ioutil.ReadFile(filepath.Join(dir, filepath.FromSlash(name)))
+			return os.ReadFile(filepath.Join(dir, filepath.FromSlash(name)))
 		})
 		if err != nil {
 			log.Fatal(err)
 		}
 	} else {
-		fontData, err := ioutil.ReadFile(*fontFlag)
+		fontData, err := os.ReadFile(*fontFlag)
 		if err != nil {
 			log.Fatal(err)
 		}

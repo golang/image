@@ -7,7 +7,7 @@ package tiff
 import (
 	"bytes"
 	"image"
-	"io/ioutil"
+	"io"
 	"os"
 	"testing"
 )
@@ -94,7 +94,7 @@ func benchmarkEncode(b *testing.B, name string, pixelSize int) {
 	b.SetBytes(int64(s.X * s.Y * pixelSize))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		Encode(ioutil.Discard, img, nil)
+		Encode(io.Discard, img, nil)
 	}
 }
 

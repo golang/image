@@ -10,7 +10,6 @@ import (
 	"image"
 	"image/png"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -301,7 +300,7 @@ func testRead(t *testing.T, fileName string, sf SubFormat, align, invert, trunca
 			t.Fatalf("Open: %v", err)
 		}
 		defer f.Close()
-		gotBytes, err := ioutil.ReadAll(NewReader(f, MSB, sf, width, height, opts))
+		gotBytes, err := io.ReadAll(NewReader(f, MSB, sf, width, height, opts))
 		if err != nil {
 			t.Fatalf("ReadAll: %v", err)
 		}
@@ -382,7 +381,7 @@ func testRead(t *testing.T, fileName string, sf SubFormat, align, invert, trunca
 			t.Fatalf("Open: %v", err)
 		}
 		defer f.Close()
-		adhBytes, err := ioutil.ReadAll(NewReader(f, MSB, sf, width, AutoDetectHeight, opts))
+		adhBytes, err := io.ReadAll(NewReader(f, MSB, sf, width, AutoDetectHeight, opts))
 		if err != nil {
 			t.Fatalf("ReadAll: %v", err)
 		}

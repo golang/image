@@ -24,7 +24,6 @@ go test golang.org/x/image/font/sfnt -test.run=BulkKern -args -bulk -bulkFontDir
 
 import (
 	"flag"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -78,7 +77,7 @@ func TestBulkKern(t *testing.T) {
 func testFontKerning(fname string) func(*testing.T) {
 	return func(t *testing.T) {
 		t.Parallel()
-		b, err := ioutil.ReadFile(fname)
+		b, err := os.ReadFile(fname)
 		if err != nil {
 			t.Fatal(err)
 		}

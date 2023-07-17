@@ -14,7 +14,6 @@ import (
 	"image"
 	"image/color"
 	"io"
-	"io/ioutil"
 	"math"
 
 	"golang.org/x/image/ccitt"
@@ -708,15 +707,15 @@ func Decode(r io.Reader) (img image.Image, err error) {
 				inv := d.firstVal(tPhotometricInterpretation) == pWhiteIsZero
 				order := ccittFillOrder(d.firstVal(tFillOrder))
 				r := ccitt.NewReader(io.NewSectionReader(d.r, offset, n), order, ccitt.Group3, blkW, blkH, &ccitt.Options{Invert: inv, Align: false})
-				d.buf, err = ioutil.ReadAll(r)
+				d.buf, err = io.ReadAll(r)
 			case cG4:
 				inv := d.firstVal(tPhotometricInterpretation) == pWhiteIsZero
 				order := ccittFillOrder(d.firstVal(tFillOrder))
 				r := ccitt.NewReader(io.NewSectionReader(d.r, offset, n), order, ccitt.Group4, blkW, blkH, &ccitt.Options{Invert: inv, Align: false})
-				d.buf, err = ioutil.ReadAll(r)
+				d.buf, err = io.ReadAll(r)
 			case cLZW:
 				r := lzw.NewReader(io.NewSectionReader(d.r, offset, n), lzw.MSB, 8)
-				d.buf, err = ioutil.ReadAll(r)
+				d.buf, err = io.ReadAll(r)
 				r.Close()
 			case cDeflate, cDeflateOld:
 				var r io.ReadCloser
@@ -724,7 +723,7 @@ func Decode(r io.Reader) (img image.Image, err error) {
 				if err != nil {
 					return nil, err
 				}
-				d.buf, err = ioutil.ReadAll(r)
+				d.buf, err = io.ReadAll(r)
 				r.Close()
 			case cPackBits:
 				d.buf, err = unpackBits(io.NewSectionReader(d.r, offset, n))

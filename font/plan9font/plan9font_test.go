@@ -6,7 +6,7 @@ package plan9font
 
 import (
 	"image"
-	"io/ioutil"
+	"os"
 	"path"
 	"path/filepath"
 	"testing"
@@ -16,7 +16,7 @@ import (
 
 func TestMetrics(t *testing.T) {
 	readFile := func(name string) ([]byte, error) {
-		return ioutil.ReadFile(filepath.FromSlash(path.Join("../testdata/fixed", name)))
+		return os.ReadFile(filepath.FromSlash(path.Join("../testdata/fixed", name)))
 	}
 	data, err := readFile("unicode.7x13.font")
 	if err != nil {
@@ -45,7 +45,7 @@ func TestMetrics(t *testing.T) {
 }
 
 func BenchmarkParseSubfont(b *testing.B) {
-	subfontData, err := ioutil.ReadFile(filepath.FromSlash("../testdata/fixed/7x13.0000"))
+	subfontData, err := os.ReadFile(filepath.FromSlash("../testdata/fixed/7x13.0000"))
 	if err != nil {
 		b.Fatal(err)
 	}

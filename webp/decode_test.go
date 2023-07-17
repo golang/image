@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"image"
 	"image/png"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -272,7 +271,7 @@ func TestDecodePartitionTooLarge(t *testing.T) {
 }
 
 func benchmarkDecode(b *testing.B, filename string) {
-	data, err := ioutil.ReadFile("../testdata/blue-purple-pink-large." + filename + ".webp")
+	data, err := os.ReadFile("../testdata/blue-purple-pink-large." + filename + ".webp")
 	if err != nil {
 		b.Fatal(err)
 	}

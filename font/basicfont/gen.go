@@ -14,8 +14,8 @@ import (
 	"go/format"
 	"image"
 	"image/draw"
-	"io/ioutil"
 	"log"
+	"os"
 	"path"
 	"path/filepath"
 
@@ -34,7 +34,7 @@ func main() {
 	const width, height, ascent = 7 - 1, 13, 11
 
 	readFile := func(name string) ([]byte, error) {
-		return ioutil.ReadFile(filepath.FromSlash(path.Join("../testdata/fixed", name)))
+		return os.ReadFile(filepath.FromSlash(path.Join("../testdata/fixed", name)))
 	}
 	fontData, err := readFile("unicode.7x13.font")
 	if err != nil {
@@ -98,8 +98,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("format.Source: %v", err)
 	}
-	if err := ioutil.WriteFile("data.go", fmted, 0644); err != nil {
-		log.Fatalf("ioutil.WriteFile: %v", err)
+	if err := os.WriteFile("data.go", fmted, 0644); err != nil {
+		log.Fatalf("os.WriteFile: %v", err)
 	}
 }
 
