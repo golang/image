@@ -12,7 +12,6 @@ import (
 	"flag"
 	"fmt"
 	"go/format"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -45,7 +44,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := ioutil.WriteFile("impl.go", out, 0660); err != nil {
+	if err := os.WriteFile("impl.go", out, 0660); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -62,7 +61,9 @@ var (
 		{"*image.RGBA", "*image.NRGBA"},
 		{"*image.RGBA", "*image.RGBA"},
 		{"*image.RGBA", "*image.YCbCr"},
+		{"*image.RGBA", "image.RGBA64Image"},
 		{"*image.RGBA", "image.Image"},
+		{"RGBA64Image", "image.RGBA64Image"},
 		{"Image", "image.Image"},
 	}
 	dTypes, sTypes  []string
@@ -234,13 +235,21 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			return ";"
 		case "Image":
 			s := ""
-			if d.sType == "image.Image" {
+			if d.sType == "image.Image" || d.sType == "image.RGBA64Image" {
 				s = "srcMask, smp := opts.SrcMask, opts.SrcMaskP\n"
 			}
 			return s +
 				"dstMask, dmp := opts.DstMask, opts.DstMaskP\n" +
 				"dstColorRGBA64 := &color.RGBA64{}\n" +
 				"dstColor := color.Color(dstColorRGBA64)"
+		case "RGBA64Image":
+			s := ""
+			if d.sType == "image.Image" || d.sType == "image.RGBA64Image" {
+				s = "srcMask, smp := opts.SrcMask, opts.SrcMaskP\n"
+			}
+			return s +
+				"dstMask, dmp := opts.DstMask, opts.DstMaskP\n" +
+				"dstColorRGBA64 := color.RGBA64{}\n"
 		}
 
 	case "preInner":
@@ -255,7 +264,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		switch d.sType {
 		default:
 			return ";"
-		case "image.Image":
+		case "image.Image", "image.RGBA64Image":
 			return "srcMask, smp := opts.SrcMask, opts.SrcMaskP"
 		}
 
@@ -334,6 +343,10 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				"$0g := uint32($1g)\n"+
 				"$0b := uint32($1b)",
 			)
+		case "image.RGBA64Image":
+			return argf(args, ""+
+				"$0 := color.RGBA64{uint16($1r), uint16($1g), uint16($1b), uint16($1a)}",
+			)
 		}
 
 	case "outputu":
@@ -364,14 +377,62 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 					"dstColorRGBA64.A = uint16(qa*$2a1/0xffff + $2a)\n"+
 					"dst.Set($0, $1, dstColor)",
 				)
+			case "RGBA64Image":
+				switch d.sType {
+				default:
+					return argf(args, ""+
+						"q := dst.RGBA64At($0, $1)\n"+
+						"if dstMask != nil {\n"+
+						"	_, _, _, ma := dstMask.At(dmp.X + $0, dmp.Y + $1).RGBA()\n"+
+						"	$2r = $2r * ma / 0xffff\n"+
+						"	$2g = $2g * ma / 0xffff\n"+
+						"	$2b = $2b * ma / 0xffff\n"+
+						"	$2a = $2a * ma / 0xffff\n"+
+						"}\n"+
+						"$2a1 := 0xffff - $2a\n"+
+						"dstColorRGBA64.R = uint16(uint32(q.R)*$2a1/0xffff + $2r)\n"+
+						"dstColorRGBA64.G = uint16(uint32(q.G)*$2a1/0xffff + $2g)\n"+
+						"dstColorRGBA64.B = uint16(uint32(q.B)*$2a1/0xffff + $2b)\n"+
+						"dstColorRGBA64.A = uint16(uint32(q.A)*$2a1/0xffff + $2a)\n"+
+						"dst.Set($0, $1, dstColorRGBA64)",
+					)
+				case "image.RGBA64Image":
+					return argf(args, ""+
+						"q := dst.RGBA64At($0, $1)\n"+
+						"if dstMask != nil {\n"+
+						"	_, _, _, ma := dstMask.At(dmp.X + $0, dmp.Y + $1).RGBA()\n"+
+						"	$2.R = uint16(uint32($2.R) * ma / 0xffff)\n"+
+						"	$2.G = uint16(uint32($2.G) * ma / 0xffff)\n"+
+						"	$2.B = uint16(uint32($2.B) * ma / 0xffff)\n"+
+						"	$2.A = uint16(uint32($2.A) * ma / 0xffff)\n"+
+						"}\n"+
+						"$2a1 := 0xffff - uint32($2.A)\n"+
+						"dstColorRGBA64.R = uint16(uint32(q.R)*$2a1/0xffff + uint32($2.R))\n"+
+						"dstColorRGBA64.G = uint16(uint32(q.G)*$2a1/0xffff + uint32($2.G))\n"+
+						"dstColorRGBA64.B = uint16(uint32(q.B)*$2a1/0xffff + uint32($2.B))\n"+
+						"dstColorRGBA64.A = uint16(uint32(q.A)*$2a1/0xffff + uint32($2.A))\n"+
+						"dst.Set($0, $1, dstColorRGBA64)",
+					)
+				}
 			case "*image.RGBA":
-				return argf(args, ""+
-					"$2a1 := (0xffff - $2a) * 0x101\n"+
-					"dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*$2a1/0xffff + $2r) >> 8)\n"+
-					"dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*$2a1/0xffff + $2g) >> 8)\n"+
-					"dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*$2a1/0xffff + $2b) >> 8)\n"+
-					"dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*$2a1/0xffff + $2a) >> 8)",
-				)
+				switch d.sType {
+				default:
+					return argf(args, ""+
+						"$2a1 := (0xffff - $2a) * 0x101\n"+
+						"dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*$2a1/0xffff + $2r) >> 8)\n"+
+						"dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*$2a1/0xffff + $2g) >> 8)\n"+
+						"dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*$2a1/0xffff + $2b) >> 8)\n"+
+						"dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*$2a1/0xffff + $2a) >> 8)",
+					)
+				case "image.RGBA64Image":
+					return argf(args, ""+
+						"$2a1 := (0xffff - uint32($2.A)) * 0x101\n"+
+						"dst.Pix[d+0] = uint8((uint32(dst.Pix[d+0])*$2a1/0xffff + uint32($2.R)) >> 8)\n"+
+						"dst.Pix[d+1] = uint8((uint32(dst.Pix[d+1])*$2a1/0xffff + uint32($2.G)) >> 8)\n"+
+						"dst.Pix[d+2] = uint8((uint32(dst.Pix[d+2])*$2a1/0xffff + uint32($2.B)) >> 8)\n"+
+						"dst.Pix[d+3] = uint8((uint32(dst.Pix[d+3])*$2a1/0xffff + uint32($2.A)) >> 8)",
+					)
+				}
 			}
 
 		case "Src":
@@ -401,6 +462,51 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 					"	dst.Set($0, $1, dstColor)\n"+
 					"}",
 				)
+			case "RGBA64Image":
+				switch d.sType {
+				default:
+					return argf(args, ""+
+						"if dstMask != nil {\n"+
+						"	q := dst.RGBA64At($0, $1)\n"+
+						"	_, _, _, ma := dstMask.At(dmp.X + $0, dmp.Y + $1).RGBA()\n"+
+						"	pr = pr * ma / 0xffff\n"+
+						"	pg = pg * ma / 0xffff\n"+
+						"	pb = pb * ma / 0xffff\n"+
+						"	pa = pa * ma / 0xffff\n"+
+						"	$2a1 := 0xffff - ma\n"+ // Note that this is ma, not $2a.
+						"	dstColorRGBA64.R = uint16(uint32(q.R)*$2a1/0xffff + $2r)\n"+
+						"	dstColorRGBA64.G = uint16(uint32(q.G)*$2a1/0xffff + $2g)\n"+
+						"	dstColorRGBA64.B = uint16(uint32(q.B)*$2a1/0xffff + $2b)\n"+
+						"	dstColorRGBA64.A = uint16(uint32(q.A)*$2a1/0xffff + $2a)\n"+
+						"	dst.Set($0, $1, dstColorRGBA64)\n"+
+						"} else {\n"+
+						"	dstColorRGBA64.R = uint16($2r)\n"+
+						"	dstColorRGBA64.G = uint16($2g)\n"+
+						"	dstColorRGBA64.B = uint16($2b)\n"+
+						"	dstColorRGBA64.A = uint16($2a)\n"+
+						"	dst.Set($0, $1, dstColorRGBA64)\n"+
+						"}",
+					)
+				case "image.RGBA64Image":
+					return argf(args, ""+
+						"if dstMask != nil {\n"+
+						"	q := dst.RGBA64At($0, $1)\n"+
+						"	_, _, _, ma := dstMask.At(dmp.X + $0, dmp.Y + $1).RGBA()\n"+
+						"	p.R = uint16(uint32(p.R) * ma / 0xffff)\n"+
+						"	p.G = uint16(uint32(p.G) * ma / 0xffff)\n"+
+						"	p.B = uint16(uint32(p.B) * ma / 0xffff)\n"+
+						"	p.A = uint16(uint32(p.A) * ma / 0xffff)\n"+
+						"	$2a1 := 0xffff - ma\n"+ // Note that this is ma, not $2a.
+						"	dstColorRGBA64.R = uint16(uint32(q.R)*$2a1/0xffff + uint32($2.R))\n"+
+						"	dstColorRGBA64.G = uint16(uint32(q.G)*$2a1/0xffff + uint32($2.G))\n"+
+						"	dstColorRGBA64.B = uint16(uint32(q.B)*$2a1/0xffff + uint32($2.B))\n"+
+						"	dstColorRGBA64.A = uint16(uint32(q.A)*$2a1/0xffff + uint32($2.A))\n"+
+						"	dst.Set($0, $1, dstColorRGBA64)\n"+
+						"} else {\n"+
+						"	dst.Set($0, $1, $2)\n"+
+						"}",
+					)
+				}
 			case "*image.RGBA":
 				switch d.sType {
 				default:
@@ -424,6 +530,13 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 						"dst.Pix[d+1] = uint8($2g >> 8)\n"+
 						"dst.Pix[d+2] = uint8($2b >> 8)\n"+
 						"dst.Pix[d+3] = 0xff",
+					)
+				case "image.RGBA64Image":
+					return argf(args, ""+
+						"dst.Pix[d+0] = uint8($2.R >> 8)\n"+
+						"dst.Pix[d+1] = uint8($2.G >> 8)\n"+
+						"dst.Pix[d+2] = uint8($2.B >> 8)\n"+
+						"dst.Pix[d+3] = uint8($2.A >> 8)",
 					)
 				}
 			}
@@ -461,6 +574,27 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 					"dstColorRGBA64.B = uint16(qb*$3a1/0xffff + $3b0)\n"+
 					"dstColorRGBA64.A = uint16(qa*$3a1/0xffff + $3a0)\n"+
 					"dst.Set($0, $1, dstColor)",
+				)
+			case "RGBA64Image":
+				ret = argf(args, ""+
+					"q := dst.RGBA64At($0, $1)\n"+
+					"$3r0 := uint32($2($3r * $4))\n"+
+					"$3g0 := uint32($2($3g * $4))\n"+
+					"$3b0 := uint32($2($3b * $4))\n"+
+					"$3a0 := uint32($2($3a * $4))\n"+
+					"if dstMask != nil {\n"+
+					"	_, _, _, ma := dstMask.At(dmp.X + $0, dmp.Y + $1).RGBA()\n"+
+					"	$3r0 = $3r0 * ma / 0xffff\n"+
+					"	$3g0 = $3g0 * ma / 0xffff\n"+
+					"	$3b0 = $3b0 * ma / 0xffff\n"+
+					"	$3a0 = $3a0 * ma / 0xffff\n"+
+					"}\n"+
+					"$3a1 := 0xffff - $3a0\n"+
+					"dstColorRGBA64.R = uint16(uint32(q.R)*$3a1/0xffff + $3r0)\n"+
+					"dstColorRGBA64.G = uint16(uint32(q.G)*$3a1/0xffff + $3g0)\n"+
+					"dstColorRGBA64.B = uint16(uint32(q.B)*$3a1/0xffff + $3b0)\n"+
+					"dstColorRGBA64.A = uint16(uint32(q.A)*$3a1/0xffff + $3a0)\n"+
+					"dst.SetRGBA64($0, $1, dstColorRGBA64)",
 				)
 			case "*image.RGBA":
 				ret = argf(args, ""+
@@ -501,6 +635,29 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 					"	dstColorRGBA64.B = $2($3b * $4)\n"+
 					"	dstColorRGBA64.A = $2($3a * $4)\n"+
 					"	dst.Set($0, $1, dstColor)\n"+
+					"}",
+				)
+			case "RGBA64Image":
+				ret = argf(args, ""+
+					"if dstMask != nil {\n"+
+					"	q := dst.RGBA64At($0, $1)\n"+
+					"	_, _, _, ma := dstMask.At(dmp.X + $0, dmp.Y + $1).RGBA()\n"+
+					"	pr := uint32($2($3r * $4)) * ma / 0xffff\n"+
+					"	pg := uint32($2($3g * $4)) * ma / 0xffff\n"+
+					"	pb := uint32($2($3b * $4)) * ma / 0xffff\n"+
+					"	pa := uint32($2($3a * $4)) * ma / 0xffff\n"+
+					"	pa1 := 0xffff - ma\n"+ // Note that this is ma, not pa.
+					"	dstColorRGBA64.R = uint16(uint32(q.R)*pa1/0xffff + pr)\n"+
+					"	dstColorRGBA64.G = uint16(uint32(q.G)*pa1/0xffff + pg)\n"+
+					"	dstColorRGBA64.B = uint16(uint32(q.B)*pa1/0xffff + pb)\n"+
+					"	dstColorRGBA64.A = uint16(uint32(q.A)*pa1/0xffff + pa)\n"+
+					"	dst.SetRGBA64($0, $1, dstColorRGBA64)\n"+
+					"} else {\n"+
+					"	dstColorRGBA64.R = $2($3r * $4)\n"+
+					"	dstColorRGBA64.G = $2($3g * $4)\n"+
+					"	dstColorRGBA64.B = $2($3b * $4)\n"+
+					"	dstColorRGBA64.A = $2($3a * $4)\n"+
+					"	dst.SetRGBA64($0, $1, dstColorRGBA64)\n"+
 					"}",
 				)
 			case "*image.RGBA":
@@ -560,7 +717,7 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 				"%sr%s, %sg%s, %sb%s, %sa%s := src.At(%s, %s).RGBA()\n",
 				lhs, tmp, lhs, tmp, lhs, tmp, lhs, tmp, args[0], args[1],
 			)
-			if d.dType == "" || d.dType == "Image" {
+			if d.dType == "" || d.dType == "Image" || d.dType == "RGBA64Image" {
 				fmt.Fprintf(buf, ""+
 					"if srcMask != nil {\n"+
 					"	_, _, _, ma := srcMask.At(smp.X+%s, smp.Y+%s).RGBA()\n"+
@@ -574,6 +731,24 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 					lhs, tmp, lhs, tmp,
 					lhs, tmp, lhs, tmp,
 					lhs, tmp, lhs, tmp,
+				)
+			}
+		case "image.RGBA64Image":
+			fmt.Fprintf(buf, ""+
+				"%s%s := src.RGBA64At(%s, %s)\n",
+				lhs, tmp, args[0], args[1],
+			)
+			if d.dType == "" || d.dType == "Image" || d.dType == "RGBA64Image" {
+				fmt.Fprintf(buf, ""+
+					"if srcMask != nil {\n"+
+					"	_, _, _, ma := srcMask.At(smp.X+%[1]s, smp.Y+%[2]s).RGBA()\n"+
+					"	%[3]s%[4]s.R = uint16(uint32(%[3]s%[4]s.R) * ma / 0xffff)\n"+
+					"	%[3]s%[4]s.G = uint16(uint32(%[3]s%[4]s.G) * ma / 0xffff)\n"+
+					"	%[3]s%[4]s.B = uint16(uint32(%[3]s%[4]s.B) * ma / 0xffff)\n"+
+					"	%[3]s%[4]s.A = uint16(uint32(%[3]s%[4]s.A) * ma / 0xffff)\n"+
+					"}\n",
+					args[0], args[1],
+					lhs, tmp,
 				)
 			}
 		case "*image.Gray":
@@ -645,6 +820,14 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 					"%sb %s float64(%sbu)%s\n",
 					lhs, eqOp, lhs, extra,
 					lhs, eqOp, lhs, extra,
+					lhs, eqOp, lhs, extra,
+				)
+			case "image.RGBA64Image":
+				fmt.Fprintf(buf, ""+
+					"%[1]sr %[2]s float64(%[3]su.R)%[4]s\n"+
+					"%[1]sg %[2]s float64(%[3]su.G)%[4]s\n"+
+					"%[1]sb %[2]s float64(%[3]su.B)%[4]s\n"+
+					"%[1]sa %[2]s float64(%[3]su.A)%[4]s\n",
 					lhs, eqOp, lhs, extra,
 				)
 			}
