@@ -3,7 +3,6 @@
 // license that can be found in the LICENSE file.
 
 //go:build ignore
-// +build ignore
 
 // This program generates table.go from
 // https://www.w3.org/TR/SVG11/types.html#ColorKeywords
