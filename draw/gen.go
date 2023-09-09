@@ -719,17 +719,14 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			if d.dType == "" || d.dType == "Image" || d.dType == "RGBA64Image" {
 				fmt.Fprintf(buf, ""+
 					"if srcMask != nil {\n"+
-					"	_, _, _, ma := srcMask.At(smp.X+%s, smp.Y+%s).RGBA()\n"+
-					"	%sr%s = %sr%s * ma / 0xffff\n"+
-					"	%sg%s = %sg%s * ma / 0xffff\n"+
-					"	%sb%s = %sb%s * ma / 0xffff\n"+
-					"	%sa%s = %sa%s * ma / 0xffff\n"+
+					"	_, _, _, ma := srcMask.At(smp.X+%[1]s, smp.Y+%[2]s).RGBA()\n"+
+					"	%[3]sr%[4]s = %[3]sr%[4]s * ma / 0xffff\n"+
+					"	%[3]sg%[4]s = %[3]sg%[4]s * ma / 0xffff\n"+
+					"	%[3]sb%[4]s = %[3]sb%[4]s * ma / 0xffff\n"+
+					"	%[3]sa%[4]s = %[3]sa%[4]s * ma / 0xffff\n"+
 					"}\n",
 					args[0], args[1],
-					lhs, tmp, lhs, tmp,
-					lhs, tmp, lhs, tmp,
-					lhs, tmp, lhs, tmp,
-					lhs, tmp, lhs, tmp,
+					lhs, tmp,
 				)
 			}
 		case "image.RGBA64Image":
@@ -752,44 +749,35 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			}
 		case "*image.Gray":
 			fmt.Fprintf(buf, ""+
-				"%si := %s\n"+
-				"%sr%s := uint32(src.Pix[%si]) * 0x101\n",
-				lhs, pixOffset("src", args[0], args[1], "", "*src.Stride"),
-				lhs, tmp, lhs,
+				"%[1]si := %[3]s\n"+
+				"%[1]sr%[2]s := uint32(src.Pix[%[1]si]) * 0x101\n",
+				lhs, tmp, pixOffset("src", args[0], args[1], "", "*src.Stride"),
 			)
 		case "*image.NRGBA":
 			fmt.Fprintf(buf, ""+
-				"%si := %s\n"+
-				"%sa%s := uint32(src.Pix[%si+3]) * 0x101\n"+
-				"%sr%s := uint32(src.Pix[%si+0]) * %sa%s / 0xff\n"+
-				"%sg%s := uint32(src.Pix[%si+1]) * %sa%s / 0xff\n"+
-				"%sb%s := uint32(src.Pix[%si+2]) * %sa%s / 0xff\n",
-				lhs, pixOffset("src", args[0], args[1], "*4", "*src.Stride"),
-				lhs, tmp, lhs,
-				lhs, tmp, lhs, lhs, tmp,
-				lhs, tmp, lhs, lhs, tmp,
-				lhs, tmp, lhs, lhs, tmp,
+				"%[1]si := %[3]s\n"+
+				"%[1]sa%[2]s := uint32(src.Pix[%[1]si+3]) * 0x101\n"+
+				"%[1]sr%[2]s := uint32(src.Pix[%[1]si+0]) * %[1]sa%s / 0xff\n"+
+				"%[1]sg%[2]s := uint32(src.Pix[%[1]si+1]) * %[1]sa%s / 0xff\n"+
+				"%[1]sb%[2]s := uint32(src.Pix[%[1]si+2]) * %[1]sa%s / 0xff\n",
+				lhs, tmp, pixOffset("src", args[0], args[1], "*4", "*src.Stride"),
 			)
 		case "*image.RGBA":
 			fmt.Fprintf(buf, ""+
-				"%si := %s\n"+
-				"%sr%s := uint32(src.Pix[%si+0]) * 0x101\n"+
-				"%sg%s := uint32(src.Pix[%si+1]) * 0x101\n"+
-				"%sb%s := uint32(src.Pix[%si+2]) * 0x101\n"+
-				"%sa%s := uint32(src.Pix[%si+3]) * 0x101\n",
-				lhs, pixOffset("src", args[0], args[1], "*4", "*src.Stride"),
-				lhs, tmp, lhs,
-				lhs, tmp, lhs,
-				lhs, tmp, lhs,
-				lhs, tmp, lhs,
+				"%[1]si := %[3]s\n"+
+				"%[1]sr%[2]s := uint32(src.Pix[%[1]si+0]) * 0x101\n"+
+				"%[1]sg%[2]s := uint32(src.Pix[%[1]si+1]) * 0x101\n"+
+				"%[1]sb%[2]s := uint32(src.Pix[%[1]si+2]) * 0x101\n"+
+				"%[1]sa%[2]s := uint32(src.Pix[%[1]si+3]) * 0x101\n",
+				lhs, tmp, pixOffset("src", args[0], args[1], "*4", "*src.Stride"),
 			)
 		case "*image.YCbCr":
 			fmt.Fprintf(buf, ""+
-				"%si := %s\n"+
-				"%sj := %s\n"+
-				"%s\n",
+				"%[1]si := %[2]s\n"+
+				"%[1]sj := %[3]s\n"+
+				"%[4]s\n",
 				lhs, pixOffset("src", args[0], args[1], "", "*src.YStride"),
-				lhs, cOffset(args[0], args[1], d.sratio),
+				cOffset(args[0], args[1], d.sratio),
 				ycbcrToRGB(lhs, tmp),
 			)
 		}
@@ -798,36 +786,31 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 			switch d.sType {
 			default:
 				fmt.Fprintf(buf, ""+
-					"%sr %s float64(%sru)%s\n"+
-					"%sg %s float64(%sgu)%s\n"+
-					"%sb %s float64(%sbu)%s\n"+
-					"%sa %s float64(%sau)%s\n",
-					lhs, eqOp, lhs, extra,
-					lhs, eqOp, lhs, extra,
-					lhs, eqOp, lhs, extra,
-					lhs, eqOp, lhs, extra,
+					"%[1]sr %[2]s float64(%[1]sru)%[3]s\n"+
+					"%[1]sg %[2]s float64(%[1]sgu)%[3]s\n"+
+					"%[1]sb %[2]s float64(%[1]sbu)%[3]s\n"+
+					"%[1]sa %[2]s float64(%[1]sau)%[3]s\n",
+					lhs, eqOp, extra,
 				)
 			case "*image.Gray":
 				fmt.Fprintf(buf, ""+
-					"%sr %s float64(%sru)%s\n",
-					lhs, eqOp, lhs, extra,
+					"%[1]sr %[2]s float64(%[1]sru)%[3]s\n",
+					lhs, eqOp, extra,
 				)
 			case "*image.YCbCr":
 				fmt.Fprintf(buf, ""+
-					"%sr %s float64(%sru)%s\n"+
-					"%sg %s float64(%sgu)%s\n"+
-					"%sb %s float64(%sbu)%s\n",
-					lhs, eqOp, lhs, extra,
-					lhs, eqOp, lhs, extra,
-					lhs, eqOp, lhs, extra,
+					"%[1]sr %[2]s float64(%[1]sru)%[3]s\n"+
+					"%[1]sg %[2]s float64(%[1]sgu)%[3]s\n"+
+					"%[1]sb %[2]s float64(%[1]sbu)%[3]s\n",
+					lhs, eqOp, extra,
 				)
 			case "image.RGBA64Image":
 				fmt.Fprintf(buf, ""+
-					"%[1]sr %[2]s float64(%[3]su.R)%[4]s\n"+
-					"%[1]sg %[2]s float64(%[3]su.G)%[4]s\n"+
-					"%[1]sb %[2]s float64(%[3]su.B)%[4]s\n"+
-					"%[1]sa %[2]s float64(%[3]su.A)%[4]s\n",
-					lhs, eqOp, lhs, extra,
+					"%[1]sr %[2]s float64(%[1]su.R)%[3]s\n"+
+					"%[1]sg %[2]s float64(%[1]su.G)%[3]s\n"+
+					"%[1]sb %[2]s float64(%[1]su.B)%[3]s\n"+
+					"%[1]sa %[2]s float64(%[1]su.A)%[3]s\n",
+					lhs, eqOp, extra,
 				)
 			}
 		}
