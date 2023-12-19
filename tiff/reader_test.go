@@ -414,6 +414,36 @@ func TestLargeIFDEntry(t *testing.T) {
 	}
 }
 
+// TestGetResolution tests decoding an image that has XResolution, YResolution and PageNumber tags.
+// Issue 20742
+func TestGetResolution(t *testing.T) {
+	r, err := ioutil.ReadFile(testdataDir + "gopherhat.tiff")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := DecodeTIFFInfo(bytes.NewReader(r))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if info.XResolution != 204 {
+		t.Fatalf("X resolution must be 204 but %d", info.XResolution)
+	}
+
+	if info.YResolution != 192 {
+		t.Fatalf("Y resolution must be 192 but %d", info.YResolution)
+	}
+
+	if info.PageCount != 1 {
+		t.Fatalf("PageCount must be 1 but %d", info.PageCount)
+	}
+
+	if info.UnitResolution != Inch {
+		t.Fatalf("UnitResolution must be Inch but %d", info.UnitResolution)
+	}
+}
+
 // benchmarkDecode benchmarks the decoding of an image.
 func benchmarkDecode(b *testing.B, filename string) {
 	b.Helper()
