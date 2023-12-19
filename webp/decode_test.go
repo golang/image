@@ -271,6 +271,14 @@ func TestDecodePartitionTooLarge(t *testing.T) {
 	}
 }
 
+func TestDuplicateVP8X(t *testing.T) {
+	data := []byte{'R', 'I', 'F', 'F', 49, 0, 0, 0, 'W', 'E', 'B', 'P', 'V', 'P', '8', 'X', 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'V', 'P', '8', 'X', 10, 0, 0, 0, 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	_, err := Decode(bytes.NewReader(data))
+	if err != errInvalidFormat {
+		t.Fatalf("unexpected error: want %q, got %q", errInvalidFormat, err)
+	}
+}
+
 func benchmarkDecode(b *testing.B, filename string) {
 	data, err := ioutil.ReadFile("../testdata/blue-purple-pink-large." + filename + ".webp")
 	if err != nil {
