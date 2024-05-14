@@ -539,9 +539,7 @@ func newDecoder(r io.Reader) (*decoder, error) {
 			}
 		case 4:
 			switch d.firstVal(tExtraSamples) {
-			case 0:
-				fallthrough
-			case 1:
+			case 0, 1:
 				d.mode = mRGBA
 				if d.bpp == 16 {
 					d.config.ColorModel = color.RGBA64Model
