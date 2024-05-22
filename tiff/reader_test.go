@@ -414,6 +414,16 @@ func TestLargeIFDEntry(t *testing.T) {
 	}
 }
 
+func TestInvalidPaletteRef(t *testing.T) {
+	contents, err := ioutil.ReadFile(testdataDir + "invalid-palette-ref.tiff")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Decode(bytes.NewReader(contents)); err == nil {
+		t.Fatal("Decode with invalid palette index: got nil error, want non-nil")
+	}
+}
+
 // benchmarkDecode benchmarks the decoding of an image.
 func benchmarkDecode(b *testing.B, filename string) {
 	b.Helper()
