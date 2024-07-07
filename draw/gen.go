@@ -283,20 +283,20 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		switch d.sType {
 		default:
 			return argf(args, ""+
-				"$3r = $0*$1r + $2*$3r\n"+
-				"$3g = $0*$1g + $2*$3g\n"+
-				"$3b = $0*$1b + $2*$3b\n"+
-				"$3a = $0*$1a + $2*$3a",
+				"$3r = float64($0*$1r) + float64($2*$3r)\n"+
+				"$3g = float64($0*$1g) + float64($2*$3g)\n"+
+				"$3b = float64($0*$1b) + float64($2*$3b)\n"+
+				"$3a = float64($0*$1a) + float64($2*$3a)",
 			)
 		case "*image.Gray":
 			return argf(args, ""+
-				"$3r = $0*$1r + $2*$3r",
+				"$3r = float64($0*$1r) + float64($2*$3r)",
 			)
 		case "*image.YCbCr":
 			return argf(args, ""+
-				"$3r = $0*$1r + $2*$3r\n"+
-				"$3g = $0*$1g + $2*$3g\n"+
-				"$3b = $0*$1b + $2*$3b",
+				"$3r = float64($0*$1r) + float64($2*$3r)\n"+
+				"$3g = float64($0*$1g) + float64($2*$3g)\n"+
+				"$3b = float64($0*$1b) + float64($2*$3b)",
 			)
 		}
 
@@ -783,34 +783,39 @@ func expnDollar(prefix, dollar, suffix string, d *data) string {
 		}
 
 		if dollar == "srcf" {
+			avoidFMA0, avoidFMA1 := "", "" // FMA is Fused Multiply Add.
+			if extra != "" {
+				avoidFMA0, avoidFMA1 = "float64(", ")"
+			}
+
 			switch d.sType {
 			default:
 				fmt.Fprintf(buf, ""+
-					"%[1]sr %[2]s float64(%[1]sru)%[3]s\n"+
-					"%[1]sg %[2]s float64(%[1]sgu)%[3]s\n"+
-					"%[1]sb %[2]s float64(%[1]sbu)%[3]s\n"+
-					"%[1]sa %[2]s float64(%[1]sau)%[3]s\n",
-					lhs, eqOp, extra,
+					"%[1]sr %[2]s %[4]sfloat64(%[1]sru)%[3]s%[5]s\n"+
+					"%[1]sg %[2]s %[4]sfloat64(%[1]sgu)%[3]s%[5]s\n"+
+					"%[1]sb %[2]s %[4]sfloat64(%[1]sbu)%[3]s%[5]s\n"+
+					"%[1]sa %[2]s %[4]sfloat64(%[1]sau)%[3]s%[5]s\n",
+					lhs, eqOp, extra, avoidFMA0, avoidFMA1,
 				)
 			case "*image.Gray":
 				fmt.Fprintf(buf, ""+
-					"%[1]sr %[2]s float64(%[1]sru)%[3]s\n",
-					lhs, eqOp, extra,
+					"%[1]sr %[2]s %[4]sfloat64(%[1]sru)%[3]s%[5]s\n",
+					lhs, eqOp, extra, avoidFMA0, avoidFMA1,
 				)
 			case "*image.YCbCr":
 				fmt.Fprintf(buf, ""+
-					"%[1]sr %[2]s float64(%[1]sru)%[3]s\n"+
-					"%[1]sg %[2]s float64(%[1]sgu)%[3]s\n"+
-					"%[1]sb %[2]s float64(%[1]sbu)%[3]s\n",
-					lhs, eqOp, extra,
+					"%[1]sr %[2]s %[4]sfloat64(%[1]sru)%[3]s%[5]s\n"+
+					"%[1]sg %[2]s %[4]sfloat64(%[1]sgu)%[3]s%[5]s\n"+
+					"%[1]sb %[2]s %[4]sfloat64(%[1]sbu)%[3]s%[5]s\n",
+					lhs, eqOp, extra, avoidFMA0, avoidFMA1,
 				)
 			case "image.RGBA64Image":
 				fmt.Fprintf(buf, ""+
-					"%[1]sr %[2]s float64(%[1]su.R)%[3]s\n"+
-					"%[1]sg %[2]s float64(%[1]su.G)%[3]s\n"+
-					"%[1]sb %[2]s float64(%[1]su.B)%[3]s\n"+
-					"%[1]sa %[2]s float64(%[1]su.A)%[3]s\n",
-					lhs, eqOp, extra,
+					"%[1]sr %[2]s %[4]sfloat64(%[1]su.R)%[3]s%[5]s\n"+
+					"%[1]sg %[2]s %[4]sfloat64(%[1]su.G)%[3]s%[5]s\n"+
+					"%[1]sb %[2]s %[4]sfloat64(%[1]su.B)%[3]s%[5]s\n"+
+					"%[1]sa %[2]s %[4]sfloat64(%[1]su.A)%[3]s%[5]s\n",
+					lhs, eqOp, extra, avoidFMA0, avoidFMA1,
 				)
 			}
 		}
@@ -1175,8 +1180,8 @@ const (
 				$preInner
 				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ { $tweakDx
 					dxf := float64(dr.Min.X + int(dx)) + 0.5
-					sx0 := int(d2s[0]*dxf + d2s[1]*dyf + d2s[2]) + bias.X
-					sy0 := int(d2s[3]*dxf + d2s[4]*dyf + d2s[5]) + bias.Y
+					sx0 := int(float64(d2s[0]*dxf) + float64(d2s[1]*dyf) + d2s[2]) + bias.X
+					sy0 := int(float64(d2s[3]*dxf) + float64(d2s[4]*dyf) + d2s[5]) + bias.Y
 					if !(image.Point{sx0, sy0}).In(sr) {
 						continue
 					}
@@ -1197,7 +1202,7 @@ const (
 			$preOuter
 
 			for dy := int32(adr.Min.Y); dy < int32(adr.Max.Y); dy++ {
-				sy := (float64(dy)+0.5)*yscale - 0.5
+				sy := float64((float64(dy)+0.5)*yscale) - 0.5
 				// If sy < 0, we will clamp sy0 to 0 anyway, so it doesn't matter if
 				// we say int32(sy) instead of int32(math.Floor(sy)). Similarly for
 				// sx, below.
@@ -1215,7 +1220,7 @@ const (
 				$preInner
 
 				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ { $tweakDx
-					sx := (float64(dx)+0.5)*xscale - 0.5
+					sx := float64((float64(dx)+0.5)*xscale) - 0.5
 					sx0 := int32(sx)
 					xFrac0 := sx - float64(sx0)
 					xFrac1 := 1 - xFrac0
@@ -1250,8 +1255,8 @@ const (
 				$preInner
 				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ { $tweakDx
 					dxf := float64(dr.Min.X + int(dx)) + 0.5
-					sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
-					sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
+					sx := float64(d2s[0]*dxf) + float64(d2s[1]*dyf) + d2s[2]
+					sy := float64(d2s[3]*dxf) + float64(d2s[4]*dyf) + d2s[5]
 					if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 						continue
 					}
@@ -1458,10 +1463,10 @@ const (
 					var pr, pg, pb, pa float64
 					for _, c := range z.vertical.contribs[s.i:s.j] {
 						p := &tmp[c.coord*z.dw+dx]
-						pr += p[0] * c.weight
-						pg += p[1] * c.weight
-						pb += p[2] * c.weight
-						pa += p[3] * c.weight
+						pr += float64(p[0] * c.weight)
+						pg += float64(p[1] * c.weight)
+						pb += float64(p[2] * c.weight)
+						pa += float64(p[3] * c.weight)
 					}
 					$clampToAlpha
 					$outputf[dr.Min.X + int(dx), dr.Min.Y + int(adr.Min.Y + dy), ftou, p, s.invTotalWeight]
@@ -1495,8 +1500,8 @@ const (
 				$preInner
 				for dx := int32(adr.Min.X); dx < int32(adr.Max.X); dx++ { $tweakDx
 					dxf := float64(dr.Min.X + int(dx)) + 0.5
-					sx := d2s[0]*dxf + d2s[1]*dyf + d2s[2]
-					sy := d2s[3]*dxf + d2s[4]*dyf + d2s[5]
+					sx := float64(d2s[0]*dxf) + float64(d2s[1]*dyf) + d2s[2]
+					sy := float64(d2s[3]*dxf) + float64(d2s[4]*dyf) + d2s[5]
 					if !(image.Point{int(sx) + bias.X, int(sy) + bias.Y}).In(sr) {
 						continue
 					}
