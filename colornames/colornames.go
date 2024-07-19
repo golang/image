@@ -6,5 +6,5 @@
 
 // Package colornames provides named colors as defined in the SVG 1.1 spec.
 //
-// See http://www.w3.org/TR/SVG/types.html#ColorKeywords
+// See https://www.w3.org/TR/SVG11/types.html#ColorKeywords
 package colornames
