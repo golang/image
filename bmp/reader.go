@@ -229,7 +229,7 @@ func decodeConfig(r io.Reader) (config image.Config, bitsPerPixel int, topDown b
 		return image.Config{}, 0, false, false, ErrUnsupported
 	}
 	switch bpp {
-	case 1, 2, 4:
+	case 1, 2, 4, 8:
 		colorUsed := readUint32(b[46:50])
 
 		if colorUsed != 0 && colorUsed > (1<<bpp) {
@@ -253,29 +253,6 @@ func decodeConfig(r io.Reader) (config image.Config, bitsPerPixel int, topDown b
 			pcm[i] = color.RGBA{b[4*i+2], b[4*i+1], b[4*i+0], 0xFF}
 		}
 		return image.Config{ColorModel: pcm, Width: width, Height: height}, int(bpp), topDown, false, nil
-	case 8:
-		colorUsed := readUint32(b[46:50])
-		// If colorUsed is 0, it is set to the maximum number of colors for the given bpp, which is 2^bpp.
-		if colorUsed == 0 {
-			colorUsed = 256
-		} else if colorUsed > 256 {
-			return image.Config{}, 0, false, false, ErrUnsupported
-		}
-
-		if offset != fileHeaderLen+infoLen+colorUsed*4 {
-			return image.Config{}, 0, false, false, ErrUnsupported
-		}
-		_, err = io.ReadFull(r, b[:colorUsed*4])
-		if err != nil {
-			return image.Config{}, 0, false, false, err
-		}
-		pcm := make(color.Palette, colorUsed)
-		for i := range pcm {
-			// BMP images are stored in BGR order rather than RGB order.
-			// Every 4th byte is padding.
-			pcm[i] = color.RGBA{b[4*i+2], b[4*i+1], b[4*i+0], 0xFF}
-		}
-		return image.Config{ColorModel: pcm, Width: width, Height: height}, 8, topDown, false, nil
 	case 24:
 		if offset != fileHeaderLen+infoLen {
 			return image.Config{}, 0, false, false, ErrUnsupported
