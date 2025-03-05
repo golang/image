@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strconv"
 )
 
 var debug = flag.Bool("debug", false, "")
@@ -114,7 +115,7 @@ func (n *node) String() string {
 		return "0"
 	}
 	if n.branchIndex > 0 {
-		return fmt.Sprintf("%d", n.branchIndex)
+		return strconv.Itoa(int(n.branchIndex))
 	}
 	return fmt.Sprintf("^%d", n.val)
 }
