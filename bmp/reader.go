@@ -26,9 +26,9 @@ func readUint32(b []byte) uint32 {
 	return uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24
 }
 
-// decodeSmallPaletted reads an 1, 2, 4 bit-per-pixel BMP image from r.
+// decodePaletted reads an 1, 2, 4, 8 bit-per-pixel BMP image from r.
 // If topDown is false, the image rows will be read bottom-up.
-func decodeSmallPaletted(r io.Reader, c image.Config, topDown bool, bpp int) (image.Image, error) {
+func decodePaletted(r io.Reader, c image.Config, topDown bool, bpp int) (image.Image, error) {
 	paletted := image.NewPaletted(image.Rect(0, 0, c.Width, c.Height), c.ColorModel.(color.Palette))
 	if c.Width == 0 || c.Height == 0 {
 		return paletted, nil
@@ -57,34 +57,6 @@ func decodeSmallPaletted(r io.Reader, c image.Config, topDown bool, bpp int) (im
 				bitIndex = 8 - bpp
 			} else {
 				bitIndex -= bpp
-			}
-		}
-	}
-	return paletted, nil
-}
-
-// decodePaletted reads an 8 bit-per-pixel BMP image from r.
-// If topDown is false, the image rows will be read bottom-up.
-func decodePaletted(r io.Reader, c image.Config, topDown bool) (image.Image, error) {
-	paletted := image.NewPaletted(image.Rect(0, 0, c.Width, c.Height), c.ColorModel.(color.Palette))
-	if c.Width == 0 || c.Height == 0 {
-		return paletted, nil
-	}
-	var tmp [4]byte
-	y0, y1, yDelta := c.Height-1, -1, -1
-	if topDown {
-		y0, y1, yDelta = 0, c.Height, +1
-	}
-	for y := y0; y != y1; y += yDelta {
-		p := paletted.Pix[y*paletted.Stride : y*paletted.Stride+c.Width]
-		if _, err := io.ReadFull(r, p); err != nil {
-			return nil, err
-		}
-		// Each row is 4-byte aligned.
-		if c.Width%4 != 0 {
-			_, err := io.ReadFull(r, tmp[:4-c.Width%4])
-			if err != nil {
-				return nil, err
 			}
 		}
 	}
@@ -155,10 +127,8 @@ func Decode(r io.Reader) (image.Image, error) {
 		return nil, err
 	}
 	switch bpp {
-	case 1, 2, 4:
-		return decodeSmallPaletted(r, c, topDown, bpp)
-	case 8:
-		return decodePaletted(r, c, topDown)
+	case 1, 2, 4, 8:
+		return decodePaletted(r, c, topDown, bpp)
 	case 24:
 		return decodeRGB(r, c, topDown)
 	case 32:
