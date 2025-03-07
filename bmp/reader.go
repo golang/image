@@ -26,7 +26,7 @@ func readUint32(b []byte) uint32 {
 	return uint32(b[0]) | uint32(b[1])<<8 | uint32(b[2])<<16 | uint32(b[3])<<24
 }
 
-// decodePaletted reads an 1, 2, 4, 8 bit-per-pixel BMP image from r.
+// decodePaletted reads a 1, 2, 4 or 8 bit-per-pixel BMP image from r.
 // If topDown is false, the image rows will be read bottom-up.
 func decodePaletted(r io.Reader, c image.Config, topDown bool, bpp int) (image.Image, error) {
 	paletted := image.NewPaletted(image.Rect(0, 0, c.Width, c.Height), c.ColorModel.(color.Palette))
@@ -39,7 +39,7 @@ func decodePaletted(r io.Reader, c image.Config, topDown bool, bpp int) (image.I
 	}
 
 	pixelsPerByte := 8 / bpp
-	// pad up to ensure each row is 4-bytes aligned
+	// Pad up to ensure each row is 4-bytes aligned.
 	bytesPerRow := ((c.Width+pixelsPerByte-1)/pixelsPerByte + 3) &^ 3
 	b := make([]byte, bytesPerRow)
 
@@ -202,11 +202,10 @@ func decodeConfig(r io.Reader) (config image.Config, bitsPerPixel int, topDown b
 	case 1, 2, 4, 8:
 		colorUsed := readUint32(b[46:50])
 
-		if colorUsed != 0 && colorUsed > (1<<bpp) {
-			return image.Config{}, 0, false, false, ErrUnsupported
-		}
 		if colorUsed == 0 {
 			colorUsed = 1 << bpp
+		} else if colorUsed > (1 << bpp) {
+			return image.Config{}, 0, false, false, ErrUnsupported
 		}
 
 		if offset != fileHeaderLen+infoLen+colorUsed*4 {
