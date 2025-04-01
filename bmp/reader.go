@@ -48,15 +48,13 @@ func decodePaletted(r io.Reader, c image.Config, topDown bool, bpp int) (image.I
 		if _, err := io.ReadFull(r, b); err != nil {
 			return nil, err
 		}
-		byteIndex := 0
-		bitIndex := 8 - bpp
+		byteIndex, bitIndex, mask := 0, 8, byte((1<<bpp)-1)
 		for pixIndex := 0; pixIndex < c.Width; pixIndex++ {
-			p[pixIndex] = (b[byteIndex] >> bitIndex) & (1<<bpp - 1)
+			bitIndex -= bpp
+			p[pixIndex] = (b[byteIndex]) >> bitIndex & mask
 			if bitIndex == 0 {
 				byteIndex++
-				bitIndex = 8 - bpp
-			} else {
-				bitIndex -= bpp
+				bitIndex = 8
 			}
 		}
 	}
