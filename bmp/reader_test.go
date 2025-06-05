@@ -46,6 +46,9 @@ func TestDecode(t *testing.T) {
 		"video-001",
 		"yellow_rose-small",
 		"yellow_rose-small-v5",
+		"bmp_1bpp",
+		"bmp_4bpp",
+		"bmp_8bpp",
 	}
 
 	for _, tc := range testCases {
