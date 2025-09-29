@@ -13,7 +13,6 @@ import (
 	"image/png"
 	"math/rand"
 	"os"
-	"reflect"
 	"testing"
 
 	"golang.org/x/image/math/f64"
@@ -109,11 +108,27 @@ func testInterp(t *testing.T, w int, h int, direction, prefix, suffix string) {
 			Draw(want, b, wantRaw, b.Min, Src)
 		}
 
-		if !reflect.DeepEqual(got, want) {
+		// Use imageAlmostEqual so that we accept both
+		// the Go 1.26 image/jpeg decoder and the
+		// pre-Go1.26 image/jpeg decoder.
+		if !imageAlmostEqual(got, want) {
 			t.Errorf("%s: actual image differs from golden image", goldenFilename)
 			continue
 		}
 	}
+}
+
+func imageAlmostEqual(got, want *image.RGBA) bool {
+	if got.Stride != want.Stride || got.Rect != want.Rect || len(got.Pix) != len(want.Pix) {
+		return false
+	}
+	for i := range got.Pix {
+		d := int(got.Pix[i]) - int(want.Pix[i])
+		if d < -2 || 2 < d {
+			return false
+		}
+	}
+	return true
 }
 
 func TestScaleDown(t *testing.T) { testInterp(t, 100, 100, "down", "go-turns-two", "-280x360.jpeg") }
