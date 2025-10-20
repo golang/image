@@ -14,7 +14,7 @@ glyph pairs.
 These tests only check if there are no errors during kerning. Tests of actual
 kerning values are in proprietary_test.go.
 
-Note: CJK fonts can contain billions of posible kerning pairs. Testing for
+Note: CJK fonts can contain billions of possible kerning pairs. Testing for
 these fonts stops after -bulkMaxKernPairs.
 
 To opt-in:
