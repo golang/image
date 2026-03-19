@@ -438,7 +438,12 @@ func (d *decoder) decodePix(w int32, h int32, minCap int32, topLevel bool) ([]by
 				return nil, err
 			}
 			dist := distanceMap(w, distCode)
-			pEnd := p + 4*int(length)
+				// Ensure length is not so large that 4*length overflows an int.
+	if int64(length) > math.MaxInt32 {
+		return errInvalidString
+	}
+	pEnd := p + 4*int(length)
+
 			q := p - 4*int(dist)
 			qEnd := pEnd - 4*int(dist)
 			if p < 0 || len(pix) < pEnd || q < 0 || len(pix) < qEnd {
