@@ -593,3 +593,37 @@ func appendIFD(b []byte, enc byteOrder, entries map[uint16]interface{}) []byte {
 	b = enc.AppendUint32(b, 0)
 	return b
 }
+
+// ioReader wraps an io.Reader to hide any io.ReaderAt implementation,
+// forcing the tiff decoder through the buffer code path.
+type ioReader struct {
+	io.Reader
+}
+
+func TestDecodeOOMIFDOffset(t *testing.T) {
+	// A TIFF file where the IFD offset (bytes 4-7) points to 0xFFFFFFFF.
+	// Previously, this would cause buffer.fill() to attempt a ~4GB allocation,
+	// leading to an out-of-memory crash. The fix reads data in chunks so that
+	// the allocation stays proportional to the actual data available.
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{"little-endian", []byte{0x49, 0x49, 0x2a, 0x00, 0xff, 0xff, 0xff, 0xff}},
+		{"big-endian", []byte{0x4d, 0x4d, 0x00, 0x2a, 0xff, 0xff, 0xff, 0xff}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name+"/Decode", func(t *testing.T) {
+			_, err := Decode(ioReader{bytes.NewReader(tt.data)})
+			if err == nil {
+				t.Fatal("expected error for malicious IFD offset, got nil")
+			}
+		})
+		t.Run(tt.name+"/DecodeConfig", func(t *testing.T) {
+			_, err := DecodeConfig(ioReader{bytes.NewReader(tt.data)})
+			if err == nil {
+				t.Fatal("expected error for malicious IFD offset, got nil")
+			}
+		})
+	}
+}

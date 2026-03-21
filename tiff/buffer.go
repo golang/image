@@ -6,6 +6,13 @@ package tiff
 
 import "io"
 
+// fillChunkSize is the maximum number of bytes to allocate or read at once
+// when growing the buffer. This follows the approach of internal/saferio
+// in the standard library: read data in chunks to avoid allocating a huge
+// buffer for an invalid file while still supporting arbitrarily large
+// valid files.
+const fillChunkSize = 10 << 20 // 10 MB
+
 // buffer buffers an io.Reader to satisfy io.ReaderAt.
 type buffer struct {
 	r   io.Reader
@@ -16,21 +23,36 @@ type buffer struct {
 func (b *buffer) fill(end int) error {
 	m := len(b.buf)
 	if end > m {
-		if end > cap(b.buf) {
-			newcap := 1024
-			for newcap < end {
-				newcap *= 2
+		// Grow and read in chunks to avoid allocating a large buffer
+		// up front based on an untrusted offset. If the offset is
+		// beyond the actual data, ReadFull will return an error after
+		// reading only what is available, limiting memory usage to
+		// the actual file size rather than the claimed offset.
+		for m < end {
+			next := end - m
+			if next > fillChunkSize {
+				next = fillChunkSize
 			}
-			newbuf := make([]byte, end, newcap)
-			copy(newbuf, b.buf)
-			b.buf = newbuf
-		} else {
-			b.buf = b.buf[:end]
-		}
-		if n, err := io.ReadFull(b.r, b.buf[m:end]); err != nil {
-			end = m + n
-			b.buf = b.buf[:end]
-			return err
+			if m+next > cap(b.buf) {
+				newcap := cap(b.buf)
+				if newcap < 1024 {
+					newcap = 1024
+				}
+				for newcap < m+next {
+					newcap *= 2
+				}
+				newbuf := make([]byte, m+next, newcap)
+				copy(newbuf, b.buf)
+				b.buf = newbuf
+			} else {
+				b.buf = b.buf[:m+next]
+			}
+			n, err := io.ReadFull(b.r, b.buf[m:m+next])
+			m += n
+			b.buf = b.buf[:m]
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -44,6 +66,12 @@ func (b *buffer) ReadAt(p []byte, off int64) (int, error) {
 	}
 
 	err := b.fill(end)
+	if o >= len(b.buf) {
+		return 0, err
+	}
+	if end > len(b.buf) {
+		end = len(b.buf)
+	}
 	return copy(p, b.buf[o:end]), err
 }
 
