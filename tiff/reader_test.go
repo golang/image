@@ -593,3 +593,34 @@ func appendIFD(b []byte, enc byteOrder, entries map[uint16]interface{}) []byte {
 	b = enc.AppendUint32(b, 0)
 	return b
 }
+
+// ioReader wraps an io.Reader to hide any io.ReaderAt implementation,
+// forcing the tiff package to use the buffer code path.
+type ioReader struct {
+	io.Reader
+}
+
+// TestDecodeOOMIFDOffset tests that a TIFF with an IFD offset of 0xFFFFFFFF
+// does not cause an out-of-memory panic in buffer.fill.
+func TestDecodeOOMIFDOffset(t *testing.T) {
+	for _, endian := range []struct {
+		name   string
+		header []byte
+	}{
+		{"little-endian", []byte{'I', 'I', 42, 0, 0xff, 0xff, 0xff, 0xff}},
+		{"big-endian", []byte{'M', 'M', 0, 42, 0xff, 0xff, 0xff, 0xff}},
+	} {
+		t.Run(endian.name, func(t *testing.T) {
+			r := ioReader{bytes.NewReader(endian.header)}
+			_, err := Decode(r)
+			if err == nil {
+				t.Error("Decode with IFD offset 0xFFFFFFFF: got nil error, want non-nil")
+			}
+			r = ioReader{bytes.NewReader(endian.header)}
+			_, err = DecodeConfig(r)
+			if err == nil {
+				t.Error("DecodeConfig with IFD offset 0xFFFFFFFF: got nil error, want non-nil")
+			}
+		})
+	}
+}
