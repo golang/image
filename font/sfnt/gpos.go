@@ -221,6 +221,10 @@ func (f *Font) parsePairPosFormat2(buf []byte, offset int, lookupIndex indexLook
 	}
 	numClass1 := int(u16(buf[12:]))
 	numClass2 := int(u16(buf[14:]))
+	// Bound class count product to prevent oversized allocation.
+	if int64(numClass1)*int64(numClass2) > maxTableLength/2 {
+		return buf, nil, errInvalidGPOSTable
+	}
 	cdef1Offset := offset + int(u16(buf[8:]))
 	cdef2Offset := offset + int(u16(buf[10:]))
 	var cdef1, cdef2 classLookupFunc
@@ -342,11 +346,14 @@ func makeCachedPairPosGlyph(cov indexLookupFunc, num int, buf []byte) kernFunc {
 			return 0, ErrNotFound
 		}
 		offset := int(u16(glyphs[10+idx*2:]))
-		if offset+1 >= len(glyphs) {
+		if offset+2 > len(glyphs) {
 			return 0, errInvalidGPOSTable
 		}
 
 		count := int(u16(glyphs[offset:]))
+		if offset+2+count*4 > len(glyphs) {
+			return 0, errInvalidGPOSTable
+		}
 		for i := 0; i < count; i++ {
 			secondGlyphIndex := GlyphIndex(int(u16(glyphs[offset+2+i*4:])))
 			if secondGlyphIndex == b {
@@ -372,7 +379,14 @@ func makeCachedPairPosClass(cov indexLookupFunc, num1, num2 int, cdef1, cdef2 cl
 		}
 		idxa := cdef1(a)
 		idxb := cdef2(b)
-		return int16(u16(glyphs[(idxb+idxa*num2)*2:])), nil
+		if idxa < 0 || idxa >= num1 || idxb < 0 || idxb >= num2 {
+			return 0, ErrNotFound
+		}
+		idx := (idxb + idxa*num2) * 2
+		if idx < 0 || idx+2 > len(glyphs) {
+			return 0, errInvalidGPOSTable
+		}
+		return int16(u16(glyphs[idx:])), nil
 	}
 }
 
