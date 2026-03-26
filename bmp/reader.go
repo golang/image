@@ -183,6 +183,14 @@ func decodeConfig(r io.Reader) (config image.Config, bitsPerPixel int, topDown b
 	if width < 0 || height < 0 {
 		return image.Config{}, 0, false, false, ErrUnsupported
 	}
+	// Reject dimensions where the pixel buffer would be unreasonably large.
+	// At 4 bytes per pixel (NRGBA), this limit caps the allocation at ~4 GiB,
+	// which prevents image.New* from panicking on oversized inputs. This is
+	// consistent with the TIFF decoder's use of maxChunkSize for similar
+	// bounds checking.
+	if int64(width)*int64(height) > 1<<30 {
+		return image.Config{}, 0, false, false, ErrUnsupported
+	}
 	// We only support 1 plane and 8, 24 or 32 bits per pixel and no
 	// compression.
 	planes, bpp, compression := readUint16(b[26:28]), readUint16(b[28:30]), readUint32(b[30:34])
