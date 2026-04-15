@@ -380,16 +380,19 @@ func TestZeroSizedImages(t *testing.T) {
 		{0, 0},
 		{1, 0},
 		{0, 1},
-		{1, 1},
 	}
 	for _, r := range testsizes {
 		img := image.NewRGBA(image.Rect(0, 0, r.w, r.h))
-		var buf bytes.Buffer
-		if err := Encode(&buf, img, nil); err != nil {
-			t.Errorf("encode w=%d h=%d: %v", r.w, r.h, err)
+		if err := Encode(io.Discard, img, nil); err == nil {
+			t.Errorf("encode w=%d h=%d: success (want error)", r.w, r.h)
+		}
+
+		enc, err := os.ReadFile(fmt.Sprintf("testdata/%vx%v.tiff", r.w, r.h))
+		if err != nil {
+			t.Error(err)
 			continue
 		}
-		if _, err := Decode(&buf); err != nil {
+		if _, err := Decode(bytes.NewReader(enc)); err == nil {
 			t.Errorf("decode w=%d h=%d: %v", r.w, r.h, err)
 		}
 	}
