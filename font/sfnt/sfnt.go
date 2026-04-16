@@ -303,7 +303,11 @@ func (s *source) varLenView(buf []byte, offset, staticLength, countOffset, itemL
 	}
 
 	count := int(u16(buf[countOffset:]))
-	buf, err = s.view(buf, offset, staticLength+count*itemLength)
+	totalLength := staticLength + count*itemLength
+	if totalLength < 0 || totalLength < staticLength {
+		return nil, 0, errInvalidBounds
+	}
+	buf, err = s.view(buf, offset, totalLength)
 	if err != nil {
 		return nil, 0, err
 	}
