@@ -163,6 +163,9 @@ func readAlpha(chunkData io.Reader, widthMinusOne, heightMinusOne uint32, compre
 
 	switch compression {
 	case 0:
+		if widthMinusOne > 0x3fff || heightMinusOne > 0x3fff {
+			return nil, 0, errors.New("webp: invalid format")
+		}
 		w := int(widthMinusOne) + 1
 		h := int(heightMinusOne) + 1
 		alpha = make([]byte, w*h)
