@@ -6,6 +6,7 @@ package bmp
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"image"
 	"io"
@@ -83,6 +84,67 @@ func TestDecode(t *testing.T) {
 	}
 }
 
+func TestDecodeConstructed(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		b       []byte
+		wantErr error
+	}{{
+		name: "1x1 paletted",
+		b: bmpBuilder{
+			width:        1,
+			height:       1,
+			planes:       1,
+			bitsPerPixel: 1,
+			colorsUsed:   2,
+			colorTable: []colorTableEntry{
+				{0, 0, 0},
+				{0xff, 0xff, 0xff},
+			},
+			data: []byte{0, 0, 0, 0},
+		}.Bytes(),
+		wantErr: nil, // successful base case
+	}, {
+		name: "1x1 rgb",
+		b: bmpBuilder{
+			width:        1,
+			height:       1,
+			planes:       1,
+			bitsPerPixel: 24,
+			data: []byte{
+				0, 0, 0, 0,
+			},
+		}.Bytes(),
+		wantErr: nil, // successful base case
+	}, {
+		name: "invalid palette index",
+		b: bmpBuilder{
+			width:        1,
+			height:       1,
+			planes:       1,
+			bitsPerPixel: 8,
+			colorsUsed:   2,
+			colorTable: []colorTableEntry{
+				{0, 0, 0},
+				{0xff, 0xff, 0xff},
+			},
+			data: []byte{
+				2, 0, 0, 0, // index 2
+			},
+		}.Bytes(),
+		wantErr: errInvalidPaletteIndex,
+	}} {
+		img, _, err := image.Decode(bytes.NewReader(tc.b))
+		if err != tc.wantErr {
+			t.Errorf("%v: Decode error %v; want %v", tc.name, err, tc.wantErr)
+		}
+		if err != nil {
+			continue
+		}
+		_ = img.At(0, 0) // try accessing a pixel
+	}
+}
+
 // TestEOF tests that decoding a BMP image returns io.ErrUnexpectedEOF
 // when there are no headers or data is empty
 func TestEOF(t *testing.T) {
@@ -90,4 +152,50 @@ func TestEOF(t *testing.T) {
 	if err != io.ErrUnexpectedEOF {
 		t.Errorf("Error should be io.ErrUnexpectedEOF on nil but got %v", err)
 	}
+}
+
+type bmpBuilder struct {
+	width           int32
+	height          int32
+	planes          uint16
+	bitsPerPixel    uint16
+	compression     uint32
+	imageSize       uint32
+	xppm            uint32
+	yppm            uint32
+	colorsUsed      uint32
+	colorsImportant uint32
+	colorTable      []colorTableEntry
+	data            []byte
+}
+
+type colorTableEntry struct {
+	r, g, b byte
+}
+
+func (b bmpBuilder) Bytes() []byte {
+	buf := []byte{
+		0x42, 0x4d, // 'BM'
+		0x00, 0x00, 0x00, 0x00, // file size
+		0x00, 0x00, 0x00, 0x00, // reserved
+		0x00, 0x00, 0x00, 0x00, // data offset
+		0x28, 0x00, 0x00, 0x00, // header size (40)
+	}
+	buf = binary.LittleEndian.AppendUint32(buf, uint32(b.width))
+	buf = binary.LittleEndian.AppendUint32(buf, uint32(b.height))
+	buf = binary.LittleEndian.AppendUint16(buf, b.planes)
+	buf = binary.LittleEndian.AppendUint16(buf, b.bitsPerPixel)
+	buf = binary.LittleEndian.AppendUint32(buf, b.compression)
+	buf = binary.LittleEndian.AppendUint32(buf, b.imageSize)
+	buf = binary.LittleEndian.AppendUint32(buf, b.xppm)
+	buf = binary.LittleEndian.AppendUint32(buf, b.yppm)
+	buf = binary.LittleEndian.AppendUint32(buf, b.colorsUsed)
+	buf = binary.LittleEndian.AppendUint32(buf, b.colorsImportant)
+	for _, e := range b.colorTable {
+		buf = append(buf, e.r, e.g, e.b, 0)
+	}
+	binary.LittleEndian.PutUint32(buf[10:], uint32(len(buf))) // data offset
+	buf = append(buf, b.data...)
+	binary.LittleEndian.PutUint32(buf[2:], uint32(len(buf))) // file size
+	return buf
 }
