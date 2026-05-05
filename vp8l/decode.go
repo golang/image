@@ -525,6 +525,16 @@ func decodeHeader(r io.Reader) (d *decoder, w int32, h int32, err error) {
 		return nil, 0, 0, err
 	}
 	height++
+	// Limit pixel count to prevent unbounded memory allocation from
+	// attacker-controlled width and height fields. The VP8L bitstream
+	// encodes each dimension as a 14-bit value (max 16384), so the
+	// maximum unchecked allocation is 4*16384*16384 = 1 GB per call.
+	// This cap matches the approach used in the tiff decoder fix for
+	// CVE-2026-33809 (golang/go#78267).
+	const maxVP8LPixels = 1 << 27 // ~128 megapixels; 512 MB at 4 bytes/pixel
+	if int64(width)*int64(height) > maxVP8LPixels {
+		return nil, 0, 0, errors.New("vp8l: image dimensions too large")
+	}
 	_, err = d.read(1) // Read and ignore the hasAlpha hint.
 	if err != nil {
 		return nil, 0, 0, err
