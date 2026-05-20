@@ -294,7 +294,7 @@ func TestVP8XImageTooLarge(t *testing.T) {
 		// Canvas Width Minus One
 		0xff, 0xff, 0x00,
 		// Canvas Height Minus One
-		0xff, 0xff, 0x00,
+		0xff, 0x7f, 0x00,
 	}
 	_, err := DecodeConfig(bytes.NewReader(data))
 	if err != errInvalidFormat {
@@ -314,16 +314,18 @@ func TestVP8XImageNotQuiteTooLarge(t *testing.T) {
 		// bits + Reserved
 		1 << 4, 0, 0, 0, // alpha bit set
 		// Canvas Width Minus One
-		0xfe, 0xff, 0x00,
+		0xff, 0xff, 0x00,
 		// Canvas Height Minus One
-		0xfe, 0xff, 0x00,
+		0xfe, 0x7f, 0x00,
 	}
 	cfg, err := DecodeConfig(bytes.NewReader(data))
 	if err != nil {
 		t.Fatalf("unexpected error: want nil, got %q", err)
 	}
-	if cfg.Width != 0xffff || cfg.Height != 0xffff {
-		t.Fatalf("width x height: got %v x %v, want %v x %v", cfg.Width, cfg.Height, 0xffff, 0xffff)
+	wantWidth := 0x10000
+	wantHeight := 0x7fff
+	if cfg.Width != wantWidth || cfg.Height != wantHeight {
+		t.Fatalf("width x height: got %v x %v, want %v x %v", cfg.Width, cfg.Height, wantWidth, wantHeight)
 	}
 }
 
