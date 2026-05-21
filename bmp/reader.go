@@ -29,10 +29,12 @@ func readUint32(b []byte) uint32 {
 // decodePaletted reads a 1, 2, 4 or 8 bit-per-pixel BMP image from r.
 // If topDown is false, the image rows will be read bottom-up.
 func decodePaletted(r io.Reader, c image.Config, topDown bool, bpp int) (image.Image, error) {
-	paletted := image.NewPaletted(image.Rect(0, 0, c.Width, c.Height), c.ColorModel.(color.Palette))
+	palette := c.ColorModel.(color.Palette)
+	paletted := image.NewPaletted(image.Rect(0, 0, c.Width, c.Height), palette)
 	if c.Width == 0 || c.Height == 0 {
 		return paletted, nil
 	}
+	pLen := len(palette)
 	y0, y1, yDelta := c.Height-1, -1, -1
 	if topDown {
 		y0, y1, yDelta = 0, c.Height, +1
@@ -51,7 +53,11 @@ func decodePaletted(r io.Reader, c image.Config, topDown bool, bpp int) (image.I
 		byteIndex, bitIndex, mask := 0, 8, byte((1<<bpp)-1)
 		for pixIndex := 0; pixIndex < c.Width; pixIndex++ {
 			bitIndex -= bpp
-			p[pixIndex] = (b[byteIndex]) >> bitIndex & mask
+			v := (b[byteIndex]) >> bitIndex & mask
+			if int(v) >= pLen {
+				return nil, errors.New("bmp: invalid color index")
+			}
+			p[pixIndex] = v
 			if bitIndex == 0 {
 				byteIndex++
 				bitIndex = 8
