@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -19,6 +18,7 @@ import (
 	"math"
 
 	"golang.org/x/image/ccitt"
+	"golang.org/x/image/internal/safemath"
 	"golang.org/x/image/tiff/lzw"
 )
 
@@ -502,7 +502,13 @@ func newDecoder(r io.Reader) (*decoder, error) {
 	d.config.Width = int(d.firstVal(tImageWidth))
 	d.config.Height = int(d.firstVal(tImageLength))
 	if d.config.Width == 0 || d.config.Height == 0 {
-		return nil, errors.New("tiff: zero-size image")
+		return nil, FormatError("zero-size image")
+	}
+	// Check that the image fits in memory.
+	// This conservatively assumes 8 bytes per pixel,
+	// rather than using the actual pixel size.
+	if _, ok := safemath.Mul3(d.config.Width, d.config.Height, 8); !ok {
+		return nil, FormatError("image too large")
 	}
 
 	if _, ok := d.features[tBitsPerSample]; !ok {

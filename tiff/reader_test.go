@@ -627,3 +627,41 @@ func TestDecodeOOMIFDOffset(t *testing.T) {
 		})
 	}
 }
+
+func TestDecodeTooLarge(t *testing.T) {
+	var tiffHeader = []byte{
+		'I', 'I', 42, 0, // Header
+		8, 0, 0, 0, // Offset of first IFD
+		4, 0, // Number of IFD entries (4)
+		// Entry 1: ImageWidth (256)
+		0, 1, // Tag 256
+		4, 0, // dtLong (4)
+		1, 0, 0, 0, // Count 1
+		0x00, 0x00, 0x00, 0x7f, // Value: 0x7f000000
+		// Entry 2: ImageLength (257)
+		1, 1, // Tag 257
+		4, 0, // dtLong (4)
+		1, 0, 0, 0, // Count 1
+		0x00, 0x00, 0x00, 0x7f, // Value: 0x7f000000
+		// Entry 3: StripOffsets (273)
+		0x11, 0x01, // Tag 273
+		4, 0, // dtLong (4)
+		1, 0, 0, 0, // Count 1
+		0, 0, 0, 0, // Value: 0
+		// Entry 4: StripByteCounts (279)
+		0x17, 0x01, // Tag 279
+		4, 0, // dtLong (4)
+		1, 0, 0, 0, // Count 1
+		0, 0, 0, 0, // Value: 0
+		0, 0, 0, 0, // Next IFD offset
+	}
+
+	_, err := DecodeConfig(bytes.NewReader(tiffHeader))
+	if err == nil {
+		t.Error("DecodeConfig: got nil error, want non-nil")
+	}
+	_, err = Decode(bytes.NewReader(tiffHeader))
+	if err == nil {
+		t.Fatal("Decode: got nil error, want non-nil")
+	}
+}
