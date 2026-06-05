@@ -329,6 +329,46 @@ func TestVP8XImageNotQuiteTooLarge(t *testing.T) {
 	}
 }
 
+func TestVP8XAndVP8LDimensionMismatch(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		file string
+	}{{
+		name: "vp8",
+		file: "../testdata/blue-purple-pink.lossless.webp",
+	}, {
+		name: "vp8l",
+		file: "../testdata/blue-purple-pink.lossy.webp",
+	}} {
+		t.Run(test.name, func(t *testing.T) {
+			vp8Chunk, err := os.ReadFile(test.file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			vp8Chunk = vp8Chunk[12:]
+
+			vp8xChunk := []byte{
+				'V', 'P', '8', 'X',
+				10, 0, 0, 0, // chunk size
+				0, 0, 0, 0, // flags
+				0, 0, 0, // Canvas Width Minus One: 0 (width = 1) (mismatch!)
+				0, 0, 0, // Canvas Height Minus One: 0 (height = 1) (mismatch!)
+			}
+
+			fileSize := uint32(12 + len(vp8xChunk) + len(vp8Chunk) - 8)
+			data := append([]byte("RIFF"), byte(fileSize), byte(fileSize>>8), byte(fileSize>>16), byte(fileSize>>24))
+			data = append(data, []byte("WEBP")...)
+			data = append(data, vp8xChunk...)
+			data = append(data, vp8Chunk...)
+
+			_, err = Decode(bytes.NewReader(data))
+			if err != errInvalidFormat {
+				t.Fatalf("unexpected error: want %v, got %v", errInvalidFormat, err)
+			}
+		})
+	}
+}
+
 func benchmarkDecode(b *testing.B, filename string) {
 	data, err := ioutil.ReadFile("../testdata/blue-purple-pink-large." + filename + ".webp")
 	if err != nil {
