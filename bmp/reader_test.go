@@ -133,6 +133,27 @@ func TestDecodeConstructed(t *testing.T) {
 			},
 		}.Bytes(),
 		wantErr: errInvalidPaletteIndex,
+	}, {
+		name: "0x1",
+		b: bmpBuilder{
+			width:        1,
+			height:       0,
+			planes:       1,
+			bitsPerPixel: 24,
+			data: []byte{
+				0, 0, 0, 0,
+			},
+		}.Bytes(),
+		wantErr: ErrUnsupported,
+	}, {
+		name: "excessive width and height",
+		b: bmpBuilder{
+			width:        2147483647,
+			height:       2147483647,
+			planes:       1,
+			bitsPerPixel: 24,
+		}.Bytes(),
+		wantErr: ErrUnsupported,
 	}} {
 		img, _, err := image.Decode(bytes.NewReader(tc.b))
 		if err != tc.wantErr {
