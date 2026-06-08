@@ -665,3 +665,41 @@ func TestDecodeTooLarge(t *testing.T) {
 		t.Fatal("Decode: got nil error, want non-nil")
 	}
 }
+
+// TestDecodeSliceOverflow tests that decoding a TIFF with a large strip offset
+// does not trigger a slice bounds panic in buffer.Slice.
+func TestDecodeSliceOverflow(t *testing.T) {
+	var tiffHeader = []byte{
+		'I', 'I', 42, 0, // Header
+		8, 0, 0, 0, // Offset of first IFD
+		4, 0, // Number of IFD entries (4)
+		// Entry 1: ImageWidth (256)
+		0, 1, // Tag 256
+		3, 0, // dtShort (3)
+		1, 0, 0, 0, // Count 1
+		1, 0, 0, 0, // Value: 1
+		// Entry 2: ImageLength (257)
+		1, 1, // Tag 257
+		3, 0, // dtShort (3)
+		1, 0, 0, 0, // Count 1
+		1, 0, 0, 0, // Value: 1
+		// Entry 3: StripOffsets (273)
+		0x11, 0x01, // Tag 273
+		4, 0, // dtLong (4)
+		1, 0, 0, 0, // Count 1
+		0xff, 0xff, 0xff, 0xff, // Value: 0xFFFFFFFF
+		// Entry 4: StripByteCounts (279)
+		0x17, 0x01, // Tag 279
+		4, 0, // dtLong (4)
+		1, 0, 0, 0, // Count 1
+		10, 0, 0, 0, // Value: 10
+		0, 0, 0, 0, // Next IFD offset
+	}
+
+	// Use ioReader to force the use of the buffer code path.
+	r := ioReader{bytes.NewReader(tiffHeader)}
+	_, err := Decode(r)
+	if err == nil {
+		t.Error("Decode: got nil error, want non-nil")
+	}
+}

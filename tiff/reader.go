@@ -735,7 +735,7 @@ func Decode(r io.Reader) (img image.Image, err error) {
 			// the same.
 			case cNone, 0:
 				if b, ok := d.r.(*buffer); ok {
-					d.buf, err = b.Slice(int(offset), int(n))
+					d.buf, err = b.Slice(offset, n)
 				} else {
 					d.buf, err = safeReadAt(d.r, uint64(n), offset)
 				}
