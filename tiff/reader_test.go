@@ -703,3 +703,23 @@ func TestDecodeSliceOverflow(t *testing.T) {
 		t.Error("Decode: got nil error, want non-nil")
 	}
 }
+
+func TestTileSizeError(t *testing.T) {
+	enc := binary.BigEndian
+	data := newTIFF(enc)
+	data = appendIFD(data, enc, map[uint16]any{
+		tImageWidth:                uint32(100),
+		tImageLength:               uint32(100),
+		tTileWidth:                 uint32(1024),
+		tTileLength:                uint32(1025),
+		tTileOffsets:               []uint32{8},
+		tTileByteCounts:            []uint32{0},
+		tPhotometricInterpretation: uint16(pBlackIsZero),
+		tBitsPerSample:             uint16(8),
+	})
+
+	_, err := Decode(bytes.NewReader(data))
+	if want := "tile size exceeds image size"; err == nil || !strings.Contains(err.Error(), want) {
+		t.Fatalf("Decode: got %v, want error containing %q", err, want)
+	}
+}
