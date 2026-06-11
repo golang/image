@@ -723,3 +723,48 @@ func TestTileSizeError(t *testing.T) {
 		t.Fatalf("Decode: got %v, want error containing %q", err, want)
 	}
 }
+
+func TestDecodeBlockDataSizeTooLarge(t *testing.T) {
+	t.Run("strip", func(t *testing.T) {
+		// 1x1 image, blockMaxDataSize = 1 * 1 * 8 = 8.
+		// StripByteCounts is set to 9.
+		enc := binary.BigEndian
+		data := newTIFF(enc)
+		data = appendIFD(data, enc, map[uint16]any{
+			tImageWidth:                uint32(1),
+			tImageLength:               uint32(1),
+			tStripOffsets:              []uint32{8},
+			tStripByteCounts:           []uint32{9},
+			tPhotometricInterpretation: uint16(pBlackIsZero),
+			tBitsPerSample:             uint16(8),
+		})
+
+		_, err := Decode(bytes.NewReader(data))
+		if want := "block data size too large"; err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("Decode: got %v, want error containing %q", err, want)
+		}
+	})
+
+	t.Run("tile", func(t *testing.T) {
+		// 16x16 image with 16x16 tiles.
+		// blockMaxDataSize = 16 * 16 * 8 = 2048.
+		// TileByteCounts is set to 2049.
+		enc := binary.BigEndian
+		data := newTIFF(enc)
+		data = appendIFD(data, enc, map[uint16]any{
+			tImageWidth:                uint32(16),
+			tImageLength:               uint32(16),
+			tTileWidth:                 uint32(16),
+			tTileLength:                uint32(16),
+			tTileOffsets:               []uint32{8},
+			tTileByteCounts:            []uint32{2049},
+			tPhotometricInterpretation: uint16(pBlackIsZero),
+			tBitsPerSample:             uint16(8),
+		})
+
+		_, err := Decode(bytes.NewReader(data))
+		if want := "block data size too large"; err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("Decode: got %v, want error containing %q", err, want)
+		}
+	})
+}

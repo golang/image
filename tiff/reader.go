@@ -764,6 +764,9 @@ func Decode(r io.Reader) (img image.Image, err error) {
 			// but some tools interpret a missing Compression value as none, so we do
 			// the same.
 			case cNone, 0:
+				if n > blockMaxDataSize {
+					return nil, FormatError("block data size too large")
+				}
 				if b, ok := d.r.(*buffer); ok {
 					d.buf, err = b.Slice(offset, n)
 				} else {
