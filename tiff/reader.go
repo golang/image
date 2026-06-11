@@ -95,6 +95,7 @@ type decoder struct {
 	mode      imageMode
 	bpp       uint
 	features  map[int][]uint
+	ifd       map[int][ifdLen]byte
 	palette   []color.Color
 
 	buf   []byte
@@ -115,7 +116,10 @@ func (d *decoder) firstVal(tag int) uint {
 
 // ifdUint decodes the IFD entry in p, which must be of the Byte, Short
 // or Long type, and returns the decoded uint values.
-func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
+//
+// maxCount limits the number of values.
+// If the entry contains more than maxCount values, only the first maxCount are parsed.
+func (d *decoder) ifdUint(p []byte, maxCount int) (u []uint, err error) {
 	var raw []byte
 	if len(p) < ifdLen {
 		return nil, FormatError("bad IFD entry")
@@ -130,9 +134,11 @@ func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
 	if count > math.MaxInt32/lengths[datatype] {
 		return nil, FormatError("IFD data too large")
 	}
+	truncatedCount := min(int(count), maxCount)
 	if datalen := lengths[datatype] * count; datalen > 4 {
+		truncatedLen := uint64(lengths[datatype]) * uint64(truncatedCount)
 		// The IFD contains a pointer to the real value.
-		raw, err = safeReadAt(d.r, uint64(datalen), int64(d.byteOrder.Uint32(p[8:12])))
+		raw, err = safeReadAt(d.r, truncatedLen, int64(d.byteOrder.Uint32(p[8:12])))
 	} else {
 		raw = p[8 : 8+datalen]
 	}
@@ -140,18 +146,18 @@ func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
 		return nil, err
 	}
 
-	u = make([]uint, count)
+	u = make([]uint, truncatedCount)
 	switch datatype {
 	case dtByte:
-		for i := uint32(0); i < count; i++ {
+		for i := range u {
 			u[i] = uint(raw[i])
 		}
 	case dtShort:
-		for i := uint32(0); i < count; i++ {
+		for i := range u {
 			u[i] = uint(d.byteOrder.Uint16(raw[2*i : 2*(i+1)]))
 		}
 	case dtLong:
-		for i := uint32(0); i < count; i++ {
+		for i := range u {
 			u[i] = uint(d.byteOrder.Uint32(raw[4*i : 4*(i+1)]))
 		}
 	default:
@@ -160,10 +166,30 @@ func (d *decoder) ifdUint(p []byte) (u []uint, err error) {
 	return u, nil
 }
 
+// parseIFDOffsets parses an IFD entry stored in d.ifd using ifdUint.
+// For IFD entries which can be large, we delay reading and parsing the entry
+// until we know the image size, which lets us set reasonable bounds on the IFD entry.
+func (d *decoder) parseIFDOffsets(tag int, maxCount int) (u []uint, err error) {
+	p, ok := d.ifd[tag]
+	if !ok {
+		return nil, nil
+	}
+	return d.ifdUint(p[:], maxCount)
+}
+
 // parseIFD decides whether the IFD entry in p is "interesting" and
 // stows away the data in the decoder. It returns the tag number of the
 // entry and an error, if any.
 func (d *decoder) parseIFD(p []byte) (int, error) {
+	// smallEntryMaxCount is the limit to use for parsed IFD entries that
+	// don't scale with the image size.
+	//
+	// We could be more precise and limit the number of entries to exactly the
+	// correct limit (for example, tTileWidth should always have exactly one value),
+	// but 16 is small enough to prevent excessive allocation and large enough to
+	// allow for any multi-value entry.
+	const smallEntryMaxCount = 16
+
 	tag := d.byteOrder.Uint16(p[0:2])
 	switch tag {
 	case tBitsPerSample,
@@ -171,30 +197,36 @@ func (d *decoder) parseIFD(p []byte) (int, error) {
 		tPhotometricInterpretation,
 		tCompression,
 		tPredictor,
-		tStripOffsets,
-		tStripByteCounts,
 		tRowsPerStrip,
 		tTileWidth,
 		tTileLength,
-		tTileOffsets,
-		tTileByteCounts,
 		tImageLength,
 		tImageWidth,
 		tFillOrder,
 		tT4Options,
 		tT6Options:
-		val, err := d.ifdUint(p)
+		val, err := d.ifdUint(p, smallEntryMaxCount)
 		if err != nil {
 			return 0, err
 		}
 		d.features[int(tag)] = val
+	case tStripOffsets,
+		tStripByteCounts,
+		tTileOffsets,
+		tTileByteCounts:
+		// These keys may contain many values.
+		// Stash the IFD entry for later parsing.
+		var v [ifdLen]byte
+		copy(v[:], p)
+		d.ifd[int(tag)] = v
 	case tColorMap:
-		val, err := d.ifdUint(p)
+		const maxColors = 256
+		val, err := d.ifdUint(p, (3*maxColors)+1)
 		if err != nil {
 			return 0, err
 		}
 		numcolors := len(val) / 3
-		if len(val)%3 != 0 || numcolors <= 0 || numcolors > 256 {
+		if len(val)%3 != 0 || numcolors <= 0 || numcolors > maxColors {
 			return 0, FormatError("bad ColorMap length")
 		}
 		d.palette = make([]color.Color, numcolors)
@@ -211,7 +243,7 @@ func (d *decoder) parseIFD(p []byte) (int, error) {
 		// the value is not 1 [= unsigned integer data], a Baseline
 		// TIFF reader that cannot handle the SampleFormat value
 		// must terminate the import process gracefully.
-		val, err := d.ifdUint(p)
+		val, err := d.ifdUint(p, smallEntryMaxCount)
 		if err != nil {
 			return 0, err
 		}
@@ -458,6 +490,7 @@ func newDecoder(r io.Reader) (*decoder, error) {
 	d := &decoder{
 		r:        newReaderAt(r),
 		features: make(map[int][]uint),
+		ifd:      make(map[int][ifdLen]byte),
 	}
 
 	p := make([]byte, 8)
@@ -693,9 +726,14 @@ func Decode(r io.Reader) (img image.Image, err error) {
 			blocksDown = (d.config.Height + blockHeight - 1) / blockHeight
 		}
 
-		blockCounts = d.features[tTileByteCounts]
-		blockOffsets = d.features[tTileOffsets]
-
+		blockOffsets, err = d.parseIFDOffsets(tTileOffsets, blocksAcross*blocksDown)
+		if err != nil {
+			return nil, err
+		}
+		blockCounts, err = d.parseIFDOffsets(tTileByteCounts, blocksAcross*blocksDown)
+		if err != nil {
+			return nil, err
+		}
 	} else {
 
 		if v := d.firstVal(tRowsPerStrip); v > 0 && v < uint(blockHeight) {
@@ -708,8 +746,14 @@ func Decode(r io.Reader) (img image.Image, err error) {
 			blocksDown = (d.config.Height + blockHeight - 1) / blockHeight
 		}
 
-		blockOffsets = d.features[tStripOffsets]
-		blockCounts = d.features[tStripByteCounts]
+		blockOffsets, err = d.parseIFDOffsets(tStripOffsets, blocksDown)
+		if err != nil {
+			return nil, err
+		}
+		blockCounts, err = d.parseIFDOffsets(tStripByteCounts, blocksDown)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Check if we have the right number of strips/tiles, offsets and counts.
