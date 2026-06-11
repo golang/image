@@ -6,6 +6,7 @@ package tiff
 
 import (
 	"bytes"
+	"compress/bzip2"
 	"compress/zlib"
 	"encoding/binary"
 	"encoding/hex"
@@ -564,7 +565,7 @@ func appendIFD(b []byte, enc byteOrder, entries map[uint16]interface{}) []byte {
 				ifd = enc.AppendUint32(ifd, 0)
 			case 1:
 				ifd = enc.AppendUint16(ifd, v[0])
-				ifd = enc.AppendUint16(ifd, v[1])
+				ifd = enc.AppendUint16(ifd, 0)
 			default:
 				ifd = enc.AppendUint32(ifd, uint32(len(b)))
 				for _, e := range v {
@@ -767,4 +768,59 @@ func TestDecodeBlockDataSizeTooLarge(t *testing.T) {
 			t.Fatalf("Decode: got %v, want error containing %q", err, want)
 		}
 	})
+}
+
+func TestTiledPadding(t *testing.T) {
+	// This test uses a set of files with various color modes and bpp.
+	// Each contains a 15x15 image of a single black diagonal line on a white background,
+	// encoded with a tile size of 16x16.
+	//
+	// Verify that we correctly handle padding.
+	tests := []string{
+		"gray1",
+		"gray1-invert",
+		"gray8",
+		"gray8-invert",
+		"gray16",
+		"paletted1",
+		"paletted8",
+		"rgb8",
+		"rgb16",
+		"rgba8",
+		"rgba16",
+		"nrgba8",
+		"nrgba16",
+	}
+	for _, filename := range tests {
+		t.Run(filename, func(t *testing.T) {
+			f, err := os.Open("testdata/tiled-" + filename + ".tiff.bz2")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			img, _, err := image.Decode(bzip2.NewReader(f))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			const wantx, wanty = 15, 15
+			bounds := img.Bounds()
+			if bounds.Dx() != wantx || bounds.Dy() != wantx {
+				t.Fatalf("Wrong image size: %dx%d, want %dx%d", bounds.Dx(), bounds.Dy(), wantx, wanty)
+			}
+
+			for y := range bounds.Dy() {
+				for x := range bounds.Dx() {
+					gotr, gotg, gotb, gota := img.At(x, y).RGBA()
+					var wantr, wantg, wantb, wanta uint32 = 0xffff, 0xffff, 0xffff, 0xffff
+					if x == y {
+						wantr, wantg, wantb, wanta = 0, 0, 0, 0xffff
+					}
+					if gotr != wantr || gotg != wantg || gotb != wantb || gota != wanta {
+						t.Fatalf("(x=%d, y=%d): got RGBA (%v, %v, %v, %v) want (%v, %v, %v, %v)", x, y, gotr, gotg, gotb, gota, wantr, wantg, wantb, wanta)
+					}
+				}
+			}
+		})
+	}
 }
