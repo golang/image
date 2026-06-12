@@ -114,6 +114,17 @@ func (d *decoder) firstVal(tag int) uint {
 	return f[0]
 }
 
+// firstIntVal returns the first int of the features entry with the given tag,
+// or 0 if the tag does not exist.
+// If the tag overflows an int, it returns an error.
+func (d *decoder) firstIntVal(tag int) (int, error) {
+	v := d.firstVal(tag)
+	if v > math.MaxInt {
+		return 0, FormatError("IFD value too large")
+	}
+	return int(v), nil
+}
+
 // ifdUint decodes the IFD entry in p, which must be of the Byte, Short
 // or Long type, and returns the decoded uint values.
 //
@@ -536,8 +547,12 @@ func newDecoder(r io.Reader) (*decoder, error) {
 		prevTag = tag
 	}
 
-	d.config.Width = int(d.firstVal(tImageWidth))
-	d.config.Height = int(d.firstVal(tImageLength))
+	if d.config.Width, err = d.firstIntVal(tImageWidth); err != nil {
+		return nil, err
+	}
+	if d.config.Height, err = d.firstIntVal(tImageLength); err != nil {
+		return nil, err
+	}
 	if d.config.Width == 0 || d.config.Height == 0 {
 		return nil, FormatError("zero-size image")
 	}
@@ -683,11 +698,15 @@ func Decode(r io.Reader) (img image.Image, err error) {
 
 	var blockOffsets, blockCounts []uint
 
-	if int(d.firstVal(tTileWidth)) != 0 {
+	if d.firstVal(tTileWidth) != 0 {
 		blockPadding = true
 
-		blockWidth = int(d.firstVal(tTileWidth))
-		blockHeight = int(d.firstVal(tTileLength))
+		if blockWidth, err = d.firstIntVal(tTileWidth); err != nil {
+			return nil, err
+		}
+		if blockHeight, err = d.firstIntVal(tTileLength); err != nil {
+			return nil, err
+		}
 
 		// The specification says that tile widths and lengths must be a multiple of 16.
 		// We currently permit invalid sizes, but reject anything too small to limit the
