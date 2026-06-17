@@ -202,6 +202,16 @@ func decodeConfig(r io.Reader) (config image.Config, bitsPerPixel int, topDown b
 	if _, ok := safemath.Mul3(width, height, 4); !ok {
 		return image.Config{}, 0, false, false, ErrUnsupported
 	}
+	// Limit total pixel count to prevent excessive memory allocation on
+	// 64-bit platforms from attacker-controlled BMP header dimensions.
+	// safemath.Mul3 above only prevents integer overflow; on 64-bit systems
+	// a 16384x16384 image passes that check yet allocates 1 GB of memory.
+	// This limit is consistent with the TIFF decoder (CVE-2026-33809) and
+	// the VP8L decoder fix (golang.org/x/image PR #31).
+	const maxPixels = 1 << 27 // 128 megapixels; 512 MB at 4 bytes/pixel
+	if int64(width)*int64(height) > maxPixels {
+		return image.Config{}, 0, false, false, ErrUnsupported
+	}
 	// We only support 1 plane and 8, 24 or 32 bits per pixel and no
 	// compression.
 	planes, bpp, compression := readUint16(b[26:28]), readUint16(b[28:30]), readUint32(b[30:34])

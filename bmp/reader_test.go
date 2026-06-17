@@ -220,3 +220,32 @@ func (b bmpBuilder) Bytes() []byte {
 	binary.LittleEndian.PutUint32(buf[2:], uint32(len(buf))) // file size
 	return buf
 }
+
+// TestDecodeOversizedDimensions verifies that a crafted BMP file claiming
+// 16384x16384 pixels is rejected without allocating ~1 GB of memory.
+// This is a regression test for the incomplete fix in commit 38fd2207:
+// safemath.Mul3 only prevents integer overflow, but 16384*16384*4 =
+// 1,073,741,824 fits in int64 without overflow, so the check passes on
+// 64-bit platforms. The maxPixels guard blocks the allocation.
+func TestDecodeOversizedDimensions(t *testing.T) {
+	// 54-byte BMP claiming 16384x16384 @ 32bpp with pixel data past EOF.
+	// safemath.Mul3(16384, 16384, 4) = 1,073,741,824 → ok=true (no overflow).
+	// Without the maxPixels check, this triggers a 1 GB allocation on amd64.
+	payload := bmpBuilder{
+		width:        16384,
+		height:       16384,
+		planes:       1,
+		bitsPerPixel: 32,
+	}.Bytes()
+
+	_, err := Decode(bytes.NewReader(payload))
+	if err == nil {
+		t.Fatal("Decode: expected error for oversized BMP, got nil")
+	}
+
+	// Also verify DecodeConfig is rejected.
+	_, err = DecodeConfig(bytes.NewReader(payload))
+	if err == nil {
+		t.Fatal("DecodeConfig: expected error for oversized BMP, got nil")
+	}
+}
