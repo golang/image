@@ -6,9 +6,11 @@ package webp
 
 import (
 	"bytes"
+	"compress/bzip2"
 	"fmt"
 	"image"
 	"image/png"
+	"io"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -170,86 +172,123 @@ func TestDecodeVP8XAlpha(t *testing.T) {
 }
 
 func TestDecodeVP8L(t *testing.T) {
-	testCases := []string{
-		"blue-purple-pink",
-		"blue-purple-pink-large",
-		"gopher-doc.1bpp",
-		"gopher-doc.2bpp",
-		"gopher-doc.4bpp",
-		"gopher-doc.8bpp",
-		"gopher-doc.with-alpha",
-		"tux",
-		"yellow_rose",
+	testCases := []struct {
+		name    string
+		f0      string
+		f1      string
+		wantErr string
+	}{
+		{name: "blue-purple-pink"},
+		{name: "blue-purple-pink-large"},
+		{name: "gopher-doc.1bpp"},
+		{name: "gopher-doc.2bpp"},
+		{name: "gopher-doc.4bpp"},
+		{name: "gopher-doc.8bpp"},
+		{name: "gopher-doc.with-alpha"},
+		{name: "tux"},
+		{name: "yellow_rose"},
+		{
+			// VP8L image with unreferenced Huffman tree groups.
+			name: "remapped hgroups",
+			f0:   "gopher-doc.skip-hgroup.lossless.webp",
+			f1:   "gopher-doc.8bpp.png",
+		},
+		{
+			// This file contains an image referencing Huffman tree group 65535,
+			// and trivial entries for all the preceding groups.
+			//
+			// When we allocated all groups (inculding unused ones), decoding this
+			// image allocated ~170MiB.
+			//
+			// We now reject this image for using more than 2600 hGroups.
+			name:    "large VP8L huffman index",
+			f0:      "large-huffman-index.lossless.webp.bz2",
+			wantErr: "vp8l: too many Huffman trees",
+		},
 	}
 
-loop:
+	openFile := func(t *testing.T, test, name, suffix string) io.Reader {
+		t.Helper()
+		if name == "" {
+			name = test + suffix
+		}
+		f, err := os.Open("../testdata/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			f.Close()
+		})
+		if strings.HasSuffix(name, ".bz2") {
+			return bzip2.NewReader(f)
+		}
+		return f
+	}
+
 	for _, tc := range testCases {
-		f0, err := os.Open("../testdata/" + tc + ".lossless.webp")
-		if err != nil {
-			t.Errorf("%s: Open WEBP: %v", tc, err)
-			continue
-		}
-		defer f0.Close()
-		img0, err := Decode(f0)
-		if err != nil {
-			t.Errorf("%s: Decode WEBP: %v", tc, err)
-			continue
-		}
-		m0, ok := img0.(*image.NRGBA)
-		if !ok {
-			t.Errorf("%s: WEBP image is %T, want *image.NRGBA", tc, img0)
-			continue
-		}
-
-		f1, err := os.Open("../testdata/" + tc + ".png")
-		if err != nil {
-			t.Errorf("%s: Open PNG: %v", tc, err)
-			continue
-		}
-		defer f1.Close()
-		img1, err := png.Decode(f1)
-		if err != nil {
-			t.Errorf("%s: Decode PNG: %v", tc, err)
-			continue
-		}
-		m1, ok := img1.(*image.NRGBA)
-		if !ok {
-			rgba1, ok := img1.(*image.RGBA)
+		t.Run(tc.name, func(t *testing.T) {
+			f0 := openFile(t, tc.name, tc.f0, ".lossless.webp")
+			img0, err := Decode(f0)
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("Decode WEBP: succeded, want error %q", tc.wantErr)
+				}
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("Decode WEBP: error %q, want %q", err, tc.wantErr)
+				}
+				return
+			} else if err != nil {
+				t.Fatalf("Decode WEBP: error %q, want success", err)
+			}
+			m0, ok := img0.(*image.NRGBA)
 			if !ok {
-				t.Fatalf("%s: PNG image is %T, want *image.NRGBA", tc, img1)
-				continue
+				t.Fatalf("WEBP image is %T, want *image.NRGBA", img0)
 			}
-			if !rgba1.Opaque() {
-				t.Fatalf("%s: PNG image is non-opaque *image.RGBA, want *image.NRGBA", tc)
-				continue
-			}
-			// The image is fully opaque, so we can re-interpret the RGBA pixels
-			// as NRGBA pixels.
-			m1 = &image.NRGBA{
-				Pix:    rgba1.Pix,
-				Stride: rgba1.Stride,
-				Rect:   rgba1.Rect,
-			}
-		}
 
-		b0, b1 := m0.Bounds(), m1.Bounds()
-		if b0 != b1 {
-			t.Errorf("%s: bounds: got %v, want %v", tc, b0, b1)
-			continue
-		}
-		for i := range m0.Pix {
-			if m0.Pix[i] != m1.Pix[i] {
-				y := i / m0.Stride
-				x := (i - y*m0.Stride) / 4
-				i = 4 * (y*m0.Stride + x)
-				t.Errorf("%s: at (%d, %d):\ngot  %02x %02x %02x %02x\nwant %02x %02x %02x %02x",
-					tc, x, y,
-					m0.Pix[i+0], m0.Pix[i+1], m0.Pix[i+2], m0.Pix[i+3],
-					m1.Pix[i+0], m1.Pix[i+1], m1.Pix[i+2], m1.Pix[i+3],
-				)
-				continue loop
+			name1 := tc.f1
+			if name1 == "" {
+				name1 = tc.name + ".png"
 			}
-		}
+			f1 := openFile(t, tc.name, tc.f1, ".png")
+			img1, err := png.Decode(f1)
+			if err != nil {
+				t.Fatalf("Decode PNG: %v", err)
+			}
+			m1, ok := img1.(*image.NRGBA)
+			if !ok {
+				rgba1, ok := img1.(*image.RGBA)
+				if !ok {
+					t.Fatalf("PNG image is %T, want *image.NRGBA", img1)
+				}
+				if !rgba1.Opaque() {
+					t.Fatalf("PNG image is non-opaque *image.RGBA, want *image.NRGBA")
+				}
+				// The image is fully opaque, so we can re-interpret the RGBA pixels
+				// as NRGBA pixels.
+				m1 = &image.NRGBA{
+					Pix:    rgba1.Pix,
+					Stride: rgba1.Stride,
+					Rect:   rgba1.Rect,
+				}
+			}
+
+			b0, b1 := m0.Bounds(), m1.Bounds()
+			if b0 != b1 {
+				t.Fatalf("bounds: got %v, want %v", b0, b1)
+			}
+			for i := range m0.Pix {
+				if m0.Pix[i] != m1.Pix[i] {
+					y := i / m0.Stride
+					x := (i - y*m0.Stride) / 4
+					i = 4 * (y*m0.Stride + x)
+					t.Fatalf("at (%d, %d):\ngot  %02x %02x %02x %02x\nwant %02x %02x %02x %02x",
+						x, y,
+						m0.Pix[i+0], m0.Pix[i+1], m0.Pix[i+2], m0.Pix[i+3],
+						m1.Pix[i+0], m1.Pix[i+1], m1.Pix[i+2], m1.Pix[i+3],
+					)
+				}
+			}
+		})
 	}
 }
 
