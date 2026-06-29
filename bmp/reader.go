@@ -127,7 +127,7 @@ func decodeNRGBA(r io.Reader, c image.Config, topDown, allowAlpha bool) (image.I
 }
 
 // Decode reads a BMP image from r and returns it as an image.Image.
-// Limitation: The file must be 8, 24 or 32 bits per pixel.
+// Limitation: The file must be 1, 2, 4, 8, 24 or 32 bits per pixel.
 func Decode(r io.Reader) (image.Image, error) {
 	c, bpp, topDown, allowAlpha, err := decodeConfig(r)
 	if err != nil {
@@ -146,7 +146,7 @@ func Decode(r io.Reader) (image.Image, error) {
 
 // DecodeConfig returns the color model and dimensions of a BMP image without
 // decoding the entire image.
-// Limitation: The file must be 8, 24 or 32 bits per pixel.
+// Limitation: The file must be 1, 2, 4, 8, 24 or 32 bits per pixel.
 func DecodeConfig(r io.Reader) (image.Config, error) {
 	config, _, _, _, err := decodeConfig(r)
 	return config, err
