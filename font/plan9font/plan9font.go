@@ -5,6 +5,13 @@
 // Package plan9font implements font faces for the Plan 9 font and subfont file
 // formats. These formats are described at
 // https://9p.io/magic/man2html/6/font
+//
+// # Security Considerations
+//
+// This package is not hardened against malicious inputs.
+// Crashes, excessive CPU or memory consumption, or similar misbehavior
+// caused by malicious or corrupt inputs will be handled as ordinary bugs,
+// not vulnerabilities.
 package plan9font // import "golang.org/x/image/font/plan9font"
 
 import (
