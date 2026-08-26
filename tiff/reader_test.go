@@ -36,7 +36,11 @@ func load(name string) (image.Image, error) {
 		return nil, err
 	}
 	defer f.Close()
-	img, _, err := image.Decode(f)
+	var r io.Reader = f
+	if strings.HasSuffix(name, ".bz2") {
+		r = bzip2.NewReader(f)
+	}
+	img, _, err := image.Decode(r)
 	if err != nil {
 		return nil, err
 	}
@@ -425,6 +429,27 @@ func TestInvalidPaletteRef(t *testing.T) {
 	}
 	if _, err := Decode(bytes.NewReader(contents)); err == nil {
 		t.Fatal("Decode with invalid palette index: got nil error, want non-nil")
+	}
+}
+
+// TestLZWHiCodeOverflow tests decoding a 256x256 black image
+// which used to cause a panic due to the decoder's hi code overflowing the code table.
+func TestLZWHiCodeOverflow(t *testing.T) {
+	img, err := load("lzw-hi-overflow.tiff.bz2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, ok := img.(*image.Gray)
+	if !ok {
+		t.Fatalf("got %T, want *image.Gray", img)
+	}
+	if got, want := g.Bounds(), image.Rect(0, 0, 256, 256); got != want {
+		t.Fatalf("bounds: got %v, want %v", got, want)
+	}
+	for i, v := range g.Pix {
+		if v != 0 {
+			t.Fatalf("pixel %d: got %d, want 0", i, v)
+		}
 	}
 }
 
