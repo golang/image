@@ -198,6 +198,35 @@ func TestDecodeLZW(t *testing.T) {
 	compare(t, img0, img1)
 }
 
+// TestDecodeLZWTrailingData tests that a strip whose LZW-compressed data
+// ends one byte short of the EOI code still decodes.
+// Issue 81347.
+func TestDecodeLZWTrailingData(t *testing.T) {
+	b, err := ioutil.ReadFile(testdataDir + "blue-purple-pink.lzwcompressed.tiff")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The first strip's StripByteCounts entry is 4455 (0x1167), one byte more
+	// than its LZW stream needs to produce all of the strip's pixel data. Trim
+	// it by one so the stream ends right after the last pixel, before the EOI
+	// code.
+	b, err = replace(b, "67 11 00 00", "66 11 00 00")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	img0, err := load("blue-purple-pink.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	img1, err := Decode(bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, img0, img1)
+}
+
 // TestEOF tests that decoding a TIFF image returns io.ErrUnexpectedEOF
 // when there are no headers or data is empty
 func TestEOF(t *testing.T) {
