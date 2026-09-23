@@ -408,6 +408,38 @@ func TestVP8XAndVP8LDimensionMismatch(t *testing.T) {
 	}
 }
 
+func TestDecodeConfigColorModel(t *testing.T) {
+	for _, name := range []string{
+		"blue-purple-pink.lossless.webp",
+		"gopher-doc.with-alpha.lossless.webp",
+		"yellow_rose.lossless.webp",
+		"yellow_rose.lossy.webp",
+		"yellow_rose.lossy-with-alpha.webp",
+	} {
+		t.Run(name, func(t *testing.T) {
+			data, err := os.ReadFile("../testdata/" + name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := DecodeConfig(bytes.NewReader(data))
+			if err != nil {
+				t.Fatalf("DecodeConfig: %v", err)
+			}
+			m, err := Decode(bytes.NewReader(data))
+			if err != nil {
+				t.Fatalf("Decode: %v", err)
+			}
+			if cfg.ColorModel != m.ColorModel() {
+				t.Errorf("ColorModel: got %v, want %v", cfg.ColorModel, m.ColorModel())
+			}
+			if b := m.Bounds(); cfg.Width != b.Dx() || cfg.Height != b.Dy() {
+				t.Errorf("width x height: got %v x %v, want %v x %v",
+					cfg.Width, cfg.Height, b.Dx(), b.Dy())
+			}
+		})
+	}
+}
+
 func benchmarkDecode(b *testing.B, filename string) {
 	data, err := ioutil.ReadFile("../testdata/blue-purple-pink-large." + filename + ".webp")
 	if err != nil {

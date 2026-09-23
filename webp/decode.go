@@ -41,6 +41,7 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 		alphaStride    int
 		wantAlpha      bool
 		seenVP8X       bool
+		vp8xConfig     image.Config
 		widthMinusOne  uint32
 		heightMinusOne uint32
 		buf            [10]byte
@@ -48,6 +49,9 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 	for {
 		chunkID, chunkLen, chunkData, err := riffReader.Next()
 		if err == io.EOF {
+			if configOnly && seenVP8X {
+				return nil, vp8xConfig, nil
+			}
 			err = errInvalidFormat
 		}
 		if err != nil {
@@ -60,6 +64,10 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 				return nil, image.Config{}, errInvalidFormat
 			}
 			wantAlpha = false
+			if configOnly {
+				// An ALPH chunk only ever accompanies a VP8 chunk.
+				return nil, vp8xConfig, nil
+			}
 			// Read the Pre-processing | Filter | Compression byte.
 			if _, err := io.ReadFull(chunkData, buf[:1]); err != nil {
 				if err == io.EOF {
@@ -179,18 +187,21 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 				return nil, image.Config{}, errInvalidFormat
 			}
 			if configOnly {
-				if wantAlpha {
-					return nil, image.Config{
-						ColorModel: color.NYCbCrAModel,
-						Width:      int(widthMinusOne) + 1,
-						Height:     int(heightMinusOne) + 1,
-					}, nil
-				}
-				return nil, image.Config{
+				// Keep reading: the color model also depends on whether the
+				// image data chunk is VP8 or VP8L, and this is only a
+				// fallback for when there is no such chunk.
+				vp8xConfig = image.Config{
 					ColorModel: color.YCbCrModel,
 					Width:      int(widthMinusOne) + 1,
 					Height:     int(heightMinusOne) + 1,
-				}, nil
+				}
+				if wantAlpha {
+					vp8xConfig.ColorModel = color.NYCbCrAModel
+				}
+				if buf[0]&animationBit != 0 {
+					// An animated image has no top-level VP8 or VP8L chunk.
+					return nil, vp8xConfig, nil
+				}
 			}
 		}
 	}
