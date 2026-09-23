@@ -17,17 +17,30 @@ func clip8(i int32) uint8 {
 	return uint8(i)
 }
 
+// mul1 multiplies by 65536 * cos(pi/8) * sqrt(2), or 85627, and shifts right by
+// 16. The multiplication is split into 20091 + 65536 so that the intermediate
+// product fits in an int32: (a * 85627) overflows once a exceeds 25079, which a
+// crafted bitstream can produce, since dequantized coefficients are stored as an
+// int16 (see reconstruct.go). Splitting gives the same result as
+// (a * 85627) >> 16 whenever that does not overflow, and matches libwebp's
+// MUL1 in TransformOne.
+func mul1(a int32) int32 {
+	return ((a * 20091) >> 16) + a
+}
+
+// mul2 multiplies by 65536 * sin(pi/8) * sqrt(2), or 35468, and shifts right by
+// 16. It matches libwebp's MUL2 in TransformOne.
+func mul2(a int32) int32 {
+	return (a * 35468) >> 16
+}
+
 func (z *Decoder) inverseDCT4(y, x, coeffBase int) {
-	const (
-		c1 = 85627 // 65536 * cos(pi/8) * sqrt(2).
-		c2 = 35468 // 65536 * sin(pi/8) * sqrt(2).
-	)
 	var m [4][4]int32
 	for i := 0; i < 4; i++ {
 		a := int32(z.coeff[coeffBase+0]) + int32(z.coeff[coeffBase+8])
 		b := int32(z.coeff[coeffBase+0]) - int32(z.coeff[coeffBase+8])
-		c := (int32(z.coeff[coeffBase+4])*c2)>>16 - (int32(z.coeff[coeffBase+12])*c1)>>16
-		d := (int32(z.coeff[coeffBase+4])*c1)>>16 + (int32(z.coeff[coeffBase+12])*c2)>>16
+		c := mul2(int32(z.coeff[coeffBase+4])) - mul1(int32(z.coeff[coeffBase+12]))
+		d := mul1(int32(z.coeff[coeffBase+4])) + mul2(int32(z.coeff[coeffBase+12]))
 		m[i][0] = a + d
 		m[i][1] = b + c
 		m[i][2] = b - c
@@ -38,8 +51,8 @@ func (z *Decoder) inverseDCT4(y, x, coeffBase int) {
 		dc := m[0][j] + 4
 		a := dc + m[2][j]
 		b := dc - m[2][j]
-		c := (m[1][j]*c2)>>16 - (m[3][j]*c1)>>16
-		d := (m[1][j]*c1)>>16 + (m[3][j]*c2)>>16
+		c := mul2(m[1][j]) - mul1(m[3][j])
+		d := mul1(m[1][j]) + mul2(m[3][j])
 		z.ybr[y+j][x+0] = clip8(int32(z.ybr[y+j][x+0]) + (a+d)>>3)
 		z.ybr[y+j][x+1] = clip8(int32(z.ybr[y+j][x+1]) + (b+c)>>3)
 		z.ybr[y+j][x+2] = clip8(int32(z.ybr[y+j][x+2]) + (b-c)>>3)
