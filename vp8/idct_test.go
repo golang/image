@@ -6,12 +6,14 @@ package vp8
 
 import "testing"
 
-// TestInverseDCT4 checks inverseDCT4 for coefficients large enough that
-// multiplying by 65536 * cos(pi/8) * sqrt(2), or 85627, used to overflow an
-// int32. Dequantized coefficients are stored as an int16 (see reconstruct.go),
-// so a bitstream can hold any int16 value: an AC token value of 89 with a
-// dequantization factor of 284 gives 25276, above the 25079 at which the
-// product wraps.
+// TestInverseDCT4 checks inverseDCT4 for coefficients large enough that the
+// multiplications used to overflow an int32. Dequantized coefficients are stored
+// as an int16 (see reconstruct.go), so a bitstream can hold any int16 value: an
+// AC token value of 89 with a dequantization factor of 284 gives 25276, above
+// the 25079 at which multiplying by 85627 wraps.
+//
+// The second pass multiplies the first pass's results, which range up to about
+// 126000, so it overflows for smaller coefficients than the first pass does.
 //
 // The want values were computed with the same transform in int64 arithmetic.
 func TestInverseDCT4(t *testing.T) {
@@ -54,6 +56,18 @@ func TestInverseDCT4(t *testing.T) {
 			{0, 0, 0, 0},
 			{255, 255, 255, 255},
 			{255, 255, 255, 255},
+		},
+	}, {
+		// Two maximal coefficients in the second row make the first pass
+		// produce 75577, for which multiplying by 35468 in the second pass
+		// overflows: that wraps once its input exceeds 60548.
+		desc:  "overflow in the second pass",
+		coeff: map[int]int16{1: 32767, 5: 32767},
+		want: [4][4]uint8{
+			{255, 255, 0, 0},
+			{255, 255, 0, 0},
+			{255, 255, 0, 0},
+			{0, 0, 255, 255},
 		},
 	}}
 

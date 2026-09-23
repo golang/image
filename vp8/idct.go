@@ -17,21 +17,22 @@ func clip8(i int32) uint8 {
 	return uint8(i)
 }
 
-// mul1 multiplies by 65536 * cos(pi/8) * sqrt(2), or 85627, and shifts right by
-// 16. The multiplication is split into 20091 + 65536 so that the intermediate
-// product fits in an int32: (a * 85627) overflows once a exceeds 25079, which a
-// crafted bitstream can produce, since dequantized coefficients are stored as an
-// int16 (see reconstruct.go). Splitting gives the same result as
-// (a * 85627) >> 16 whenever that does not overflow, and matches libwebp's
-// MUL1 in TransformOne.
+// mul1 and mul2 multiply by 65536 * cos(pi/8) * sqrt(2), or 85627, and by
+// 65536 * sin(pi/8) * sqrt(2), or 35468, and shift right by 16.
+//
+// The multiplications widen to an int64 because the products do not always fit
+// in an int32. Dequantized coefficients are stored as an int16 (see
+// reconstruct.go), and a * 85627 overflows once a exceeds 25079: an AC token
+// value of 89 with a dequantization factor of 284 already gives 25276. The
+// first pass expands the range of its inputs by up to a factor of ~1.85, so the
+// second pass, which multiplies the first pass's results, can be given values of
+// around 126000.
 func mul1(a int32) int32 {
-	return ((a * 20091) >> 16) + a
+	return int32((int64(a) * 85627) >> 16)
 }
 
-// mul2 multiplies by 65536 * sin(pi/8) * sqrt(2), or 35468, and shifts right by
-// 16. It matches libwebp's MUL2 in TransformOne.
 func mul2(a int32) int32 {
-	return (a * 35468) >> 16
+	return int32((int64(a) * 35468) >> 16)
 }
 
 func (z *Decoder) inverseDCT4(y, x, coeffBase int) {
