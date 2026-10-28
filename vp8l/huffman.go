@@ -183,11 +183,22 @@ func (h *hTree) build(codeLengths []uint32) error {
 
 // buildSimple builds a Huffman tree with 1 or 2 symbols.
 func (h *hTree) buildSimple(nSymbols uint32, symbols [2]uint32, alphabetSize uint32) error {
-	h.nodes = make([]hNode, 1, 2*nSymbols-1)
 	for i := uint32(0); i < nSymbols; i++ {
 		if symbols[i] >= alphabetSize {
 			return errInvalidHuffmanTree
 		}
+	}
+	// Each symbol has a code length of 1, so the code is canonical:
+	// the smaller symbol gets code 0, and a repeated symbol is the only one.
+	if nSymbols == 2 {
+		if symbols[0] == symbols[1] {
+			nSymbols = 1
+		} else if symbols[0] > symbols[1] {
+			symbols[0], symbols[1] = symbols[1], symbols[0]
+		}
+	}
+	h.nodes = make([]hNode, 1, 2*nSymbols-1)
+	for i := uint32(0); i < nSymbols; i++ {
 		if err := h.insert(symbols[i], i, nSymbols-1); err != nil {
 			return err
 		}
