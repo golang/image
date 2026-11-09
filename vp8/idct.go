@@ -17,17 +17,31 @@ func clip8(i int32) uint8 {
 	return uint8(i)
 }
 
+// mul1 and mul2 multiply by 65536 * cos(pi/8) * sqrt(2), or 85627, and by
+// 65536 * sin(pi/8) * sqrt(2), or 35468, and shift right by 16.
+//
+// The multiplications widen to an int64 because the products do not always fit
+// in an int32. Dequantized coefficients are stored as an int16 (see
+// reconstruct.go), and a * 85627 overflows once a exceeds 25079: an AC token
+// value of 89 with a dequantization factor of 284 already gives 25276. The
+// first pass expands the range of its inputs by up to a factor of ~1.85, so the
+// second pass, which multiplies the first pass's results, can be given values of
+// around 126000.
+func mul1(a int32) int32 {
+	return int32((int64(a) * 85627) >> 16)
+}
+
+func mul2(a int32) int32 {
+	return int32((int64(a) * 35468) >> 16)
+}
+
 func (z *Decoder) inverseDCT4(y, x, coeffBase int) {
-	const (
-		c1 = 85627 // 65536 * cos(pi/8) * sqrt(2).
-		c2 = 35468 // 65536 * sin(pi/8) * sqrt(2).
-	)
 	var m [4][4]int32
 	for i := 0; i < 4; i++ {
 		a := int32(z.coeff[coeffBase+0]) + int32(z.coeff[coeffBase+8])
 		b := int32(z.coeff[coeffBase+0]) - int32(z.coeff[coeffBase+8])
-		c := (int32(z.coeff[coeffBase+4])*c2)>>16 - (int32(z.coeff[coeffBase+12])*c1)>>16
-		d := (int32(z.coeff[coeffBase+4])*c1)>>16 + (int32(z.coeff[coeffBase+12])*c2)>>16
+		c := mul2(int32(z.coeff[coeffBase+4])) - mul1(int32(z.coeff[coeffBase+12]))
+		d := mul1(int32(z.coeff[coeffBase+4])) + mul2(int32(z.coeff[coeffBase+12]))
 		m[i][0] = a + d
 		m[i][1] = b + c
 		m[i][2] = b - c
@@ -38,8 +52,8 @@ func (z *Decoder) inverseDCT4(y, x, coeffBase int) {
 		dc := m[0][j] + 4
 		a := dc + m[2][j]
 		b := dc - m[2][j]
-		c := (m[1][j]*c2)>>16 - (m[3][j]*c1)>>16
-		d := (m[1][j]*c1)>>16 + (m[3][j]*c2)>>16
+		c := mul2(m[1][j]) - mul1(m[3][j])
+		d := mul1(m[1][j]) + mul2(m[3][j])
 		z.ybr[y+j][x+0] = clip8(int32(z.ybr[y+j][x+0]) + (a+d)>>3)
 		z.ybr[y+j][x+1] = clip8(int32(z.ybr[y+j][x+1]) + (b+c)>>3)
 		z.ybr[y+j][x+2] = clip8(int32(z.ybr[y+j][x+2]) + (b-c)>>3)
