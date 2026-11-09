@@ -95,6 +95,11 @@ lookupTables:
 		switch lookupType := u16(buf); lookupType {
 		case 2: // PairPos table
 		case 9:
+			// Flags to check before updating subTableOffsets
+			if flags&0x0010 > 0 {
+				// useMarkFilteringSet enabled, skip as it is not supported
+				continue
+			}
 			// Extension Positioning table defines an additional u32 offset
 			// to allow subtables to exceed the 16-bit limit.
 			for i := range subTableOffsets {
@@ -111,11 +116,6 @@ lookupTables:
 				subTableOffsets[i] += int(u32(buf[4:]))
 			}
 		default: // other types are not supported
-			continue
-		}
-
-		if flags&0x0010 > 0 {
-			// useMarkFilteringSet enabled, skip as it is not supported
 			continue
 		}
 
