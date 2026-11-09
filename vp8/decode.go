@@ -199,6 +199,7 @@ func (d *Decoder) ensureImg() {
 	if d.img != nil {
 		p0, p1 := d.img.Rect.Min, d.img.Rect.Max
 		if p0.X == 0 && p0.Y == 0 && p1.X >= 16*d.mbw && p1.Y >= 16*d.mbh {
+			d.img.Rect = image.Rect(0, 0, d.frameHeader.Width, d.frameHeader.Height)
 			return
 		}
 	}
