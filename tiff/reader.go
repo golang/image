@@ -865,8 +865,15 @@ func Decode(r io.Reader) (img image.Image, err error) {
 				r := ccitt.NewReader(io.NewSectionReader(d.r, offset, n), order, ccitt.Group4, blkW, blkH, &ccitt.Options{Invert: inv, Align: false})
 				d.buf, err = readBuf(r, d.buf, blockMaxDataSize)
 			case cLZW:
+				lim := blockMaxDataSize
+				if samples := len(d.features[tBitsPerSample]); samples > 0 {
+					size := (int64(blkW)*int64(samples)*int64(d.bpp) + 7) / 8 * int64(blkH)
+					if size > 0 && size <= blockMaxDataSize {
+						lim = size
+					}
+				}
 				r := lzw.NewReader(io.NewSectionReader(d.r, offset, n), lzw.MSB, 8)
-				d.buf, err = readBuf(r, d.buf, blockMaxDataSize)
+				d.buf, err = readBuf(r, d.buf, lim)
 				r.Close()
 			case cDeflate, cDeflateOld:
 				var r io.ReadCloser
