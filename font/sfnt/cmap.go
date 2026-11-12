@@ -234,7 +234,7 @@ func (f *Font) makeCachedGlyphIndexFormat6(buf []byte, offset, length uint32) ([
 	}
 
 	return buf, func(f *Font, b *Buffer, r rune) (GlyphIndex, error) {
-		if uint16(r) < firstCode {
+		if uint32(r) > 0xffff || uint16(r) < firstCode {
 			return 0, nil
 		}
 
