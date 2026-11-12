@@ -571,6 +571,46 @@ func testGlyphIndex(t *testing.T, data []byte, cmapFormat int) {
 	}
 }
 
+func TestGlyphIndexFormat6(t *testing.T) {
+	// A cmap format 6 subtable that maps U+F600 to glyph 1.
+	data := []byte{
+		0x00, 0x06, // format
+		0x00, 0x0c, // length
+		0x00, 0x00, // language
+		0xf6, 0x00, // firstCode
+		0x00, 0x01, // entryCount
+		0x00, 0x01, // glyphIdArray
+	}
+	f := &Font{src: source{b: data}, cmap: table{0, uint32(len(data))}}
+	_, glyphIndex, err := f.makeCachedGlyphIndexFormat6(nil, 0, uint32(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testCases := []struct {
+		r    rune
+		want GlyphIndex
+	}{
+		{'\uf5ff', 0},
+		{'\uf600', 1},
+		{'\uf601', 0},
+		// Format 6 only supports the Basic Multilingual Plane (BMP), so these
+		// must not be truncated to U+F600.
+		{'\U0001f600', 0},
+		{'\U0010f600', 0},
+	}
+	for _, tc := range testCases {
+		got, err := glyphIndex(f, nil, tc.r)
+		if err != nil {
+			t.Errorf("r=%q: %v", tc.r, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("r=%q: got %d, want %d", tc.r, got, tc.want)
+		}
+	}
+}
+
 func TestPostScriptSegments(t *testing.T) {
 	// wants' vectors correspond 1-to-1 to what's in the CFFTest.sfd file,
 	// although OpenType/CFF and FontForge's SFD have reversed orders.
