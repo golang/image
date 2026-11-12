@@ -417,6 +417,16 @@ func (g *glyfIter) nextContour() (ok bool) {
 
 func (g *glyfIter) close() {
 	switch {
+	case !g.firstOnCurveValid:
+		// The contour is a single off-curve point. Start the contour there,
+		// and close it with a degenerate curve to the same point, as FreeType
+		// and HarfBuzz do.
+		g.firstOnCurve = g.firstOffCurve
+		g.firstOnCurveValid = true
+		g.seg = Segment{
+			Op:   SegmentOpMoveTo,
+			Args: [3]fixed.Point26_6{g.firstOnCurve},
+		}
 	case !g.firstOffCurveValid && !g.lastOffCurveValid:
 		g.closed = true
 		g.seg = Segment{
