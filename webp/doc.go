@@ -4,6 +4,9 @@
 
 // Package webp implements a decoder for WEBP images.
 //
+// Decode returns a static image or the first displayed frame of an animation.
+// DecodeAll returns every frame and its animation playback information.
+//
 // WEBP is defined at:
 // https://developers.google.com/speed/webp/docs/riff_container
 package webp // import "golang.org/x/image/webp"
