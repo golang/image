@@ -21,13 +21,17 @@ var errInvalidFormat = errors.New("webp: invalid format")
 
 var (
 	fccALPH = riff.FourCC{'A', 'L', 'P', 'H'}
+	fccANIM = riff.FourCC{'A', 'N', 'I', 'M'}
+	fccANMF = riff.FourCC{'A', 'N', 'M', 'F'}
 	fccVP8  = riff.FourCC{'V', 'P', '8', ' '}
 	fccVP8L = riff.FourCC{'V', 'P', '8', 'L'}
 	fccVP8X = riff.FourCC{'V', 'P', '8', 'X'}
 	fccWEBP = riff.FourCC{'W', 'E', 'B', 'P'}
 )
 
-func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
+// decode reads an image or its configuration. For animations, a non-nil
+// animation receives all frames instead of returning the first displayed frame.
+func decode(r io.Reader, configOnly bool, animation *Animation) (image.Image, image.Config, error) {
 	formType, riffReader, err := riff.NewReader(r)
 	if err != nil {
 		return nil, image.Config{}, err
@@ -179,6 +183,15 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 				return nil, image.Config{}, errInvalidFormat
 			}
 			if configOnly {
+				if buf[0]&animationBit != 0 {
+					// Decode composites animation frames onto an NRGBA canvas.
+					// Its background can be transparent even without alphaBit.
+					return nil, image.Config{
+						ColorModel: color.NRGBAModel,
+						Width:      int(w),
+						Height:     int(h),
+					}, nil
+				}
 				if wantAlpha {
 					return nil, image.Config{
 						ColorModel: color.NYCbCrAModel,
@@ -191,6 +204,18 @@ func decode(r io.Reader, configOnly bool) (image.Image, image.Config, error) {
 					Width:      int(widthMinusOne) + 1,
 					Height:     int(heightMinusOne) + 1,
 				}, nil
+			}
+			if buf[0]&animationBit != 0 {
+				a, err := decodeAnimation(riffReader, int(w), int(h), animation != nil)
+				if err != nil {
+					return nil, image.Config{}, err
+				}
+				if animation != nil {
+					*animation = *a
+					return nil, image.Config{}, nil
+				}
+				m, err := firstFrame(a)
+				return m, image.Config{}, err
 			}
 		}
 	}
@@ -300,8 +325,11 @@ func unfilterAlpha(alpha []byte, alphaStride int, filter byte) {
 }
 
 // Decode reads a WEBP image from r and returns it as an image.Image.
+// For an animated image, it returns the first frame composited onto the
+// animation's background, with the dimensions of the animation's canvas.
+// It does not decode subsequent frames. Use DecodeAll to read every frame.
 func Decode(r io.Reader) (image.Image, error) {
-	m, _, err := decode(r, false)
+	m, _, err := decode(r, false, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +339,7 @@ func Decode(r io.Reader) (image.Image, error) {
 // DecodeConfig returns the color model and dimensions of a WEBP image without
 // decoding the entire image.
 func DecodeConfig(r io.Reader) (image.Config, error) {
-	_, c, err := decode(r, true)
+	_, c, err := decode(r, true, nil)
 	return c, err
 }
 
