@@ -232,6 +232,34 @@ func TestBounds(t *testing.T) {
 	}
 }
 
+func TestMetricsOS2BelowVersion2(t *testing.T) {
+	f, err := Parse(goregular.TTF)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ppem := fixed.Int26_6(f.UnitsPerEm())
+	want, err := f.Metrics(nil, ppem, font.HintingNone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, version := range []byte{0, 1} {
+		data := append([]byte(nil), goregular.TTF...)
+		data[f.os2.offset] = 0
+		data[f.os2.offset+1] = version
+		old, err := Parse(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := old.Metrics(nil, ppem, font.HintingNone)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.XHeight != want.XHeight || got.CapHeight != want.CapHeight {
+			t.Errorf("OS/2 version %d: XHeight, CapHeight = %v, %v; want %v, %v", version, got.XHeight, got.CapHeight, want.XHeight, want.CapHeight)
+		}
+	}
+}
+
 func TestMetrics(t *testing.T) {
 	cmapFont, err := ioutil.ReadFile(filepath.FromSlash("../testdata/cmapTest.ttf"))
 	if err != nil {
