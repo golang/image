@@ -1217,7 +1217,9 @@ func (f *Font) glyphTopOS2(b *Buffer, ppem fixed.Int26_6, r rune) (int32, error)
 			}
 		}
 	}
-	return int32(min), nil
+	// Convert from the glyph coordinate system, where Y increases downward,
+	// to the upward height used by the OS/2 metrics.
+	return -int32(min), nil
 }
 
 func (f *Font) initOS2VersionBelow2() (xHeight, capHeight int32, err error) {
