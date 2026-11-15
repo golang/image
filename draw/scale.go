@@ -123,6 +123,14 @@ type Kernel struct {
 
 // Scale implements the Scaler interface.
 func (q *Kernel) Scale(dst Image, dr image.Rectangle, src image.Image, sr image.Rectangle, op Op, opts *Options) {
+	// A uniform source needs no kernel tables. Its bounds can be too large
+	// for newScaler, so take this shortcut before constructing the scaler.
+	if _, ok := src.(*image.Uniform); ok && (opts == nil || opts.DstMask == nil && opts.SrcMask == nil) && sr.In(src.Bounds()) {
+		if !sr.Empty() {
+			Draw(dst, dr, src, src.Bounds().Min, op)
+		}
+		return
+	}
 	q.newScaler(dr.Dx(), dr.Dy(), sr.Dx(), sr.Dy(), false).Scale(dst, dr, src, sr, op, opts)
 }
 
