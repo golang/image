@@ -679,7 +679,12 @@ func newDecoder(r io.Reader) (*decoder, error) {
 
 // DecodeConfig returns the color model and dimensions of a TIFF image without
 // decoding the entire image.
-func DecodeConfig(r io.Reader) (image.Config, error) {
+func DecodeConfig(r io.Reader) (config image.Config, err error) {
+	defer func() {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
+	}()
 	d, err := newDecoder(r)
 	if err != nil {
 		return image.Config{}, err
@@ -697,6 +702,11 @@ func ccittFillOrder(tiffFillOrder uint) ccitt.Order {
 // Decode reads a TIFF image from r and returns it as an image.Image.
 // The type of Image returned depends on the contents of the TIFF.
 func Decode(r io.Reader) (img image.Image, err error) {
+	defer func() {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
+	}()
 	d, err := newDecoder(r)
 	if err != nil {
 		return
