@@ -211,6 +211,34 @@ func TestEOF(t *testing.T) {
 	}
 }
 
+func TestTruncatedInput(t *testing.T) {
+	var encoded bytes.Buffer
+	if err := Encode(&encoded, image.NewGray(image.Rect(0, 0, 16, 16)), nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, decode := range []struct {
+		name string
+		fn   func(io.Reader) error
+	}{
+		{"Decode", func(r io.Reader) error { _, err := Decode(r); return err }},
+		{"DecodeConfig", func(r io.Reader) error { _, err := DecodeConfig(r); return err }},
+	} {
+		for _, readerAt := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/ReaderAt=%t", decode.name, readerAt), func(t *testing.T) {
+				for n := range encoded.Len() {
+					var r io.Reader = bytes.NewReader(encoded.Bytes()[:n])
+					if !readerAt {
+						r = struct{ io.Reader }{r}
+					}
+					if err := decode.fn(r); err == io.EOF {
+						t.Fatalf("prefix of length %d: got EOF, want a truncation error", n)
+					}
+				}
+			})
+		}
+	}
+}
+
 // TestDecodeCCITT tests that decoding a PNG image and a CCITT compressed TIFF
 // image result in the same pixel data.
 func TestDecodeCCITT(t *testing.T) {
