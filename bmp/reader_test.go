@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"image"
+	"image/color"
 	"io"
 	"os"
 	"testing"
@@ -117,6 +118,78 @@ func TestDecodeConstructed(t *testing.T) {
 		}.Bytes(),
 		wantErr: nil, // successful base case
 	}, {
+		name: "1x1 rgb with color table",
+		b: bmpBuilder{
+			width:        1,
+			height:       1,
+			planes:       1,
+			bitsPerPixel: 24,
+			colorsUsed:   1,
+			colorTable:   []colorTableEntry{{1, 2, 3}},
+			data:         []byte{0, 0, 0xff, 0},
+		}.Bytes(),
+		wantErr: nil,
+	}, {
+		name: "1x1 rgba with color table",
+		b: bmpBuilder{
+			width:        1,
+			height:       1,
+			planes:       1,
+			bitsPerPixel: 32,
+			colorsUsed:   1,
+			colorTable:   []colorTableEntry{{1, 2, 3}},
+			data:         []byte{0, 0, 0xff, 0xff},
+		}.Bytes(),
+		wantErr: nil,
+	}, {
+		name: "rgb with 256 color table entries",
+		b: bmpBuilder{
+			width:        1,
+			height:       1,
+			planes:       1,
+			bitsPerPixel: 24,
+			colorsUsed:   256,
+			colorTable:   make([]colorTableEntry, 256),
+			data:         []byte{0, 0, 0, 0},
+		}.Bytes(),
+		wantErr: nil, // the maximum allowed, and exactly fills the scratch buffer
+	}, {
+		name: "rgb with too many color table entries",
+		b: bmpBuilder{
+			width:        1,
+			height:       1,
+			planes:       1,
+			bitsPerPixel: 24,
+			colorsUsed:   257,
+			colorTable:   make([]colorTableEntry, 257),
+			data:         []byte{0, 0, 0, 0},
+		}.Bytes(),
+		wantErr: ErrUnsupported,
+	}, {
+		name: "rgb colorsUsed does not match data offset",
+		b: bmpBuilder{
+			width:        1,
+			height:       1,
+			planes:       1,
+			bitsPerPixel: 24,
+			colorsUsed:   2, // claims 2 entries, but only 1 is present
+			colorTable:   []colorTableEntry{{1, 2, 3}},
+			data:         []byte{0, 0, 0, 0},
+		}.Bytes(),
+		wantErr: ErrUnsupported,
+	}, {
+		name: "rgba colorsUsed does not match data offset",
+		b: bmpBuilder{
+			width:        1,
+			height:       1,
+			planes:       1,
+			bitsPerPixel: 32,
+			colorsUsed:   0, // claims no table, but one is present
+			colorTable:   []colorTableEntry{{1, 2, 3}},
+			data:         []byte{0, 0, 0, 0},
+		}.Bytes(),
+		wantErr: ErrUnsupported,
+	}, {
 		name: "invalid palette index",
 		b: bmpBuilder{
 			width:        1,
@@ -163,6 +236,79 @@ func TestDecodeConstructed(t *testing.T) {
 			continue
 		}
 		_ = img.At(0, 0) // try accessing a pixel
+	}
+}
+
+// TestDecodeColorTableIgnored tests that for 24 and 32 bits per pixel, the
+// optional color table is skipped rather than interpreted, so pixel data is
+// read from the right place.
+func TestDecodeColorTableIgnored(t *testing.T) {
+	want := color.RGBA{0xff, 0, 0, 0xff} // opaque red
+	for _, tc := range []struct {
+		name string
+		bpp  uint16
+		data []byte
+	}{
+		{"24bpp", 24, []byte{0, 0, 0xff, 0}},    // BGR + row padding
+		{"32bpp", 32, []byte{0, 0, 0xff, 0xff}}, // BGRA
+	} {
+		for _, withTable := range []bool{false, true} {
+			bb := bmpBuilder{
+				width:        1,
+				height:       1,
+				planes:       1,
+				bitsPerPixel: tc.bpp,
+				data:         tc.data,
+			}
+			if withTable {
+				bb.colorsUsed = 1
+				bb.colorTable = []colorTableEntry{{1, 2, 3}}
+			}
+			name := fmt.Sprintf("%s table=%v", tc.name, withTable)
+
+			cfg, err := DecodeConfig(bytes.NewReader(bb.Bytes()))
+			if err != nil {
+				t.Errorf("%s: DecodeConfig: %v", name, err)
+				continue
+			}
+			if cfg.Width != 1 || cfg.Height != 1 {
+				t.Errorf("%s: DecodeConfig size = %dx%d, want 1x1", name, cfg.Width, cfg.Height)
+			}
+
+			img, err := Decode(bytes.NewReader(bb.Bytes()))
+			if err != nil {
+				t.Errorf("%s: Decode: %v", name, err)
+				continue
+			}
+			if got := color.RGBAModel.Convert(img.At(0, 0)); got != want {
+				t.Errorf("%s: pixel = %v, want %v", name, got, want)
+			}
+		}
+	}
+}
+
+// TestTruncatedColorTable tests that a 24 or 32 bits per pixel image whose
+// color table is cut short returns an error instead of panicking.
+func TestTruncatedColorTable(t *testing.T) {
+	for _, bpp := range []uint16{24, 32} {
+		full := bmpBuilder{
+			width:        1,
+			height:       1,
+			planes:       1,
+			bitsPerPixel: bpp,
+			colorsUsed:   1,
+			colorTable:   []colorTableEntry{{1, 2, 3}},
+		}.Bytes() // no pixel data, so the file ends right after the table
+
+		for _, cut := range []int{2, 4} { // partial table, then no table at all
+			b := full[:len(full)-cut]
+			if _, err := Decode(bytes.NewReader(b)); err == nil {
+				t.Errorf("bpp=%d cut=%d: Decode succeeded, want error", bpp, cut)
+			}
+			if _, err := DecodeConfig(bytes.NewReader(b)); err == nil {
+				t.Errorf("bpp=%d cut=%d: DecodeConfig succeeded, want error", bpp, cut)
+			}
+		}
 	}
 }
 

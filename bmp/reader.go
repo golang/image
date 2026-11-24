@@ -239,15 +239,21 @@ func decodeConfig(r io.Reader) (config image.Config, bitsPerPixel int, topDown b
 			pcm[i] = color.RGBA{b[4*i+2], b[4*i+1], b[4*i+0], 0xFF}
 		}
 		return image.Config{ColorModel: pcm, Width: width, Height: height}, int(bpp), topDown, false, nil
-	case 24:
-		if offset != fileHeaderLen+infoLen {
+
+	case 24, 32:
+		colorUsed := readUint32(b[46:50])
+		if colorUsed > 256 {
 			return image.Config{}, 0, false, false, ErrUnsupported
 		}
-		return image.Config{ColorModel: color.RGBAModel, Width: width, Height: height}, 24, topDown, false, nil
-	case 32:
-		if offset != fileHeaderLen+infoLen {
+		if offset != fileHeaderLen+infoLen+colorUsed*4 {
 			return image.Config{}, 0, false, false, ErrUnsupported
 		}
+		if colorUsed > 0 {
+			if _, err := io.ReadFull(r, b[:colorUsed*4]); err != nil {
+				return image.Config{}, 0, false, false, err
+			}
+		}
+
 		// 32 bits per pixel is possibly RGBX (X is padding) or RGBA (A is
 		// alpha transparency). However, for BMP images, "Alpha is a
 		// poorly-documented and inconsistently-used feature" says
@@ -268,8 +274,8 @@ func decodeConfig(r io.Reader) (config image.Config, bitsPerPixel int, topDown b
 		// This Go package does not support ICO files and the (infoLen >
 		// infoHeaderLen) condition distinguishes BITMAPINFOHEADER (40 bytes)
 		// vs later (larger) headers.
-		allowAlpha = infoLen > infoHeaderLen
-		return image.Config{ColorModel: color.RGBAModel, Width: width, Height: height}, 32, topDown, allowAlpha, nil
+		allowAlpha = (bpp == 32) && (infoLen > infoHeaderLen)
+		return image.Config{ColorModel: color.RGBAModel, Width: width, Height: height}, int(bpp), topDown, allowAlpha, nil
 	}
 	return image.Config{}, 0, false, false, ErrUnsupported
 }
